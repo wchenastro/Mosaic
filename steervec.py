@@ -5,7 +5,7 @@ import numpy as np
 def waveNumber(altitude, azimuth, waveLength):
 
     '''different between spherical coordinate and horizontal coordinate system'''
-    altitude = 90 - altitude
+    # altitude = 90 - altitude
 
     u = np.array([np.sin(altitude)*np.cos(azimuth),
                np.sin(altitude)*np.sin(azimuth),
