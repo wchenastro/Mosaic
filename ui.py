@@ -100,6 +100,8 @@ class Cartesian(QWidget):
 
     painter = None
     dots = []
+    azimuth = 0
+    elevation = 0
 
 
     def paintEvent(self, event):
@@ -111,6 +113,12 @@ class Cartesian(QWidget):
         painter.drawRect(0, 0, 300, 300)
         painter.drawLine(0, 150, 300, 150)
         painter.drawLine(150, 300, 150, 0)
+        painter.drawEllipse(QPoint(300./2., 300./2.), 150., 150.)
+        painter.drawEllipse(QPoint(300./2., 300./2.),
+                (90.-self.elevation)/90.*150., (90.-self.elevation)/90.*150.)
+        # painter.drawPie(QRectF(0.0, 0.0, 300.0, 300.0), 0, -(self.azimuth-90)*16)
+        angleX, angleY = self.angleToCartesian(self.azimuth, 150)
+        painter.drawLine(150, 150, angleX, angleY)
 
         for dot in self.dots:
             painter.drawEllipse(dot[0], dot[1],3,3)
@@ -137,6 +145,23 @@ class Cartesian(QWidget):
         updateCountour()
         # updateBaselineList(observation.getBaselines())
 
+    def angleToCartesian(self, angleDeg, radius):
+        angle = np.deg2rad(angleDeg)
+        if angle < np.pi/2:
+            x = np.sin(angle)*radius + radius
+            y = radius - np.cos(angle)*radius
+        elif angle > np.pi/2 and angle < np.pi:
+            x = radius + np.sin(angle)*radius
+            y = radius - np.cos(angle)*radius
+        elif angle > np.pi and angle < np.pi*1.5:
+            x = radius + np.sin(angle)*radius
+            y = -np.cos(angle)*radius + radius
+        elif angle > np.pi*1.5 and angle < np.pi*2:
+            x = radius + np.sin(angle)*radius
+            y = radius - np.cos(angle)*radius
+
+        return x, y
+
     def clearDots(self):
         self.dots = []
         self.update()
@@ -146,10 +171,18 @@ class Cartesian(QWidget):
             self.dots.remove(dot)
         self.update()
 
+    def setAzAlt(self, horizontalCoord):
+        self.azimuth = horizontalCoord[0]
+        self.elevation = np.abs(horizontalCoord[1])
+        self.update()
+
 def updateHorizontal(horizontalCoord):
     if horizontalCoord == []: return
-    azimuthCoord.setText('{:6.4f}'.format(np.rad2deg(horizontalCoord[0])))
-    elevationCoord.setText('{:6.4f}'.format(np.rad2deg(horizontalCoord[1])))
+    azimuth = np.rad2deg(horizontalCoord[0])
+    elevation = np.rad2deg(horizontalCoord[1])
+    axis.setAzAlt([azimuth, elevation])
+    azimuthCoord.setText('{:6.4f}'.format(azimuth))
+    elevationCoord.setText('{:6.4f}'.format(elevation))
 
 def onBoreSightUpdated():
     updateCountour()
