@@ -59,7 +59,8 @@ def calculateLocalSiderealTime(TimeInUTC, longitude, displayHour=False):
     # print daysSinceJ2000
     '''http://www.stargazing.net/kepler/altaz.html'''
     LocalSiderealTime = 100.46 + 0.985647 * daysSinceJ2000 +longitude +\
-                    15.0*(TimeInUTC.hour+TimeInUTC.minute/60.0+TimeInUTC.second/3600.0)
+                    15.0*(TimeInUTC.hour + TimeInUTC.minute/60.0 +\
+                    TimeInUTC.second/3600.0 + TimeInUTC.microsecond/1000000.0/3600.0)
 
     LocalSiderealTime %= 360.0
 

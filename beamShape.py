@@ -48,7 +48,7 @@ def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, out
     beamFile.close()
 
     # plotBeamViaGnuplot('beam')
-    plotBeamContour('beam', "", outputFormat)
+    plotBeamContour('beam', len(weights), outputFormat)
 
     # with open('beam', 'w') as fringeFile:
         # fringeSum = [0]*len(beamCoordinates)
@@ -72,8 +72,9 @@ class primaryBeamPattern:
     def __init__(self, aperture, center):
         self.aperture = aperture
         self.center = center
+        self.normalization = self.normal(0, aperture, 0)
 
-    def beamPattern(self, mu, sigma, x):
+    def normal(self, mu, sigma, x):
 
         return np.exp(-(x-mu)**2/(2*sigma**2))/(sigma*np.sqrt(2*np.pi))
 
@@ -82,7 +83,9 @@ class primaryBeamPattern:
         distance = np.sqrt((offset[0] - self.center[0])**2
                 + (offset[1] - self.center[1])**2)
 
-        return self.beamPattern(0, self.aperture, distance)
+        normalFactor = self.normal(0, self.aperture, distance)
+
+        return normalFactor/self.normalization
 
 def plotFringesViaGnuplot(dataFile, blockNumber):
 
@@ -120,26 +123,27 @@ def plotBeamViaGnuplot(dataFile):
 
     os.system("gnuplot -e " + plotScript % (dataFile));
 
-def plotBeamContour(dataFile, text, outputFormat='png'):
+def plotBeamContour(dataFile, blockNumber, outputFormat='png'):
 
     plotScript="\"\
                 set encoding utf8;\
                 outputFormat='%s';\
-                set terminal outputFormat font ',9';\
+                set terminal outputFormat font ',17';\
                 set output 'contour.'.outputFormat;\
                 set print 'debuglog';\
                 set size ratio -1;\
-                set xlabel 'RA' font ',9';\
-                set ylabel 'DEC' font ',9';\
+                set xlabel 'RA' font ',11';\
+                set ylabel 'DEC' font ',11';\
                 dataFile='%s';\
                 stats dataFile using 1 name 'x' nooutput;\
                 stats dataFile using 2 name 'y' nooutput;\
                 tics = 0.003;\
-                set xtics x_min-tics, tics, x_max+tics;\
+                set xtics x_min-tics, tics, x_max+tics rotate by -60;\
                 set ytics y_min-tics, tics, y_max+tics;\
                 set dgrid3d 70,70 gauss 0.001;\
                 unset surface;\
                 set contour base;\
+                set cbrange [0:%s];\
                 set cntrlabel onecolor font ',4' start 15 interval -1;\
                 set cntrparam levels auto;\
                 set view map;\
@@ -147,14 +151,15 @@ def plotBeamContour(dataFile, text, outputFormat='png'):
                 set style textbox margins  0.3,  0.3 noborder;\
                 set style data lines;\
                 set multiplot;\
-                splot dataFile using 1:2:3 notitle with line lc rgb '#702e3f54';\
+                splot dataFile using 1:2:(abs(\$3)) notitle with line lc rgb '#702e3f54';\
                 unset pm3d;\
-                splot dataFile  using 1:2:3 notitle with labels center boxed offset 0,-0.25;\
+                unset xtics;\
+                splot dataFile  using 1:2:(abs(\$3)) notitle with labels center boxed offset 0,-0.25;\
                 unset multiplot;\
                 set output;\
                 \""
 
-    os.system("gnuplot -e " + plotScript % (outputFormat, dataFile));
+    os.system("gnuplot -e " + plotScript % (outputFormat, dataFile, blockNumber));
 
 def plotFringesContour(dataFile, blockNumber, text, segmentLength, outputFormat='png'):
 
