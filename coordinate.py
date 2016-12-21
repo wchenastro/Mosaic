@@ -16,6 +16,9 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
     altitude = np.arcsin(np.sin(latitude)*np.sin(DEC) + np.cos(latitude)*np.cos(DEC)*np.cos(LHA))
     azimuth = np.arccos((np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude)))
 
+    if np.sin(LHA[0]) > 0:
+        azimuth = np.pi*2 - azimuth
+
     return altitude, azimuth
 
 def getHourAngle(RA, LST):
