@@ -2,6 +2,7 @@
 from math import sqrt, pi, ceil
 import sys
 import random
+import numpy as np
 
 
 def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
@@ -58,6 +59,42 @@ def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     return inCircleCoordinates, subBeamRadius
 
+def randomGrid(beamNumber, beamRadius, subBeamRadius=None):
+
+    axisMin = 0.
+    axisMax = beamRadius*2
+
+    subBeamRadius = beamRadius**2 / beamNumber / 2.
+
+    coordinates =  np.random.uniform(axisMin, axisMax, (beamNumber, 2))
+
+
+    return coordinates, subBeamRadius
+
+def recGrid(beamNumber, beamRadius, subBeamRadius=None):
+    sideLength = 2*beamRadius
+    if subBeamRadius == None:
+        subBeamRadius = sqrt(sideLength*sideLength/beamNumber)/2.
+
+    gridDevide = int(sideLength/2/subBeamRadius)
+    if gridDevide % 2 == 0:
+        gridDevide +=1
+
+    coordinates = []
+
+    singleLine = [[0,0]]
+    for i in range((gridDevide - 1)/2):
+        singleLine.append([+(i+1)*2*subBeamRadius , 0])
+        singleLine.append([-(i+1)*2*subBeamRadius , 0])
+
+    coordinates += singleLine
+    for i in range((gridDevide - 1)/2):
+        coordinates += [[x, y+(i+1)*2*subBeamRadius] for x, y in singleLine]
+        coordinates += [[x, y-(i+1)*2*subBeamRadius] for x, y in singleLine]
+
+
+    return coordinates, subBeamRadius
+
 
 
 def squareGrid(beamNumber, beamRadius, subBeamRadius=None):
@@ -112,7 +149,7 @@ def optimizeGrid(beamNumber, beamRadius, beamPattern, boreSight = None):
         inCircleCoordinates, subBeamRadius = beamPattern(beamNumber, beamRadius, subBeamRadius*factor)
         inCircleCount = len(inCircleCoordinates)
         trialCount += 1
-        if trialCount > 150: break
+        if trialCount > 5: break
         # print inCircleCount, subBeamRadius
 
     if boreSight != None:

@@ -5,11 +5,13 @@ import numpy as np
 def waveNumber(altitude, azimuth, waveLength):
 
     '''different between spherical coordinate and horizontal coordinate system'''
-    # altitude = 90 - altitude
+    theta = np.pi/2. - altitude
+    phi = np.pi/2.- azimuth
+    # phi = azimuth
 
-    u = np.array([np.sin(altitude)*np.cos(azimuth),
-               np.sin(altitude)*np.sin(azimuth),
-               np.cos(altitude)])
+    u = np.array([np.sin(theta)*np.cos(phi),
+               np.sin(theta)*np.sin(phi),
+               np.cos(theta)])
 
     '''the nagetive sign indicates the direction(conjugate weight)'''
     waveNumbers = (-1) * u * 2 * np.pi / waveLength

@@ -4,97 +4,10 @@
 import sys, os
 import numpy as np
 
-
-import steervec as sv
-import coordinate as coord
-import beamShape as bs
-import createBeam as cb
-
-
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-class InterferometryObservation:
-    class Baseline:
-        def __init__(longitude1, altitude1, longitude2, altitude2):
-            self.longitude1 = longitude1
-            self.altitude1 = altitude1
-            self.longitude2 = longitude2
-            self.altitude2 = altitude2
-
-
-    def __init__(self, arrayRefereceGEODET, observeTime, waveLength):
-        self.arrayRefereceGEODET = arrayRefereceGEODET
-        self.observeTime = observeTime
-        self.waveLength = waveLength
-        self.baselines = []
-        self.boreSightHorizontal = []
-        self.lastBeamBoreSight = ()
-        self.beamCoordinates = []
-
-    def setObserveTime(self, dateTime):
-        self.observeTime = dateTime
-
-    def getBaselines(self):
-        return self.baselines
-
-    def getHorizontal(self):
-        return self.boreSightHorizontal
-
-    def createContour(self, antennacoor, beamBoreSight):
-
-        antennasCoordinateFile = 'antennacoor'
-        beamCoordinateFile = 'inCoord'
-
-
-        beamNumber = 400
-        beamSize = 1.22*self.waveLength/13.5
-
-        if self.lastBeamBoreSight != beamBoreSight:
-            # print('BoreSight Changed')
-            self.lastBeamBoreSight = beamBoreSight
-            beamCoordinates, subBeamRadius = cb.optimizeGrid(beamNumber, beamSize/2, cb.hexagonGrid, beamBoreSight)
-            self.beamCoordinates = np.array(beamCoordinates)
-
-        # beamCoordinates = coord.readCoordinates(beamCoordinateFile)
-        antCoordinatesGEODET = np.array(antennacoor)
-
-        antCoordinatesECEF = coord.convertGodeticToECEF(antCoordinatesGEODET)
-
-        arrayRefereceECEF = coord.convertGodeticToECEF([arrayRefereceGEODET])[0]
-        antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, arrayRefereceGEODET)
-
-        self.baselines = bs.createBaselines(antCoordinatesENU)
-
-        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
-
-        RA = np.deg2rad(self.beamCoordinates[:,0])
-        DEC = np.deg2rad(self.beamCoordinates[:,1])
-        LST = np.deg2rad(LSTDeg)
-        latitude = np.deg2rad(antCoordinatesGEODET[:,0])
-        longitude = np.deg2rad(antCoordinatesGEODET[:,1])
-        arrayRefereceLatitude = np.deg2rad(arrayRefereceGEODET[0])
-
-        altitude, azimuth = coord.convertEquatorialToHorizontal(
-                RA, DEC, LST, arrayRefereceLatitude)
-
-        self.boreSightHorizontal = (azimuth[0], altitude[0])
-
-        waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength)
-
-        weights = sv.weightVector(waveNumbers, self.baselines)
-
-        bs.fringePlot(self.beamCoordinates, weights, self.baselines, beamBoreSight, beamSize)
-
-def pixelCorrdinateConv(value, direction):
-    if direction == 'toCoord':
-        x = (value[0]/300.)*(21.431 - 21.391) + 21.391
-        y = ((300.0 - value[1])/300.)*(-30.701 - -30.741) + -30.741
-    elif direction == 'toPixel':
-        x = int(round((value[0] - 21.391)/(21.431 - 21.391)*300.))
-        y = 300.0 - int(round((value[1] - -30.741)/(-30.701 - -30.741)*300.))
-
-    return [x,y]
+from interferometer import InterferometryObservation
 
 class Cartesian(QWidget):
 
@@ -102,6 +15,27 @@ class Cartesian(QWidget):
     dots = []
     azimuth = 0
     elevation = 0
+    width = 300.
+    height = 300.
+    halfWidth = 150.
+    halfHeight = 150.
+    xStart = 21.391
+    xEnd = 21.431
+    yStart = -30.741
+    yEnd = -30.701
+
+    def pixelCoordinateConv(self, value, direction):
+        xRange = self.xEnd-self.xStart
+        yRange = self.yEnd-self.yStart
+        if direction == 'toCoord':
+            x = (value[0]/self.width)*xRange+self.xStart
+            y = ((self.height - value[1])/self.height)*yRange + self.yStart
+        elif direction == 'toPixel':
+            x = int(round((value[0] - self.xStart)/xRange*self.width))
+            y = self.height - int(round((value[1] - self.yStart)/yRange*self.height))
+
+        return [x,y]
+
 
 
     def paintEvent(self, event):
@@ -110,15 +44,18 @@ class Cartesian(QWidget):
         painter = QPainter()
         self.painter = painter
         painter.begin(self)
-        painter.drawRect(0, 0, 300, 300)
-        painter.drawLine(0, 150, 300, 150)
-        painter.drawLine(150, 300, 150, 0)
-        painter.drawEllipse(QPoint(300./2., 300./2.), 150., 150.)
-        painter.drawEllipse(QPoint(300./2., 300./2.),
-                (90.-self.elevation)/90.*150., (90.-self.elevation)/90.*150.)
-        # painter.drawPie(QRectF(0.0, 0.0, 300.0, 300.0), 0, -(self.azimuth-90)*16)
-        angleX, angleY = self.angleToCartesian(self.azimuth, 150)
-        painter.drawLine(150, 150, angleX, angleY)
+        painter.drawRect(0, 0, self.width, self.height)
+        '''centered horzontal line'''
+        painter.drawLine(0, self.halfHeight, self.width, self.halfHeight)
+        '''centered vertical line'''
+        painter.drawLine(self.halfWidth, self.height, self.halfWidth, 0)
+        painter.drawEllipse(QPoint(self.halfWidth, self.halfHeight),
+                self.halfWidth, self.halfHeight)
+        painter.drawEllipse(QPoint(self.halfWidth, self.halfHeight),
+                (90.-self.elevation)/90.*self.halfWidth,
+                (90.-self.elevation)/90.*self.halfHeight)
+        angleX, angleY = self.angleToCartesian(self.azimuth, self.halfWidth)
+        painter.drawLine(self.halfWidth, self.halfHeight, angleX, angleY)
 
         for dot in self.dots:
             painter.drawEllipse(dot[0], dot[1],3,3)
@@ -129,17 +66,19 @@ class Cartesian(QWidget):
         return QSize(301, 301)
 
     def mouseMoveEvent(self, event):
-        longitude, altitude = pixelCorrdinateConv((event.x(), event.y()), 'toCoord')
+        longitude, altitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
         longitudeCoord.setPlaceholderText('{:6.4f}'.format(longitude))
         altitudeCoord.setPlaceholderText('{:6.4f}'.format(altitude))
 
     def addDots(self, dots):
-        self.dots += dots
+        for longitude, altitude in dots:
+            dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
+            self.dots.append(dot)
         self.update()
 
     def mouseReleaseEvent(self, event):
         self.dots.append([event.x(), event.y()])
-        longitude, altitude = pixelCorrdinateConv((event.x(), event.y()), 'toCoord')
+        longitude, altitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
         addRowToCoordinateList(longitude, altitude)
         self.update()
         updateCountour()
@@ -167,7 +106,8 @@ class Cartesian(QWidget):
         self.update()
 
     def removeDots(self, dotsToRemove):
-        for dot in dotsToRemove:
+        for longitude, altitude in dotsToRemove:
+            dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
             self.dots.remove(dot)
         self.update()
 
@@ -185,8 +125,25 @@ def updateHorizontal(horizontalCoord):
     elevationCoord.setText('{:6.4f}'.format(elevation))
 
 def onBoreSightUpdated():
+    beamBoreSight = (float(RACoord.text()), float(DECCoord.text()))
+    observation.setBoreSight(beamBoreSight)
     updateCountour()
     updateHorizontal(observation.getHorizontal())
+
+def onBeamSizeChanged():
+    observation.setBeamSizeFactor(beamSizeEdit.value())
+    updateCountour()
+
+def onBeamNumberChanged():
+    observation.setBeamNumber(float(beamNumberEdit.text()))
+    updateCountour()
+
+def onInterpolateOptionChanged(state):
+    if state == Qt.Checked:
+        observation.setInterpolating(True)
+    else:
+        observation.setInterpolating(False)
+    updateCountour()
 
 def onDateTimeChanged(dateTime):
     observation.setObserveTime(dateTime.toPyDateTime())
@@ -219,12 +176,11 @@ def updateCountour():
     for row in range(rowCount):
         longitude = float(str(coordinateList.item(row, 0).text()))
         altitude = float(str(coordinateList.item(row, 1).text()))
-        coordinates.append([longitude,altitude, 0])
+        coordinates.append([longitude, altitude, 0])
 
-    beamBoreSight = (float(RACoord.text()), float(DECCoord.text()))
-    observation.createContour(coordinates, beamBoreSight)
+    observation.createContour(coordinates)
     pixmap = QPixmap(os.getcwd() + '/contour.png')
-    label.setPixmap(pixmap.scaledToHeight(pixmap.height()*0.7))
+    label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     updateBaselineList(observation.getBaselines())
     updateHorizontal(observation.getHorizontal())
 
@@ -238,8 +194,7 @@ def onClickedAddGeoButton():
     coordinateList.setItem(rowCount, 0, QTableWidgetItem(longitude))
     coordinateList.setItem(rowCount, 1, QTableWidgetItem(altitude))
     coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
-    dot = pixelCorrdinateConv((float(longitude), float(altitude)), 'toPixel')
-    axis.addDots([dot,])
+    axis.addDots([[float(longitude), float(altitude)],])
     updateCountour()
 
 def onClickedDelAllButton():
@@ -252,9 +207,8 @@ def onClickedAtCoordinateList(row, column):
     if column == 3:
         x = float(str(coordinateList.item(row, 0).text()))
         y = float(str(coordinateList.item(row, 1).text()))
-        pixels = pixelCorrdinateConv((x,y), 'toPixel')
         coordinateList.removeRow(row)
-        axis.removeDots([pixels,])
+        axis.removeDots([[x,y],])
         updateCountour()
 
 
@@ -283,14 +237,22 @@ def updateBaselineList(baselines):
 np.set_printoptions(precision=3)
 
 '''MeerKAT coordinates'''
-arrayRefereceGEODET = (-30.721, 21.411, 0)
+arrayRefereceGEODET = (21.411, -30.721, 0)
 '''observation time in UTC'''
 observationTime = QDateTime.currentDateTime().toPyDateTime()
 '''observation waveLength in meter'''
 waveLength = 0.21
 
+defaultBeamSizeFactor = 1
+defaultBeamNumber = 400
+defaultBoreSight = (21.411, -30.721)
+
 observation = InterferometryObservation(arrayRefereceGEODET,
         observationTime, waveLength)
+observation.setBeamSizeFactor(defaultBeamSizeFactor)
+observation.setBoreSight(defaultBoreSight)
+observation.setBeamNumber(defaultBeamNumber)
+observation.setInterpolating(True)
 
 a = QApplication(sys.argv)
 
@@ -338,6 +300,36 @@ dateTimeEdit.move(500, 340)
 dateTimeEdit.setDisplayFormat("dd.MM.yyyy hh:mm:ss.zzz")
 dateTimeEdit.setDateTime(QDateTime.currentDateTime())
 dateTimeEdit.dateTimeChanged.connect(onDateTimeChanged)
+dateTimeEdit.setWrapping(True)
+
+beamSizeLabel = QLabel(w)
+beamSizeLabel.setText('Zoom')
+beamSizeLabel.move(710, 320)
+beamSizeEdit = QSpinBox(w)
+beamSizeEdit.move(710, 340)
+beamSizeEdit.setValue(defaultBeamSizeFactor)
+beamSizeEdit.setMinimum(1)
+beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
+
+beamNumberLabel = QLabel(w)
+beamNumberLabel.setText('Beams')
+beamNumberLabel.move(760, 320)
+beamNumberEdit = QLineEdit(w)
+beamNumberEdit.move(760, 340)
+beamNumberEdit.resize(50,30)
+beamNumberEdit.setText(str(defaultBeamNumber))
+beamNumberEdit.editingFinished.connect(onBeamNumberChanged)
+
+interpolateLabel = QLabel(w)
+interpolateLabel.setText('INTL.')
+interpolateLabel.setToolTip('Interpolation')
+interpolateLabel.move(820, 320)
+interpolateCheckbox = QCheckBox(w)
+interpolateCheckbox.move(820, 345)
+interpolateCheckbox.setToolTip('Interpolation')
+interpolateCheckbox.setCheckState(Qt.Checked)
+interpolateCheckbox.stateChanged.connect(onInterpolateOptionChanged)
+
 
 RACoordLabel = QLabel(w)
 RACoordLabel.setText('RA')
@@ -350,12 +342,12 @@ DECCoordLabel.move(590, 380)
 RACoord = QLineEdit(w)
 RACoord.move(500, 400)
 RACoord.resize(80,30)
-RACoord.setText('21.411')
+RACoord.setText(str(defaultBoreSight[0]))
 RACoord.editingFinished.connect(onBoreSightUpdated)
 DECCoord = QLineEdit(w)
 DECCoord.resize(80,30)
 DECCoord.move(590, 400)
-DECCoord.setText('-30.721')
+DECCoord.setText(str(defaultBoreSight[1]))
 DECCoord.editingFinished.connect(onBoreSightUpdated)
 
 
@@ -384,7 +376,7 @@ coordinateList.setColumnCount(4)
 coordinateList.resize(480, 300)
 coordinateList.move(10, 460)
 coordinateList.setHorizontalHeaderItem(0, QTableWidgetItem('longitude'))
-coordinateList.setHorizontalHeaderItem(1, QTableWidgetItem('altitude'))
+coordinateList.setHorizontalHeaderItem(1, QTableWidgetItem('latitude'))
 coordinateList.setHorizontalHeaderItem(2, QTableWidgetItem(''))
 coordinateList.setHorizontalHeaderItem(3, QTableWidgetItem('delete'))
 coordinateList.cellClicked.connect(onClickedAtCoordinateList)

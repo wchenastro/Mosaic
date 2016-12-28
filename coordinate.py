@@ -16,8 +16,12 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
     altitude = np.arcsin(np.sin(latitude)*np.sin(DEC) + np.cos(latitude)*np.cos(DEC)*np.cos(LHA))
     azimuth = np.arccos((np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude)))
 
-    if np.sin(LHA[0]) > 0:
-        azimuth = np.pi*2 - azimuth
+    azimuthFix = []
+    for lha, azi in zip(LHA, azimuth):
+        if np.sin(lha) > 0.0:
+            azi = np.pi*2 - azi
+        azimuthFix.append(azi)
+    azimuth = np.array(azimuthFix)
 
     return altitude, azimuth
 
@@ -84,7 +88,7 @@ def convertGodeticToECEF(geodetics):
     '''http://itrf.ensg.ign.fr/faq.php?type=answer#question2'''
     grs80 = nv.FrameE(name='GRS80')
     ecefPoints = np.empty((0,3))
-    for lat, lon, height in geodetics:
+    for lon, lat, height in geodetics:
         geoPoint = grs80.GeoPoint(latitude=lat,
                 longitude=lon, z=-height, degrees=True)
         ecefPoint = geoPoint.to_ecef_vector().pvector.ravel()
@@ -95,12 +99,12 @@ def convertGodeticToECEF(geodetics):
 
 def convertECEFToENU(ECEF, ECEFReference, GeodeticReference):
     offset = ECEF - ECEFReference
-    lat = np.deg2rad(GeodeticReference[0])
-    lon = np.deg2rad(GeodeticReference[1])
+    lon = np.deg2rad(GeodeticReference[0])
+    lat = np.deg2rad(GeodeticReference[1])
     rotationMatrix = np.array([
             [-np.sin(lon),              np.cos(lon),                  0     ],
             [-np.sin(lat)*np.cos(lon), -np.sin(lat)*np.sin(lon), np.cos(lat)],
             [ np.cos(lat)*np.cos(lon),  np.cos(lat)*np.sin(lon), np.sin(lat)]])
 
-    return np.dot(offset, rotationMatrix)
+    return np.dot(offset, rotationMatrix.T)
 

@@ -16,7 +16,7 @@ def createBaselines(antCoordinatesENU):
 
     return baselines
 
-def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, outputFormat='png', allFringe=False):
+def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, interpolating=True, outputFormat='png', allFringe=False):
     beamPattern = primaryBeamPattern(beamAperture, boresight)
     fringeFile = open('fringes', 'w')
     beamFile = open('beam', 'w')
@@ -48,7 +48,10 @@ def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, out
     beamFile.close()
 
     # plotBeamViaGnuplot('beam')
-    plotBeamContour('beam', len(weights), outputFormat)
+    if interpolating == True:
+        plotBeamContour('beam', len(weights), outputFormat)
+    else:
+        plotBeamContourDot('beam', len(weights), outputFormat)
 
     # with open('beam', 'w') as fringeFile:
         # fringeSum = [0]*len(beamCoordinates)
@@ -87,59 +90,55 @@ class primaryBeamPattern:
 
         return normalFactor/self.normalization
 
-def plotFringesViaGnuplot(dataFile, blockNumber):
+
+def plotBeamContourDot(dataFile, blockNumber, outputFormat='png'):
 
     plotScript="\"\
                 set encoding utf8;\
-                set terminal pdf font ',15';\
-                set output 'fringes.pdf';\
-                set size ratio -1;\
-                set xlabel 'RA';\
-                set ylabel 'DEC';\
-                set cblabel 'phase' font ',19';\
-                set xtics rotate by -60;\
+                outputFormat='%s';\
+                set terminal outputFormat font ',7' size 430, 330;\
+                set output 'contour.'.outputFormat;\
+                set size ratio 1;\
+                set bmargin 5;\
+                set lmargin 3;\
+                set rmargin 0;\
+                set tmargin 2;\
+                set xlabel 'RA' font ',7' offset 0,1;\
+                set ylabel 'DEC' font ',7' offset 2;\
                 dataFile='%s';\
-                blknum=%s - 1;\
-                do for [i=0:blknum] { plot dataFile every :::i::i u 1:2:3 with points  pt 7 ps 1 lt palette notitle};\
+                stats dataFile every ::::0 using 1 name 'x' nooutput;\
+                stats dataFile every ::::0 using 2 name 'y' nooutput;\
+                boresightX = x_min;\
+                boresightY = y_min;\
+                set xtics rotate by -60;\
+                set cbrange [0:%s];\
+                plot dataFile using ((\$1)-boresightX):((\$2)-boresightY):(abs(\$3)) notitle with points palette pt 7 ps 0.7;\
                 set output;\
                 \""
 
-    os.system("gnuplot -e " + plotScript % (dataFile, blockNumber));
+    os.system("gnuplot -e " + plotScript % (outputFormat, dataFile, blockNumber));
 
-def plotBeamViaGnuplot(dataFile):
-
-    plotScript="\"\
-                set encoding utf8;\
-                set terminal pdf font ',15';\
-                set output 'beam.pdf';\
-                set size ratio -1;\
-                set xlabel 'RA';\
-                set ylabel 'DEC';\
-                set xtics rotate by -60;\
-                dataFile='%s';\
-                plot dataFile u 1:2:3 with points pt 7 ps 1 lt palette notitle;\
-                set output;\
-                \""
-
-    os.system("gnuplot -e " + plotScript % (dataFile));
 
 def plotBeamContour(dataFile, blockNumber, outputFormat='png'):
 
     plotScript="\"\
                 set encoding utf8;\
                 outputFormat='%s';\
-                set terminal outputFormat font ',17';\
+                set terminal outputFormat font ',7'  size 450, 350;\
                 set output 'contour.'.outputFormat;\
                 set print 'debuglog';\
-                set size ratio -1;\
-                set xlabel 'RA' font ',11';\
-                set ylabel 'DEC' font ',11';\
+                set size ratio 1;\
+                set bmargin 3;\
+                set lmargin 1;\
+                set rmargin 0;\
+                set tmargin 2;\
+                set xlabel 'RA' font ',7';\
+                set ylabel 'DEC' font ',7' offset 1;\
                 dataFile='%s';\
-                stats dataFile using 1 name 'x' nooutput;\
-                stats dataFile using 2 name 'y' nooutput;\
-                tics = 0.003;\
-                set xtics x_min-tics, tics, x_max+tics rotate by -60;\
-                set ytics y_min-tics, tics, y_max+tics;\
+                stats dataFile every ::::0 using 1 name 'x' nooutput;\
+                stats dataFile every ::::0 using 2 name 'y' nooutput;\
+                boresightX = x_min;\
+                boresightY = y_min;\
                 set dgrid3d 70,70 gauss 0.001;\
                 unset surface;\
                 set contour base;\
@@ -149,12 +148,15 @@ def plotBeamContour(dataFile, blockNumber, outputFormat='png'):
                 set view map;\
                 set pm3d;\
                 set style textbox margins  0.3,  0.3 noborder;\
-                set style data lines;\
+                set xtics rotate by -60;\
                 set multiplot;\
-                splot dataFile using 1:2:(abs(\$3)) notitle with line lc rgb '#702e3f54';\
+                splot dataFile using ((\$1)-boresightX):((\$2)-boresightY):(abs(\$3)) notitle with line lc rgb '#702e3f54';\
                 unset pm3d;\
                 unset xtics;\
-                splot dataFile  using 1:2:(abs(\$3)) notitle with labels center boxed offset 0,-0.25;\
+                unset ytics;\
+                unset xlabel;\
+                unset ylabel;\
+                splot dataFile  using ((\$1)-boresightX):((\$2)-boresightY):(abs(\$3)) notitle with labels center boxed offset 0,-0.25;\
                 unset multiplot;\
                 set output;\
                 \""
