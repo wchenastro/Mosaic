@@ -62,7 +62,7 @@ class InterferometryObservation:
     def updateBeamCoordinates(self):
         beamCoordinates, subBeamRadius = cb.optimizeGrid(
                 self.beamNumber, self.beamSize/self.beamSizeFactor/2.,
-                cb.recGrid, self.boreSight)
+                cb.recGrid, 50, self.boreSight)
         self.beamCoordinates = np.array(beamCoordinates)
 
     def createContour(self, antennacoor):

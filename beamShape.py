@@ -3,6 +3,8 @@
 import numpy as np
 import os
 
+import fitellipse
+
 
 def createBaselines(antCoordinatesENU):
     baselines = []
@@ -47,11 +49,21 @@ def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, int
 
     beamFile.close()
 
+    angle = 0;
+    axis1 = 0;
+    axis2 = 0;
+    if len(weights) >= 6:
+        try:
+            points = readMarginalPoints(len(weights)*0.4)
+            angle, axis1, axis2 = fitContour(points)
+        except Exception as e:
+            print(e)
+
     # plotBeamViaGnuplot('beam')
     if interpolating == True:
         plotBeamContour('beam', len(weights), outputFormat)
     else:
-        plotBeamContourDot('beam', len(weights), outputFormat)
+        plotBeamContourDot('beam', len(weights), outputFormat, angle, axis1, axis2)
 
     # with open('beam', 'w') as fringeFile:
         # fringeSum = [0]*len(beamCoordinates)
@@ -67,6 +79,34 @@ def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, int
             # fringeFile.write(' '.join([str(coord[0]), str(coord[1]), str(weight)]) + '\n')
 
     # plotBeamViaGnuplot('beam')
+
+
+def readMarginalPoints(margin):
+
+    offset = margin*0.1
+    marginPoints = []
+
+    with open('beam', 'r') as coordFile:
+        allPoints = np.loadtxt(coordFile)
+
+    with open('marginal', 'w') as marginalFile:
+        for point in allPoints:
+            if abs(point[2]  - margin) < offset:
+                marginPoints.append(point)
+                marginalFile.write(' '.join([str(point[0]), str(point[1]), str(point[2])]) + '\n')
+
+    return np.array(marginPoints)
+
+def fitContour(points):
+    xy = [points[:,0], points[:,1]]
+    ellipse = fitellipse.fitellipse(xy)
+    center = ellipse[0]
+    axis1 = ellipse[1]
+    axis2 = ellipse[2]
+    angle = np.rad2deg(ellipse[3])
+    # print(angle, axis1, axis2)
+
+    return angle, axis1, axis2
 
 
 
@@ -91,7 +131,7 @@ class primaryBeamPattern:
         return normalFactor/self.normalization
 
 
-def plotBeamContourDot(dataFile, blockNumber, outputFormat='png'):
+def plotBeamContourDot(dataFile, blockNumber, outputFormat, angle, axis1, axis2):
 
     plotScript="\"\
                 set encoding utf8;\
@@ -112,11 +152,16 @@ def plotBeamContourDot(dataFile, blockNumber, outputFormat='png'):
                 boresightY = y_min;\
                 set xtics rotate by -60;\
                 set cbrange [0:%s];\
-                plot dataFile using ((\$1)-boresightX):((\$2)-boresightY):(abs(\$3)) notitle with points palette pt 7 ps 0.7;\
+                axis1=%s;\
+                axis2=%s;\
+                if (axis1 != 0) {\
+                set object 1 ellipse at 0,0 size 2*axis1,2*axis2 angle %s;}\
+                plot dataFile using ((\$1)-boresightX):((\$2)-boresightY):(abs(\$3)) notitle with points palette pt 7 ps 0.7,\
+                'marginal' using ((\$1)-boresightX):((\$2)-boresightY) notitle with points pt 7 ps 0.7;\
                 set output;\
                 \""
 
-    os.system("gnuplot -e " + plotScript % (outputFormat, dataFile, blockNumber));
+    os.system("gnuplot -e " + plotScript % (outputFormat, dataFile, blockNumber, axis1, axis2, angle));
 
 
 def plotBeamContour(dataFile, blockNumber, outputFormat='png'):

@@ -76,19 +76,19 @@ def recGrid(beamNumber, beamRadius, subBeamRadius=None):
     if subBeamRadius == None:
         subBeamRadius = sqrt(sideLength*sideLength/beamNumber)/2.
 
-    gridDevide = int(sideLength/2/subBeamRadius)
-    if gridDevide % 2 == 0:
-        gridDevide +=1
+    gridDivider = int(sideLength/2/subBeamRadius)
+    if gridDivider % 2 == 0:
+        gridDivider +=1
 
     coordinates = []
 
     singleLine = [[0,0]]
-    for i in range((gridDevide - 1)/2):
+    for i in range((gridDivider - 1)/2):
         singleLine.append([+(i+1)*2*subBeamRadius , 0])
         singleLine.append([-(i+1)*2*subBeamRadius , 0])
 
     coordinates += singleLine
-    for i in range((gridDevide - 1)/2):
+    for i in range((gridDivider - 1)/2):
         coordinates += [[x, y+(i+1)*2*subBeamRadius] for x, y in singleLine]
         coordinates += [[x, y-(i+1)*2*subBeamRadius] for x, y in singleLine]
 
@@ -102,19 +102,19 @@ def squareGrid(beamNumber, beamRadius, subBeamRadius=None):
     if subBeamRadius == None:
         subBeamRadius = sqrt(sideLength*sideLength/beamNumber)/2.
 
-    gridDevide = int(sideLength/2/subBeamRadius)
-    if gridDevide % 2 == 0:
-        gridDevide +=1
+    gridDivider = int(sideLength/2/subBeamRadius)
+    if gridDivider % 2 == 0:
+        gridDivider +=1
 
     coordinates = []
 
     singleLine = [[0,0]]
-    for i in range((gridDevide - 1)/2):
+    for i in range((gridDivider - 1)/2):
         singleLine.append([+(i+1)*2*subBeamRadius , 0])
         singleLine.append([-(i+1)*2*subBeamRadius , 0])
 
     coordinates += singleLine
-    for i in range((gridDevide - 1)/2):
+    for i in range((gridDivider - 1)/2):
         coordinates += [[x, y+(i+1)*2*subBeamRadius] for x, y in singleLine]
         coordinates += [[x, y-(i+1)*2*subBeamRadius] for x, y in singleLine]
 
@@ -133,13 +133,13 @@ def squareGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     return inCircleCoordinates, subBeamRadius
 
-def optimizeGrid(beamNumber, beamRadius, beamPattern, boreSight = None):
+def optimizeGrid(beamNumber, beamRadius, beamPattern, error, boreSight = None):
 
     inCircleCoordinates, subBeamRadius = beamPattern(beamNumber, beamRadius)
 
     inCircleCount = len(inCircleCoordinates)
     trialCount = 0
-    while(abs( inCircleCount - beamNumber) > 3):
+    while(abs( inCircleCount - beamNumber) > error):
 
         if inCircleCount <= beamNumber:
             factor = random.uniform(0.8, 1.0)
@@ -149,8 +149,10 @@ def optimizeGrid(beamNumber, beamRadius, beamPattern, boreSight = None):
         inCircleCoordinates, subBeamRadius = beamPattern(beamNumber, beamRadius, subBeamRadius*factor)
         inCircleCount = len(inCircleCoordinates)
         trialCount += 1
-        if trialCount > 5: break
-        # print inCircleCount, subBeamRadius
+        if trialCount > 150:
+            print('maximum trials')
+            break
+        # print(inCircleCount, subBeamRadius)
 
     if boreSight != None:
         inCircleCoordinates = [[x + boreSight[0], y + boreSight[1]] for x, y in inCircleCoordinates]
