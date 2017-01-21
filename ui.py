@@ -8,6 +8,8 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from interferometer import InterferometryObservation
+from beamShape import fitEllipseBeam, plotPackedBeam, plotBeamFit
+from createBeam import ellipseGrid, ellipseCompact
 
 class Cartesian(QWidget):
 
@@ -157,6 +159,11 @@ def addRowToCoordinateList(longitude, altitude):
     coordinateList.setItem(rowCount, 1, QTableWidgetItem('{:6.4f}'.format(altitude)))
     coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
 
+def resetPackState():
+    onClickedPackButton2.newData = True
+    onClickedPackButton2.state = 0
+    onClickedPackButton2.fittedImage = None
+
 def updateCountour():
     # print('updateCountour')
 
@@ -183,6 +190,7 @@ def updateCountour():
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     updateBaselineList(observation.getBaselines())
     updateHorizontal(observation.getHorizontal())
+    resetPackState()
 
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
@@ -202,6 +210,85 @@ def onClickedDelAllButton():
     baselineList.setRowCount(0)
     label.setPixmap(blankImage)
     axis.clearDots()
+
+def onClickedPackButton():
+    if not hasattr(onClickedPackButton, "state"):
+        onClickedPackButton.state = 0
+
+
+    if onClickedPackButton.state == 1:
+        onClickedPackButton.state = 0
+        pixmap = QPixmap(os.getcwd() + '/contour.png')
+        label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
+        return
+
+    onClickedPackButton.state = 1
+    number = observation.getBaselinesNumber()
+    angle, axisH, axisV = fitEllipseBeam(number*0.4)
+    divider = float(packSizeEdit.value())
+    beamRadius = np.rad2deg(1.22*waveLength/13.5)/2/divider
+    coordinates = ellipseGrid(beamRadius, axisH, axisV, angle, write=False)
+    # plotPackedBeam('ellipsePack', np.rad2deg(angle), axisH, axisV, beamRadius, 'png')
+    plotPackedBeam(coordinates, np.rad2deg(angle), axisH, axisV, beamRadius, 'png')
+    pixmap = QPixmap(os.getcwd() + '/pack.png')
+    label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
+
+def onClickedPackButton2():
+    if not hasattr(onClickedPackButton2, "state"):
+        onClickedPackButton2.state = 0
+    if not hasattr(onClickedPackButton2, "fittedImage"):
+        onClickedPackButton2.fittedImage = None
+    if not hasattr(onClickedPackButton2, "newData"):
+        onClickedPackButton2.newData = True
+
+
+    if onClickedPackButton2.state == 1:
+        onClickedPackButton2.state = 0
+        fittedImage = onClickedPackButton2.fittedImage
+        if(fittedImage != None):
+            label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
+        else:
+            pixmap = QPixmap(os.getcwd() + '/contour.png')
+            label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
+        return
+
+    if  onClickedPackButton2.newData == False:
+        onClickedPackButton2.state = 1
+        pixmap = QPixmap(os.getcwd() + '/pack.png')
+        label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
+        return
+
+    number = observation.getBaselinesNumber()
+    amplitude = observation.getAmplitude()
+    coordinates = observation.getBeamCoordinates()
+    center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
+    plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
+    bottomImage = QImage(os.getcwd() + '/contour.png')
+    topImage = QImage(os.getcwd() + '/fit.png')
+    fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
+    onClickedPackButton2.fittedImage = fittedImage
+    label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
+    coordinates, beamRadius = ellipseCompact(400, axisH, axisV, angle, 10)
+    beamNumber = coordinates.shape[0]
+    beamArea = np.pi*axisH*axisV
+    primaryBeamArea = np.pi*(beamRadius**2)
+    ratio = beamNumber*beamArea/primaryBeamArea
+    print(beamRadius)
+    print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
+    plotPackedBeam(coordinates, np.rad2deg(angle), axisH, axisV, beamRadius)
+    pixmap = QPixmap(os.getcwd() + '/pack.png')
+    label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
+    onClickedPackButton2.state = 1
+    onClickedPackButton2.newData = False
+
+def overlayImage(bottom, top):
+    painter = QPainter()
+    painter.begin(bottom)
+    painter.drawImage(0, 0, top)
+    painter.end()
+
+    return bottom
+
 
 def onClickedAtCoordinateList(row, column):
     if column == 3:
@@ -243,14 +330,14 @@ observationTime = QDateTime.currentDateTime().toPyDateTime()
 '''observation waveLength in meter'''
 waveLength = 0.21
 
-defaultBeamSizeFactor = 1
+defaultBeamSizeFactor = 90
 defaultBeamNumber = 400
 defaultBoreSight = (21.411, -30.721)
 
 observation = InterferometryObservation(arrayRefereceGEODET,
         observationTime, waveLength)
-observation.setBeamSizeFactor(defaultBeamSizeFactor)
 observation.setBoreSight(defaultBoreSight)
+observation.setBeamSizeFactor(defaultBeamSizeFactor)
 observation.setBeamNumber(defaultBeamNumber)
 observation.setInterpolating(True)
 
@@ -286,9 +373,23 @@ addGeoButton = QPushButton('Add', w)
 addGeoButton.clicked.connect(onClickedAddGeoButton)
 addGeoButton.move(200, 400)
 
-addGeoButton = QPushButton('Delete All', w)
-addGeoButton.clicked.connect(onClickedDelAllButton)
-addGeoButton.move(320, 400)
+DeleteAllButton = QPushButton('Delete All', w)
+DeleteAllButton.clicked.connect(onClickedDelAllButton)
+DeleteAllButton.move(300, 400)
+
+PackButton = QPushButton('Pack', w)
+PackButton.clicked.connect(onClickedPackButton2)
+PackButton.resize(50, 30)
+PackButton.move(400, 400)
+
+packSizeLabel = QLabel(w)
+packSizeLabel.setText('Div')
+packSizeLabel.move(450, 380)
+packSizeEdit = QSpinBox(w)
+packSizeEdit.move(450, 400)
+packSizeEdit.setValue(1)
+packSizeEdit.setMinimum(1)
+# packSizeEdit.valueChanged.connect(onPackSizeChanged)
 
 
 

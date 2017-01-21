@@ -59,6 +59,133 @@ def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     return inCircleCoordinates, subBeamRadius
 
+
+def ellipseCompact(beamNumber, axisH, axisV, angle, error, write=False):
+
+
+    area = beamNumber*np.pi*axisH*axisV
+    beamRadius = np.sqrt(area/np.pi)*1.
+
+    inCircleCoordinates = ellipseGrid(beamRadius, axisH, axisV, angle, write=False)
+
+    inCircleCount = inCircleCoordinates.shape[1]
+    trialCount = 0
+    while(abs( inCircleCount - beamNumber) > error):
+
+        if inCircleCount <= beamNumber:
+            factor = random.uniform(1.0, 1.1)
+        else:
+            factor = random.uniform(0.9, 1.0)
+        beamRadius = beamRadius*factor
+        inCircleCoordinates = ellipseGrid(beamRadius, axisH, axisV, angle)
+        inCircleCount = inCircleCoordinates.shape[1]
+        trialCount += 1
+        if trialCount > 150:
+            print('maximum trials')
+            break
+        # print(inCircleCount, subBeamRadius)
+
+
+    # print inCircleCount
+    if(write==True):
+        with open('ellipsePack', 'w') as inCoordFile:
+            for x, y in inCircleCoordinates.T:
+                inCoordFile.write(' '.join([str(x), str(y)]) + '\n')
+
+    return inCircleCoordinates.T, beamRadius
+
+
+
+def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
+    sideLength = beamRadius*2
+
+    horizontalNumber = int(ceil(sideLength/(2*axisH)))
+    verticalOffset = axisV * sqrt(3) * 0.5
+    verticalNumber = int(ceil(sideLength/(2*verticalOffset)))
+
+
+
+    if horizontalNumber % 2 == 0:
+        horizontalNumber += 1
+    if verticalNumber % 2 == 0:
+        verticalNumber += 1
+
+    coordinates = []
+    evenLine = True
+
+    oddLine = []
+    evenLine = []
+
+    # print 'horizon number', horizontalNumber
+
+    oddLine.append([0,0])
+    for i in range((horizontalNumber - 1)/2):
+        oddLine.append([+(i+1)*2*axisH , 0])
+        oddLine.append([-(i+1)*2*axisH , 0])
+    for i in range((horizontalNumber - 1)/2):
+        evenLine.append([+axisH + i*2*axisH , 0])
+        evenLine.append([-axisH - i*2*axisH , 0])
+
+    coordinates += oddLine
+    twoLines = [evenLine, oddLine]
+    lineType = 0
+    # verticalOffset = subBeamRadius * sqrt(3) * 0.5
+    maxAxis = axisH if axisH > axisV else axisV
+    if maxAxis > beamRadius * 0.7:
+        for i in range((verticalNumber - 1)/2):
+            coordinates += [[x, y+(i+1)*2*verticalOffset] for x, y in oddLine]
+            coordinates += [[x, y-(i+1)*2*verticalOffset] for x, y in oddLine]
+    else:
+        for i in range((verticalNumber - 1)/2):
+            coordinates += [[x, y+(i+1)*2*verticalOffset] for x, y in twoLines[lineType]]
+            coordinates += [[x, y-(i+1)*2*verticalOffset] for x, y in twoLines[lineType]]
+            lineType = abs(lineType - 1)
+
+
+    # with open('coord', 'w') as coordFile:
+        # for x, y in coordinates:
+            # coordFile.write(' '.join([str(x), str(y)]) + '\n')
+
+    # from sympy import Ellipse, Circle, Point
+
+    # from scipy.optimize import fsolve
+
+
+    inCircleCoordinates = []
+    counter = 0
+    # primaryBeam = Circle(Point(0,0), beamRadius)
+    # def makeFuns(x0, y0):
+        # def funs(p):
+            # x,y = p
+            # return (x**2 + y**2 - beamRadius**2, (x-x0)**2/axisH**2 + (y-y0)**2/axisV**2 - 1)
+        # return funs
+    for x0, y0 in coordinates:
+        if (x0**2 + y0**2) >= beamRadius*beamRadius: continue
+        inCircleCoordinates.append([x0,y0])
+        # result = fsolve(makeFuns(x0, y0), (1,1), full_output=True)
+        # print(result[2], x0,y0)
+        # if result[2] > 2:
+            # print(result[3])
+            # inCircleCoordinates.append([x0,y0])
+        # ellipse = Ellipse(Point(x,y), axisH, axisV)
+        # if len(Ellipse(Point(x,y), axisH, axisV).intersection(primaryBeam)) == 0:
+        # print(x,y)
+        # print(counter)
+
+
+    rotationMatrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+    inCircleCoordinatesRotated = np.dot(np.array(rotationMatrix), np.array(inCircleCoordinates).T)
+    if write == True:
+        with open('ellipsePack', 'w') as coordFile:
+            for x, y in inCircleCoordinatesRotated.T:
+                coordFile.write(' '.join([str(x), str(y)]) + '\n')
+
+
+
+    # print inCircleCoordinatesRotated.shape
+    return inCircleCoordinatesRotated
+
+
 def randomGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     axisMin = 0.

@@ -16,12 +16,14 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
     altitude = np.arcsin(np.sin(latitude)*np.sin(DEC) + np.cos(latitude)*np.cos(DEC)*np.cos(LHA))
     azimuth = np.arccos((np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude)))
 
-    azimuthFix = []
-    for lha, azi in zip(LHA, azimuth):
-        if np.sin(lha) > 0.0:
-            azi = np.pi*2 - azi
-        azimuthFix.append(azi)
-    azimuth = np.array(azimuthFix)
+    # azimuthFix = []
+    # for lha, azi in zip(LHA, azimuth):
+        # if np.sin(lha) > 0.0:
+            # azi = np.pi*2 - azi
+        # azimuthFix.append(azi)
+    # azimuth = np.array(azimuthFix)
+    mask = np.sin(LHA) > 0.0
+    azimuth[mask] = np.pi*2 - azimuth[mask]
 
     return altitude, azimuth
 

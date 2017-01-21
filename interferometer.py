@@ -29,6 +29,7 @@ class InterferometryObservation:
         self.beamNumber = 400
         self.beamSize = 1.22*self.waveLength/13.5
         self.interpolating = True
+        self.amplitude = []
 
     def setInterpolating(self, state):
         if state == True:
@@ -52,6 +53,18 @@ class InterferometryObservation:
     def getBaselines(self):
         return self.baselines
 
+    def getAmplitude(self):
+        return self.amplitude
+
+    def getBeamCoordinates(self):
+        return self.beamCoordinates
+
+    def getBaselinesNumber(self):
+        return len(self.baselines)
+
+    def getsynthesizedBeam(self):
+        return self.beamSynthesized
+
     def setBoreSight(self, beamBoreSight):
         self.boreSight = beamBoreSight
         self.updateBeamCoordinates()
@@ -61,7 +74,7 @@ class InterferometryObservation:
 
     def updateBeamCoordinates(self):
         beamCoordinates, subBeamRadius = cb.optimizeGrid(
-                self.beamNumber, self.beamSize/self.beamSizeFactor/2.,
+                self.beamNumber, np.rad2deg(self.beamSize/self.beamSizeFactor)/2.,
                 cb.recGrid, 50, self.boreSight)
         self.beamCoordinates = np.array(beamCoordinates)
 
@@ -98,5 +111,4 @@ class InterferometryObservation:
 
         weights = sv.weightVector(waveNumbers, self.baselines)
 
-        bs.fringePlot(self.beamCoordinates, weights, self.baselines, self.boreSight, self.beamSize, self.interpolating)
-
+        self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines, self.boreSight, np.rad2deg(self.beamSize), self.interpolating)
