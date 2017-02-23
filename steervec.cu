@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <math_constants.h>
+#include <vector_types.h>
 //#include <cuComplex.h>
 
 //#define speedOfLight 299792458
@@ -72,6 +73,33 @@ __global__ void weightMatrix(double* weights, double* matrixLeft, double* matrix
     return;
 }
 
+
+__global__ void weightMatrix8BitsScaled(char2* weights, double* matrixLeft, double* matrixRight,
+        int matrixLeftWidth, int matrixRightWidth, int freqChannels, float scale) {
+
+    double vectorSum = 0.0;
+    int cursor = 0;
+    double2 complexNumber;
+
+    volatile int matrixLeftRowIdx = blockIdx.x;
+    volatile int matrixRightColIdx = threadIdx.x;
+    volatile int subMatrixRightStarter = blockIdx.y * matrixLeftWidth * matrixRightWidth;
+    volatile int matrixLeftRowStarter = matrixLeftRowIdx * matrixLeftWidth;
+
+    for(cursor = 0; cursor < matrixLeftWidth; cursor++){
+        vectorSum += matrixLeft[matrixLeftRowStarter + cursor] *
+            matrixRight[subMatrixRightStarter +
+            matrixRightWidth * cursor + matrixRightColIdx];
+    }
+    sincos(-vectorSum, &complexNumber.y, &complexNumber.x);
+    volatile double absolteWeight = sqrt(pow(complexNumber.x, 2) + pow(complexNumber.y, 2));
+    volatile unsigned int weightsIndex = blockIdx.y * gridDim.x * matrixRightWidth +
+        matrixLeftRowIdx * matrixRightWidth + matrixRightColIdx;
+    weights[weightsIndex].x = (int8_t) scale * (complexNumber.x / absolteWeight);;
+    weights[weightsIndex].y = (int8_t) scale * (complexNumber.y / absolteWeight);;
+
+    return;
+}
 
 int createFrequencies(double* frequencies, double centralFreq, int channels, double bandwidth) {
     int i;
@@ -156,7 +184,7 @@ int writeWeigts(const char * fileName, double * weights,
     return 0;
 }
 
-int writeWeigts8Bits(const char * fileName, int8_t * weights,
+int writeWeigts8Bits(const char * fileName, char2 * weights,
         int antennaNumber, int beamNumber, int freqChannels) {
 
     int ant, beam, channel;
@@ -166,13 +194,13 @@ int writeWeigts8Bits(const char * fileName, int8_t * weights,
     FILE* fp = fopen(fileName, "w");
 
     for(channel=0;channel<freqChannels;channel++) {
-        channelStarter  = channel*antennaNumber*beamNumber*2;
+        channelStarter  = channel*antennaNumber*beamNumber;
         for(ant=0;ant<antennaNumber;ant++) {
-            beamStarter  = ant*beamNumber*2;
+            beamStarter  = ant*beamNumber;
             for(beam=0;beam<beamNumber;beam++) {
                 fprintf(fp, "%d %d ",
-                        weights[channelStarter + beamStarter + beam*2],
-                        weights[channelStarter + beamStarter + beam*2 + 1]);
+                        weights[channelStarter + beamStarter + beam].x,
+                        weights[channelStarter + beamStarter + beam].y);
             }
             fprintf(fp, "\n");
         }
@@ -251,10 +279,10 @@ int main(void) {
     double antennaPosition[antennaNumber*3];
     //double waveNumbers[beamNumber*3*freqChannels];
     //double weights[freqChannels*beamNumber*2*antennaNumber];
-    long weightsSize = freqChannels*beamNumber*2*antennaNumber*sizeof(double);
-    long weightsSize8Bits = freqChannels*beamNumber*2*antennaNumber*sizeof(int8_t);
-    double* weights = (double* ) malloc(weightsSize);
-    int8_t* weights8Bits = (int8_t* ) malloc(weightsSize8Bits);
+    //long weightsSize = freqChannels*beamNumber*2*antennaNumber*sizeof(double);
+    long weightsSize8Bits = freqChannels*beamNumber*antennaNumber*sizeof(char2);
+    //double* weights = (double* ) malloc(weightsSize);
+    char2* weights8Bits = (char2* ) malloc(weightsSize8Bits);
     readBeamPosition(beamCoorFile, beamPosition);
     readAntennaPosition(antennaCoorFile, antennaPosition);
 
@@ -262,13 +290,13 @@ int main(void) {
 
     double *deviceBeamPosition;
     double *deviceAntennaPosition;
-    double *deviceWeights;
-    int8_t *deviceWeights8Bits;
+    //double *deviceWeights;
+    char2 *deviceWeights8Bits;
     double *deviceWavenumbers;
     double *deviceFrequencies;
     cudaMalloc(&deviceBeamPosition, sizeof(beamPosition));
     cudaMalloc(&deviceAntennaPosition, sizeof(antennaPosition));
-    cudaMalloc(&deviceWeights, weightsSize);
+    //cudaMalloc(&deviceWeights, weightsSize);
     cudaMalloc(&deviceWavenumbers, freqChannels*beamNumber*3*sizeof(double));
     cudaMalloc(&deviceFrequencies, sizeof(frequencies));
     cudaMalloc(&deviceWeights8Bits, weightsSize8Bits);
@@ -285,11 +313,11 @@ int main(void) {
             deviceBeamPosition, deviceFrequencies, beamNumber, freqChannels);
 
     dim3 dimGrid(antennaNumber, freqChannels);
-    weightMatrix<<<dimGrid, beamNumber>>>(deviceWeights,
-            deviceAntennaPosition, deviceWavenumbers, 3, beamNumber, freqChannels);
+    weightMatrix8BitsScaled<<<dimGrid, beamNumber>>>(deviceWeights8Bits,
+            deviceAntennaPosition, deviceWavenumbers, 3, beamNumber, freqChannels, scale);
 
-    convertTo8Bits<<<dimGrid, beamNumber>>>(deviceWeights8Bits, deviceWeights,
-             freqChannels, scale);
+    //convertTo8Bits<<<dimGrid, beamNumber>>>(deviceWeights8Bits, deviceWeights,
+    //         freqChannels, scale);
 
     //cudaDeviceSynchronize();
     //gettimeofday(&calcEnd, 0);
@@ -303,13 +331,13 @@ int main(void) {
     //writeWavenumber("wavenumber", waveNumbers, antennaNumber, beamNumber, freqChannels);
 
     cudaFree(deviceWavenumbers);
-    cudaFree(deviceWeights);
+    //cudaFree(deviceWeights);
     cudaFree(deviceWeights8Bits);
     cudaFree(deviceBeamPosition);
     cudaFree(deviceAntennaPosition);
     cudaFree(deviceFrequencies);
 
-    free(weights);
+    //free(weights);
     free(weights8Bits);
 
     //double transferTime = (1000000.0*(transferEnd.tv_sec-transferStart.tv_sec)
