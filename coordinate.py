@@ -3,10 +3,10 @@
 import datetime
 import numpy as np
 
-def readCoordinates(coordinateFileName):
+def readCoordinates(coordinateFileName, delimiter=None):
     coordinateMatrix = None
     with open(coordinateFileName, 'r') as coordFile:
-        coordinateArray = np.loadtxt(coordFile)
+        coordinateArray = np.loadtxt(coordFile, delimiter=delimiter)
 
     return  coordinateArray
 

@@ -18,12 +18,53 @@ def waveNumber(altitude, azimuth, waveLength):
 
     return waveNumbers
 
+def projectedBaselines(altitude, azimuth, baselines):
+    '''different between spherical coordinate and horizontal coordinate system'''
+    theta = np.pi/2. - altitude
+    phi = np.pi/2.- azimuth
+    # phi = azimuth
+
+    sourcePosition = np.array([np.sin(theta)*np.cos(phi),
+               np.sin(theta)*np.sin(phi),
+               np.cos(theta)])
+    # sourcePosition = np.array([np.sin(theta)*np.cos(phi) + np.cos(theta)*np.cos(phi) - np.sin(phi),
+               # np.sin(theta)*np.sin(phi) + np.cos(theta)*np.sin(phi),
+               # np.cos(theta) - np.sin(phi)])
+
+
+    projectedBaselines = []
+    for source in sourcePosition.T:
+        for baseline in baselines:
+            projectedBaselines.append(np.absolute(np.cross(baseline, source)))
+    # projectedBaselines  = np.absolute(np.cross(baselines, sourcePosition.T))
+
+    return projectedBaselines
+
 
 def weightVector(waveNumbers, receiverLocations):
 
     weights  = np.exp(-1j*np.dot(receiverLocations, waveNumbers))
 
     return  np.array(weights)
+
+def waveNumberFreq(altitude, azimuth, frequencies):
+    speedOfLight = 299792458
+
+    '''different between spherical coordinate and horizontal coordinate system'''
+    theta = np.pi/2. - altitude
+    phi = np.pi/2.- azimuth
+    # phi = azimuth
+
+    u = np.array([np.sin(theta)*np.cos(phi),
+               np.sin(theta)*np.sin(phi),
+               np.cos(theta)])
+
+    waveNumbers = []
+    for frequency in frequencies:
+        '''the nagetive sign indicates the direction(conjugate weight)'''
+        waveNumbers.append((-1) * u * 2 * np.pi * frequency / speedOfLight)
+
+    return np.array(waveNumbers)
 
 
 

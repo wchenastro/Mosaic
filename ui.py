@@ -191,6 +191,10 @@ def updateCountour():
     updateBaselineList(observation.getBaselines())
     updateHorizontal(observation.getHorizontal())
     resetPackState()
+    beamSizeFactor = observation.getBeamSizeFactor()
+    beamSizeEdit.blockSignals(True)
+    beamSizeEdit.setValue(beamSizeFactor)
+    beamSizeEdit.blockSignals(False)
 
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
@@ -273,8 +277,8 @@ def onClickedPackButton2():
     beamArea = np.pi*axisH*axisV
     primaryBeamArea = np.pi*(beamRadius**2)
     ratio = beamNumber*beamArea/primaryBeamArea
-    print(beamRadius)
-    print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
+    # print(beamRadius)
+    # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
     plotPackedBeam(coordinates, np.rad2deg(angle), axisH, axisV, beamRadius)
     pixmap = QPixmap(os.getcwd() + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
@@ -324,7 +328,8 @@ def updateBaselineList(baselines):
 np.set_printoptions(precision=3)
 
 '''MeerKAT coordinates'''
-arrayRefereceGEODET = (21.411, -30.721, 0)
+# the values provided by http://public.ska.ac.za/meerkat
+arrayRefereceGEODET = (21.44389,-30.71317, 0)
 '''observation time in UTC'''
 observationTime = QDateTime.currentDateTime().toPyDateTime()
 '''observation waveLength in meter'''
@@ -410,6 +415,7 @@ beamSizeEdit = QSpinBox(w)
 beamSizeEdit.move(710, 340)
 beamSizeEdit.setValue(defaultBeamSizeFactor)
 beamSizeEdit.setMinimum(1)
+beamSizeEdit.setMaximum(1000)
 beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
 
 beamNumberLabel = QLabel(w)

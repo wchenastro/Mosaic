@@ -45,6 +45,9 @@ class InterferometryObservation:
             self.beamSizeFactor = size
             self.updateBeamCoordinates()
 
+    def getBeamSizeFactor(self):
+        return self.beamSizeFactor
+
     def setBeamNumber(self, number):
         if number != self.beamNumber:
             self.beamNumber = number
@@ -78,10 +81,21 @@ class InterferometryObservation:
                 cb.recGrid, 50, self.boreSight)
         self.beamCoordinates = np.array(beamCoordinates)
 
+
     def createContour(self, antennacoor):
 
-        antennasCoordinateFile = 'antennacoor'
-        beamCoordinateFile = 'inCoord'
+        def getAltAziFromRADEC(beamCoordinates, LSTDeg, arrayRefereceLatitude):
+            RA = np.deg2rad(beamCoordinates[:,0])
+            DEC = np.deg2rad(beamCoordinates[:,1])
+            LST = np.deg2rad(LSTDeg)
+
+            altitude, azimuth = coord.convertEquatorialToHorizontal(
+                    RA, DEC, LST, arrayRefereceLatitude)
+
+            return altitude, azimuth
+
+        # antennasCoordinateFile = 'antennacoor'
+        # beamCoordinateFile = 'inCoord'
 
         # beamCoordinates = coord.readCoordinates(beamCoordinateFile)
         antCoordinatesGEODET = np.array(antennacoor)
@@ -95,20 +109,48 @@ class InterferometryObservation:
 
         LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[0])
 
-        RA = np.deg2rad(self.beamCoordinates[:,0])
-        DEC = np.deg2rad(self.beamCoordinates[:,1])
-        LST = np.deg2rad(LSTDeg)
-        # longitude = np.deg2rad(antCoordinatesGEODET[:,0])
-        # latitude = np.deg2rad(antCoordinatesGEODET[:,1])
         arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[1])
 
-        altitude, azimuth = coord.convertEquatorialToHorizontal(
-                RA, DEC, LST, arrayRefereceLatitude)
+        # RA = np.deg2rad(self.beamCoordinates[:,0])
+        # DEC = np.deg2rad(self.beamCoordinates[:,1])
+        # LST = np.deg2rad(LSTDeg)
+        # longitude = np.deg2rad(antCoordinatesGEODET[:,0])
+        # latitude = np.deg2rad(antCoordinatesGEODET[:,1])
 
-        self.boreSightHorizontal = (azimuth[0], altitude[0])
+        altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
+                LSTDeg, arrayRefereceLatitude)
+
+
+
+
+        projectedBaselines = sv.projectedBaselines(altitude, azimuth, self.baselines)
+
+
+        # np.savetxt('baselines0421', projectedBaselines)
+        maxBaseline = np.amax(np.abs(projectedBaselines))
+        requireBeamSizeFactor = self.beamSize/(1.22*self.waveLength/maxBaseline)
+        print "req beamfactor: ", requireBeamSizeFactor, "current beamFactor: ", self.beamSizeFactor
+        if abs(requireBeamSizeFactor - self.beamSizeFactor) > 1:
+            self.setBeamSizeFactor(round(requireBeamSizeFactor))
+            altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
+                LSTDeg, arrayRefereceLatitude)
+            projectedBaselines = sv.projectedBaselines(altitude, azimuth, self.baselines)
 
         waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength)
 
         weights = sv.weightVector(waveNumbers, self.baselines)
 
-        self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines, self.boreSight, np.rad2deg(self.beamSize), self.interpolating)
+
+
+        self.boreSightHorizontal = (azimuth[0], altitude[0])
+        self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
+                self.boreSight, np.rad2deg(self.beamSize), self.interpolating)
+
+        print "max baseline: ", maxBaseline
+
+        # np.savetxt('beamCoor', np.c_[altitude, azimuth])
+        # np.savetxt('antennaCoor', self.baselines)
+        # np.savetxt('waveNumberPy', waveNumbers )
+        # np.savetxt('baselines0421', projectedBaselines)
+        # np.savetxt('weights0421', weights)
+
