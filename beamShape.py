@@ -22,34 +22,39 @@ def createBaselines(antCoordinatesENU):
 
     return baselines
 
-def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, interpolating=True, outputFormat='png', allFringe=False):
+def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, interpolating=True, outputFormat='png', allFringe=False, fileName='contour.png'):
     beamPattern = primaryBeamPattern(beamAperture, boresight)
     # fringeFile = open('fringes', 'w')
     # factorFile = open('factor', 'w')
     # beamFile = open('beam', 'w')
-    fringeSum = [0]*len(beamCoordinates)
-    for weightRow in weights:
-        rowSum = []
-        offset = np.angle(weightRow[0])
-        for coord, weight, fringe in zip(beamCoordinates, weightRow, fringeSum):
-            beamFactor = beamPattern.beamFactor(coord)
-            # beamFactor = 1
+    # fringeSum = [0]*len(beamCoordinates)
+    fringesOfAllBaselines = []
+    for weightOfEachBaseline in weights:
+        fringesOfEachBaseline = []
+        # offset = np.angle(weightOfEachBaseline[0])
+        phaseShifter = np.conj(weightOfEachBaseline[0])
+        for beamCoord, weightOfBeam in zip(beamCoordinates, weightOfEachBaseline):
+            # beamFactor = beamPattern.beamFactor(beamCoord)
+            beamFactor = 1
             # factorFile.write(str(beamFactor) + '\n')
-            amplitude = beamFactor*np.cos(np.angle(weight) - offset)
-            rowSum.append(fringe + amplitude)
+            # amplitude = beamFactor*np.cos(np.angle(weight) - offset)
+            amplitude = beamFactor*(weightOfBeam*phaseShifter).real
+            fringesOfEachBaseline.append(amplitude)
             # fringeFile.write(' '.join([str(coord[0]), str(coord[1]), str(amplitude)]) + '\n')
-        fringeSum = rowSum[:]
+        fringesOfAllBaselines.append(fringesOfEachBaseline)
+    sumOfFringes = np.sum(fringesOfAllBaselines, axis=0)
+        # fringeSum = sumOfEachBaseline[:]
         # fringeFile.write('\n')
     # fringeFile.close()
     # factorFile.close()
-    baselinesString = ''
-    for baseline in baselines:
-        baselineINT = '{:7.0f}'.format(baseline[0]) + '{:7.0f}'.format(baseline[1]) + '{:7.0f}'.format(baseline[2])
-        baselinesString += baselineINT + " " + '{:7.0f}'.format(np.linalg.norm(baseline)) + ' meters '
-    stringSegmentLength = len(baselinesString)/len(weights)
+    # baselinesString = ''
+    # for baseline in baselines:
+        # baselineINT = '{:7.0f}'.format(baseline[0]) + '{:7.0f}'.format(baseline[1]) + '{:7.0f}'.format(baseline[2])
+        # baselinesString += baselineINT + " " + '{:7.0f}'.format(np.linalg.norm(baseline)) + ' meters '
+    # stringSegmentLength = len(baselinesString)/len(weights)
     # plotFringesViaGnuplot('fringes', len(weights))
-    if(allFringe == True):
-        plotFringesContour('fringes', len(weights), baselinesString, stringSegmentLength, outputFormat)
+    # if(allFringe == True):
+        # plotFringesContour('fringes', len(weights), baselinesString, stringSegmentLength, outputFormat)
 
     # beamSynthesized = []
     # for coord, weight in zip(beamCoordinates, fringeSum):
@@ -72,27 +77,27 @@ def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, int
     blocks = len(weights)
     if interpolating == True:
         # plotBeamContour('beam', len(weights), outputFormat)
-        plotBeamContour2(beamCoordinates[:,0], beamCoordinates[:,1], np.abs(fringeSum), blocks)
+        plotBeamContour2(beamCoordinates[:,0], beamCoordinates[:,1], np.abs(sumOfFringes), blocks, fileName)
     else:
         # plotBeamContourDot('beam', len(weights), outputFormat, np.rad2deg(angle), axis1, axis2)
-        plotBeamScatter(beamCoordinates[:,0], beamCoordinates[:,1], np.abs(fringeSum), blocks)
+        plotBeamScatter(beamCoordinates[:,0], beamCoordinates[:,1], np.abs(sumOfFringes), blocks, fileName)
 
     # with open('beam', 'w') as fringeFile:
         # fringeSum = [0]*len(beamCoordinates)
-        # for weightRow in weights:
-            # rowSum = []
-            # offset = np.angle(weightRow[0])
-            # for weight, fring, coord in zip(weightRow, fringeSum, beamCoordinates):
+        # for weightOfEachBaseline in weights:
+            # sumOfEachBaseline = []
+            # offset = np.angle(weightOfEachBaseline[0])
+            # for weight, fring, coord in zip(weightOfEachBaseline, fringeSum, beamCoordinates):
                 # beamFactor = beamPattern.beamFactor(coord)
-                # rowSum.append(fring + np.cos(np.angle(weight) - offset)*beamFactor)
-            # fringeSum = rowSum[:]
+                # sumOfEachBaseline.append(fring + np.cos(np.angle(weight) - offset)*beamFactor)
+            # fringeSum = sumOfEachBaseline[:]
 
         # for coord, weight in zip(beamCoordinates, fringeSum):
             # fringeFile.write(' '.join([str(coord[0]), str(coord[1]), str(weight)]) + '\n')
 
     # plotBeamViaGnuplot('beam')
 
-    return fringeSum
+    return sumOfFringes
 
 def readMarginalPoints(coordinates, amplitude, margin):
     offset = margin*0.1
@@ -123,12 +128,16 @@ def readMarginalPointsFromFile(margin):
 
 def fitContour(points):
     xy = [points[:,0], points[:,1]]
-    ellipse = fitellipse.fitellipse(xy)
+    try:
+        ellipse = fitellipse.fitellipse(xy)
+    except RuntimeError as e:
+        print str(e)
+        return [], None, None, None
     center = ellipse[0]
     axis1 = ellipse[1]
     axis2 = ellipse[2]
     angle = ellipse[3]
-    print(np.rad2deg(angle), axis1, axis2)
+    # print(np.rad2deg(angle), axis1, axis2)
 
     return center, angle, axis1, axis2
 
@@ -161,7 +170,7 @@ class primaryBeamPattern:
 
         return normalFactor/self.normalization
 
-def plotBeamContour2(x, y, z, maxValue):
+def plotBeamContour2(x, y, z, maxValue, fileName='contour.png'):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
     xi = np.linspace(x.min(), x.max(), len(x))
@@ -175,10 +184,10 @@ def plotBeamContour2(x, y, z, maxValue):
     axes = plt.gca()
     axes.set_xlim([x.min(),x.max()])
     axes.set_ylim([y.min(),y.max()])
-    plt.savefig('contour.png', dpi=thisDpi)
+    plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotBeamScatter(x, y, z, maxValue):
+def plotBeamScatter(x, y, z, maxValue, fileName='contour.png'):
     pointSize = 10
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
@@ -190,11 +199,74 @@ def plotBeamScatter(x, y, z, maxValue):
     axes = plt.gca()
     axes.set_xlim([x.min(),x.max()])
     axes.set_ylim([y.min(),y.max()])
-    plt.savefig('contour.png', dpi=thisDpi)
+    plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
+def plotAntennas(lons, lats, fileName='antennas.png'):
+    pointSize = 10
+    thisDpi = 96
+    matplotlib.rcParams.update({'font.size': 8})
+    plt.clf()
+    plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    plt.scatter(lons,lats)
+    plt.axes().set_aspect('equal', 'datalim')
+    axes = plt.gca()
+    axes.set_xlim([lons.min(), lons.max()])
+    axes.set_ylim([lats.min(), lats.max()])
+    plt.savefig(fileName, dpi=thisDpi)
+    plt.close()
 
-def plotPackedBeam(coordinates, angle, axis1, axis2, beamRadius):
+def plotAntsNSource(lons, lats, center, alt, azi, fileName='AntsNSource.png'):
+
+    def angleToCartesian(angleDeg, radius):
+        angle = np.deg2rad(angleDeg)
+        if angle < np.pi/2:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+        elif angle > np.pi/2 and angle < np.pi:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+        elif angle > np.pi and angle < np.pi*1.5:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+        elif angle > np.pi*1.5 and angle < np.pi*2:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+
+        return x, y
+
+    # radius = 0.04
+
+    antX = lons - center[0]
+    antY = lats - center[1]
+
+    antXMax = np.abs(antX).max()
+    antYMax = np.abs(antY).max()
+
+    radius = antXMax*1.2 if antXMax > antYMax else antYMax*1.2
+
+    pointSize = 3
+    thisDpi = 96
+    matplotlib.rcParams.update({'font.size': 8})
+    plt.clf()
+
+    plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    plt.scatter(antX,antY, s=pointSize)
+    lineStyle = '--' if alt < 0 else '-'
+    ax = plt.gcf().gca()
+    ax.add_artist(plt.Circle((0,0), radius, fill=False))
+    ax.add_artist(plt.Circle((0,0), (90-np.abs(np.rad2deg(alt)))/90.*radius, fill=False, ls=lineStyle))
+    x, y = angleToCartesian(np.rad2deg(azi), radius)
+    print 'azi, alt: ', np.rad2deg(azi), np.rad2deg(alt)
+    plt.plot([0,x], [0, y], ls=lineStyle)
+
+    plt.axes().set_aspect('equal', 'datalim')
+    ax.set_xlim([-radius*1.3, +radius*1.3])
+    ax.set_ylim([-radius*1.3, +radius*1.3])
+    plt.savefig(fileName, dpi=thisDpi)
+    plt.close()
+
+def plotPackedBeam(coordinates, angle, axis1, axis2, beamRadius, fileName='pack.png'):
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
@@ -210,10 +282,10 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, beamRadius):
     ax.add_artist(circle)
     ax.set_xlim(-beamRadius*1.3, beamRadius*1.3)
     ax.set_ylim(-beamRadius*1.3, beamRadius*1.3)
-    plt.savefig('pack.png', dpi=thisDpi)
+    plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotBeamFit(coordinates, center, angle, axis1, axis2):
+def plotBeamFit(coordinates, center, angle, axis1, axis2, fileName='fit.png'):
     xMin = coordinates[:,0].min()
     xMax = coordinates[:,0].max()
     yMin = coordinates[:,1].min()
@@ -235,7 +307,7 @@ def plotBeamFit(coordinates, center, angle, axis1, axis2):
     # ax.patch.set_visible(False)
     # fig.patch.set_visible(False)
     ax.axis('off')
-    plt.savefig('fit.png', transparent=True, dpi=thisDpi)
+    plt.savefig(fileName, transparent=True, dpi=thisDpi)
     plt.close()
 
 

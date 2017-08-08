@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys, os
+import sys, os, pickle
 import numpy as np
 
 from PyQt4.QtGui import *
@@ -11,20 +11,27 @@ from interferometer import InterferometryObservation
 from beamShape import fitEllipseBeam, plotPackedBeam, plotBeamFit
 from createBeam import ellipseGrid, ellipseCompact
 
+
 class Cartesian(QWidget):
 
-    painter = None
-    dots = []
-    azimuth = 0
-    elevation = 0
-    width = 300.
-    height = 300.
-    halfWidth = 150.
-    halfHeight = 150.
-    xStart = 21.391
-    xEnd = 21.431
-    yStart = -30.741
-    yEnd = -30.701
+
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+
+        self.painter = None
+        self.dots = []
+        self.highLightDots = []
+        self.azimuth = 0
+        self.elevation = 0
+        self.width = 300.
+        self.height = 300.
+        self.halfWidth = 150.
+        self.halfHeight = 150.
+        self.xStart = 0
+        self.xEnd = 0
+        self.yStart = 0
+        self.yEnd = 0
+
 
     def pixelCoordinateConv(self, value, direction):
         xRange = self.xEnd-self.xStart
@@ -45,22 +52,33 @@ class Cartesian(QWidget):
 
         painter = QPainter()
         self.painter = painter
+        dashPen = QPen(Qt.DashLine)
+        solidPen = QPen(Qt.SolidLine)
         painter.begin(self)
         painter.drawRect(0, 0, self.width, self.height)
-        '''centered horzontal line'''
+        '''centered horizontal line'''
         painter.drawLine(0, self.halfHeight, self.width, self.halfHeight)
         '''centered vertical line'''
         painter.drawLine(self.halfWidth, self.height, self.halfWidth, 0)
+        '''horizon'''
         painter.drawEllipse(QPoint(self.halfWidth, self.halfHeight),
                 self.halfWidth, self.halfHeight)
+        '''altitude'''
+        if self.elevation < 0:
+            painter.setPen(dashPen)
         painter.drawEllipse(QPoint(self.halfWidth, self.halfHeight),
-                (90.-self.elevation)/90.*self.halfWidth,
-                (90.-self.elevation)/90.*self.halfHeight)
+                (90.-np.abs(self.elevation))/90.*self.halfWidth,
+                (90.-np.abs(self.elevation))/90.*self.halfHeight)
         angleX, angleY = self.angleToCartesian(self.azimuth, self.halfWidth)
         painter.drawLine(self.halfWidth, self.halfHeight, angleX, angleY)
+        painter.setPen(solidPen)
 
         for dot in self.dots:
             painter.drawEllipse(dot[0], dot[1],3,3)
+
+        for dot in self.highLightDots:
+            painter.drawEllipse(dot[0], dot[1],5,5)
+        self.highLightDots[:] = []
 
         painter.end()
 
@@ -76,6 +94,12 @@ class Cartesian(QWidget):
         for longitude, altitude in dots:
             dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
             self.dots.append(dot)
+        self.update()
+
+    def addHighLightDots(self, dots):
+        for longitude, altitude in dots:
+            dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
+            self.highLightDots.append(dot)
         self.update()
 
     def mouseReleaseEvent(self, event):
@@ -115,8 +139,43 @@ class Cartesian(QWidget):
 
     def setAzAlt(self, horizontalCoord):
         self.azimuth = horizontalCoord[0]
-        self.elevation = np.abs(horizontalCoord[1])
+        self.elevation = horizontalCoord[1]
         self.update()
+
+    def setCenter(self, center, radius):
+        self.xStart = center[0] - radius
+        self.xEnd = center[0] + radius
+        self.yStart = center[1] - radius
+        self.yEnd = center[1] + radius
+
+class miniCartesian(Cartesian):
+
+    def paintEvent(self, event):
+        self.setMouseTracking(True)
+
+        painter = QPainter()
+        self.painter = painter
+        dashPen = QPen(Qt.DashLine)
+        solidPen = QPen(Qt.SolidLine)
+        painter.begin(self)
+        painter.drawRect(0, 0, self.width, self.height)
+        '''centered horizontal line'''
+        painter.drawLine(0, self.halfHeight, self.width, self.halfHeight)
+        '''centered vertical line'''
+        painter.drawLine(self.halfWidth, self.height, self.halfWidth, 0)
+
+        for dot in self.dots:
+            painter.drawEllipse(dot[0], dot[1],1,1)
+
+        # for dot in self.highLightDots:
+            # painter.drawEllipse(dot[0], dot[1],5,5)
+        # self.highLightDots[:] = []
+
+        painter.end()
+
+    def mouseReleaseEvent(self, event):
+        pass
+
 
 def updateHorizontal(horizontalCoord):
     if horizontalCoord == []: return
@@ -133,7 +192,7 @@ def onBoreSightUpdated():
     updateHorizontal(observation.getHorizontal())
 
 def onBeamSizeChanged():
-    observation.setBeamSizeFactor(beamSizeEdit.value())
+    observation.setBeamSizeFactor(beamSizeEdit.value(), autoZoom = False)
     updateCountour()
 
 def onBeamNumberChanged():
@@ -175,21 +234,28 @@ def updateCountour():
         # observation.setObserveTime(observeTime)
         # updateCountour.lastObservetime = observeTime
 
+    modifiers = QApplication.keyboardModifiers()
+    if modifiers == Qt.ShiftModifier:
+        observation.setAutoZoom(False)
+
     rowCount = coordinateList.rowCount()
     if rowCount < 2:
         label.setPixmap(blankImage)
         return
     coordinates = []
     for row in range(rowCount):
+        item = coordinateList.item(row, 2)
+        if item != None and item.text() == 'hidden': continue
         longitude = float(str(coordinateList.item(row, 0).text()))
         altitude = float(str(coordinateList.item(row, 1).text()))
-        coordinates.append([longitude, altitude, 0])
+        coordinates.append([longitude, altitude, 1])
 
     observation.createContour(coordinates)
     pixmap = QPixmap(os.getcwd() + '/contour.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
-    updateBaselineList(observation.getBaselines())
     updateHorizontal(observation.getHorizontal())
+    # updateBaselineList(observation.getBaselines())
+    updateUVPlane(observation.getProjectedBaselines())
     resetPackState()
     beamSizeFactor = observation.getBeamSizeFactor()
     beamSizeEdit.blockSignals(True)
@@ -209,11 +275,71 @@ def onClickedAddGeoButton():
     axis.addDots([[float(longitude), float(altitude)],])
     updateCountour()
 
+
+def onClickedImportButton():
+
+    modifiers = QApplication.keyboardModifiers()
+
+    if modifiers == Qt.ShiftModifier:
+        coordinates = observation.getAntCoordinates()
+        observeTime = observation.getObserveTime()
+        source = observation.getBoreSight()
+
+        fileName = QFileDialog.getSaveFileName(parent=None, caption='Save File')
+        with open(fileName, 'wb') as paraFile:
+            pickle.dump([coordinates, source, observeTime], paraFile)
+
+        return
+
+    fileName = QFileDialog.getOpenFileName()
+    with open(fileName, 'rb') as paraFile:
+        paras = pickle.load(paraFile)
+    antennaCoords = paras[0]
+    source = paras[1]
+    observeTime = paras[2]
+
+    onClickedDelAllButton()
+    dateTimeEdit.blockSignals(True)
+
+    rowCount = 0
+    dots = []
+    for longitude, altitude, height in antennaCoords:
+        coordinateList.insertRow(rowCount)
+        coordinateList.setItem(rowCount, 0, QTableWidgetItem(str(longitude)))
+        coordinateList.setItem(rowCount, 1, QTableWidgetItem(str(altitude)))
+        coordinateList.setItem(rowCount, 3, QTableWidgetItem(''))
+        coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
+        rowCount += 1
+        dots.append([float(longitude), float(altitude)])
+
+    axis.addDots(dots)
+
+    RACoord.setText(str(source[0]))
+    RACoord.setCursorPosition(0)
+    DECCoord.setText(str(source[1]))
+    DECCoord.setCursorPosition(0)
+
+    observation.setBoreSight(source)
+
+    newDateTime = QDateTime(observeTime.year,
+            observeTime.month, observeTime.day,
+            observeTime.hour, observeTime.minute,
+            observeTime.second, observeTime.microsecond/1000)
+    dateTimeEdit.setDateTime(newDateTime)
+    observation.setObserveTime(observeTime)
+
+
+    updateCountour()
+    updateHorizontal(observation.getHorizontal())
+
+    dateTimeEdit.blockSignals(False)
+
 def onClickedDelAllButton():
     coordinateList.setRowCount(0)
-    baselineList.setRowCount(0)
+    # baselineList.setRowCount(0)
     label.setPixmap(blankImage)
     axis.clearDots()
+    UVPlane.clearDots()
 
 def onClickedPackButton():
     if not hasattr(onClickedPackButton, "state"):
@@ -266,7 +392,11 @@ def onClickedPackButton2():
     amplitude = observation.getAmplitude()
     coordinates = observation.getBeamCoordinates()
     center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
-    plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
+    axisH2, axisV2, angle2, = observation.getBeamAxis()
+    if center == []: return
+    print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle)
+    # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
+    plotBeamFit(coordinates, center, angle2, axisH2, axisV2)
     bottomImage = QImage(os.getcwd() + '/contour.png')
     topImage = QImage(os.getcwd() + '/fit.png')
     fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
@@ -295,13 +425,45 @@ def overlayImage(bottom, top):
 
 
 def onClickedAtCoordinateList(row, column):
+    x = float(str(coordinateList.item(row, 0).text()))
+    y = float(str(coordinateList.item(row, 1).text()))
+
     if column == 3:
-        x = float(str(coordinateList.item(row, 0).text()))
-        y = float(str(coordinateList.item(row, 1).text()))
         coordinateList.removeRow(row)
         axis.removeDots([[x,y],])
         updateCountour()
+        return
+    elif column == 2:
+        item = coordinateList.item(row, column)
+        if item != None and str(item.text()) == 'hidden':
+            coordinateList.setItem(row, column, QTableWidgetItem(''))
+            axis.addDots([[x,y],])
+        else:
+            coordinateList.setItem(row, column, QTableWidgetItem('hidden'))
+            axis.removeDots([[x,y],])
+        updateCountour()
+        return
 
+    items = coordinateList.selectedItems()
+    dots = []
+    for item in items:
+        x = float(str(coordinateList.item(item.row(), 0).text()))
+        y = float(str(coordinateList.item(item.row(), 1).text()))
+        dots.append([x,y])
+
+    axis.addHighLightDots(dots)
+    return
+
+def onCoordinateListSelectionChanged():
+    items = coordinateList.selectedItems()
+    dots = []
+    for item in items:
+        if item.column() == 3: continue
+        x = float(str(coordinateList.item(item.row(), 0).text()))
+        y = float(str(coordinateList.item(item.row(), 1).text()))
+        dots.append([x,y])
+
+    axis.addHighLightDots(dots)
 
 # class onItemChangedAtCoordinateList(QObject):
     # def eventFilter(self, receiver, event):
@@ -325,6 +487,14 @@ def updateBaselineList(baselines):
         baselineList.setItem(index, 1, QTableWidgetItem(str(length)))
         index += 1
 
+def updateUVPlane(baselines):
+    # print baselines
+    # if baselines == None:return
+
+    UVPlane.clearDots()
+    UVPlane.addDots(baselines[:,0:2])
+
+
 np.set_printoptions(precision=3)
 
 '''MeerKAT coordinates'''
@@ -337,7 +507,7 @@ waveLength = 0.21
 
 defaultBeamSizeFactor = 90
 defaultBeamNumber = 400
-defaultBoreSight = (21.411, -30.721)
+defaultBoreSight = (21.44389, -30.71317)
 
 observation = InterferometryObservation(arrayRefereceGEODET,
         observationTime, waveLength)
@@ -345,6 +515,7 @@ observation.setBoreSight(defaultBoreSight)
 observation.setBeamSizeFactor(defaultBeamSizeFactor)
 observation.setBeamNumber(defaultBeamNumber)
 observation.setInterpolating(True)
+observation.setAutoZoom(True)
 
 a = QApplication(sys.argv)
 
@@ -352,6 +523,7 @@ w = QWidget()
 w.setWindowTitle("WaveRider")
 
 axis =Cartesian(w)
+axis.setCenter(arrayRefereceGEODET, 0.02)
 axis.move(500, 10)
 
 label = QLabel(w)
@@ -376,7 +548,14 @@ altitudeCoord.move(100, 400)
 
 addGeoButton = QPushButton('Add', w)
 addGeoButton.clicked.connect(onClickedAddGeoButton)
-addGeoButton.move(200, 400)
+addGeoButton.resize(40, 30)
+addGeoButton.move(180, 400)
+
+importButton = QPushButton('Import', w)
+importButton.resize(60, 30)
+importButton.clicked.connect(onClickedImportButton)
+importButton.move(230, 400)
+
 
 DeleteAllButton = QPushButton('Delete All', w)
 DeleteAllButton.clicked.connect(onClickedDelAllButton)
@@ -420,9 +599,9 @@ beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
 
 beamNumberLabel = QLabel(w)
 beamNumberLabel.setText('Beams')
-beamNumberLabel.move(760, 320)
+beamNumberLabel.move(780, 320)
 beamNumberEdit = QLineEdit(w)
-beamNumberEdit.move(760, 340)
+beamNumberEdit.move(780, 340)
 beamNumberEdit.resize(50,30)
 beamNumberEdit.setText(str(defaultBeamNumber))
 beamNumberEdit.editingFinished.connect(onBeamNumberChanged)
@@ -430,9 +609,9 @@ beamNumberEdit.editingFinished.connect(onBeamNumberChanged)
 interpolateLabel = QLabel(w)
 interpolateLabel.setText('INTL.')
 interpolateLabel.setToolTip('Interpolation')
-interpolateLabel.move(820, 320)
+interpolateLabel.move(830, 320)
 interpolateCheckbox = QCheckBox(w)
-interpolateCheckbox.move(820, 345)
+interpolateCheckbox.move(830, 345)
 interpolateCheckbox.setToolTip('Interpolation')
 interpolateCheckbox.setCheckState(Qt.Checked)
 interpolateCheckbox.stateChanged.connect(onInterpolateOptionChanged)
@@ -449,11 +628,14 @@ DECCoordLabel.move(590, 380)
 RACoord = QLineEdit(w)
 RACoord.move(500, 400)
 RACoord.resize(80,30)
+RACoord.setAlignment(Qt.AlignRight)
 RACoord.setText(str(defaultBoreSight[0]))
 RACoord.editingFinished.connect(onBoreSightUpdated)
 DECCoord = QLineEdit(w)
 DECCoord.resize(80,30)
 DECCoord.move(590, 400)
+DECCoord.setAlignment(Qt.AlignRight)
+RACoord.setText(str(defaultBoreSight[0]))
 DECCoord.setText(str(defaultBoreSight[1]))
 DECCoord.editingFinished.connect(onBoreSightUpdated)
 
@@ -484,28 +666,38 @@ coordinateList.resize(480, 300)
 coordinateList.move(10, 460)
 coordinateList.setHorizontalHeaderItem(0, QTableWidgetItem('longitude'))
 coordinateList.setHorizontalHeaderItem(1, QTableWidgetItem('latitude'))
-coordinateList.setHorizontalHeaderItem(2, QTableWidgetItem(''))
+coordinateList.setHorizontalHeaderItem(2, QTableWidgetItem('hide'))
 coordinateList.setHorizontalHeaderItem(3, QTableWidgetItem('delete'))
 coordinateList.cellClicked.connect(onClickedAtCoordinateList)
+coordinateList.itemSelectionChanged.connect(onCoordinateListSelectionChanged)
 # coordinateList.itemChanged.connect(onItemChangedAtCoordinateList)
 # coordinateList.installEventFilter(onItemChangedAtCoordinateList())
 coordinateList.setFocus()
 
-baselineListLabel = QLabel(w)
-baselineListLabel.setText('Baselines')
-baselineListLabel.move(500, 440)
+# baselineListLabel = QLabel(w)
+# baselineListLabel.setText('Baselines')
+# baselineListLabel.move(500, 440)
 
 
-baselineList = QTableWidget(w)
-baselineList.setColumnCount(2)
-baselineList.resize(350, 300)
-baselineList.move(500, 460)
-baselineList.setHorizontalHeaderItem(0, QTableWidgetItem('vector'))
-baselineList.setHorizontalHeaderItem(1, QTableWidgetItem('length'))
-baselineHeader = baselineList.horizontalHeader()
-baselineHeader.setResizeMode(0, QHeaderView.ResizeToContents)
+# baselineList = QTableWidget(w)
+# baselineList.setColumnCount(2)
+# baselineList.resize(350, 300)
+# baselineList.move(500, 460)
+# baselineList.setHorizontalHeaderItem(0, QTableWidgetItem('vector'))
+# baselineList.setHorizontalHeaderItem(1, QTableWidgetItem('length'))
+# baselineHeader = baselineList.horizontalHeader()
+# baselineHeader.setResizeMode(0, QHeaderView.ResizeToContents)
 
-w.resize(860, 800)
+UVPlaneLabel = QLabel(w)
+UVPlaneLabel.setText('UV plane')
+UVPlaneLabel.move(500, 440)
+
+UVPlane = miniCartesian(w)
+UVPlane.setCenter(arrayRefereceGEODET, 4000)
+UVPlane.move(500, 460)
+
+
+w.resize(860, 860)
 
 w.show()
 

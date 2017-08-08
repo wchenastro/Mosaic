@@ -27,6 +27,16 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
 
     return altitude, azimuth
 
+def convertHorizontalToEquatorial(azimuth, altitude, LST, latitude):
+
+    DEC = np.arcsin(np.sin(altitude)*np.sin(latitude) + np.cos(altitude)*np.cos(latitude)*np.cos(azimuth))
+    LHA = np.arccos((np.sin(altitude)-np.sin(DEC)*np.sin(latitude))/(np.cos(DEC)*np.cos(latitude)))
+
+    RAorig = LST - LHA
+    RA = RAorig if RAorig > 0 else RAorig + 2*np.pi
+
+    return RA, DEC
+
 def getHourAngle(RA, LST):
 
     LHA = LST - RA
@@ -59,7 +69,7 @@ def calculateLocalSiderealTime(TimeInUTC, longitude, displayHour=False):
         # compareTime=datetime.datetime(TimeInUTC[0], TimeInUTC[1], TimeInUTC[2],
                 # TimeInUTC[3], TimeInUTC[4], TimeInUTC[5])
         timeDiff = TimeInUTC - J2000UTCTime
-        timeDiffInDays = timeDiff.days + timeDiff.seconds/(60.0*60*24)
+        timeDiffInDays = timeDiff.days + timeDiff.seconds/(60.0*60*24) + timeDiff.microseconds/(1000000.0*60.0*60*24)
 
         return timeDiffInDays
 

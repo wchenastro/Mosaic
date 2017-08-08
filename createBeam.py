@@ -260,7 +260,7 @@ def squareGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     return inCircleCoordinates, subBeamRadius
 
-def optimizeGrid(beamNumber, beamRadius, beamPattern, error, boreSight = None):
+def optimizeGrid(beamNumber, beamRadius, beamPattern, error, boreSight = [0,0]):
 
     inCircleCoordinates, subBeamRadius = beamPattern(beamNumber, beamRadius)
 
@@ -281,13 +281,13 @@ def optimizeGrid(beamNumber, beamRadius, beamPattern, error, boreSight = None):
             break
         # print(inCircleCount, subBeamRadius)
 
-    if boreSight != None:
+    if (boreSight != [0,0]).all():
         inCircleCoordinates = [[x + boreSight[0], y + boreSight[1]] for x, y in inCircleCoordinates]
         # inCircleCoordinates.insert(0, boreSight)
 
-    with open('inCoord', 'w') as inCoordFile:
-        for x, y in inCircleCoordinates:
-            inCoordFile.write(' '.join([str(x), str(y)]) + '\n')
+    # with open('inCoord', 'w') as inCoordFile:
+        # for x, y in inCircleCoordinates:
+            # inCoordFile.write(' '.join([str(x), str(y)]) + '\n')
 
     return inCircleCoordinates, subBeamRadius
 
@@ -309,7 +309,8 @@ def main():
         print 'boreSight coordinates is not valid'
         exit()
 
-    coordinates, subBeamRadius = optimizeGrid(beamNumber, beamRadius, hexagonGrid, beamBoreSight)
+    coordinates, subBeamRadius = optimizeGrid(beamNumber, beamRadius, hexagonGrid, 5, beamBoreSight)
+    print(np.rad2deg(subBeamRadius))
 
 if __name__ == '__main__':
     main()
