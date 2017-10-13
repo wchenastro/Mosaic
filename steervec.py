@@ -2,19 +2,22 @@
 
 import numpy as np
 
-def waveNumber(altitude, azimuth, waveLength):
+def waveNumber(altitude, azimuth, waveLength, compensate=True):
 
     '''different between spherical coordinate and horizontal coordinate system'''
     theta = np.pi/2. - altitude
     phi = np.pi/2.- azimuth
-    # phi = azimuth
 
     u = np.array([np.sin(theta)*np.cos(phi),
                np.sin(theta)*np.sin(phi),
                np.cos(theta)])
+    if compensate == True:
+        direction = -1
+    else:
+        direction = 1
 
     '''the nagetive sign indicates the direction(conjugate weight)'''
-    waveNumbers = (-1) * u * 2 * np.pi / waveLength
+    waveNumbers = direction * u * 2 * np.pi / waveLength
 
     return waveNumbers
 
@@ -34,13 +37,15 @@ def projectedBaselines(altitude, azimuth, baselines):
 
 
     projectedBaselines = []
+    baselineIndex = []
     for source in sourcePosition.T:
         for baseline in baselines:
             projectedBaseline = baseline - np.dot(baseline, source)*source
             projectedBaselines.append(projectedBaseline)
+            baselineIndex.append(baseline)
     # projectedBaselines  = np.absolute(np.cross(baselines, sourcePosition.T))
 
-    return projectedBaselines
+    return baselineIndex, projectedBaselines
 
 def distances(vector):
     squares = np.square(vector)
@@ -74,9 +79,56 @@ def projectedRotate(altitude, azimuth, baseline, angle):
     return projectedRotated
 
 
+def rotateCoordinate(coordinates, theta, phi):
+
+    # rotationMatrix = np.array([
+        # [ np.cos(phi)*np.cos(theta),  -np.sin(phi),  np.cos(phi)*np.sin(theta)],
+        # [ np.sin(phi)*np.cos(theta),   np.cos(phi),  np.sin(phi)*np.sin(theta)],
+        # [-np.sin(theta),                    0,       np.cos(theta)] ], dtype=np.float64)
+
+    rotateZAxis = np.array([
+            [np.cos(phi), -np.sin(phi), 0],
+            [np.sin(phi),  np.cos(phi), 0],
+            [0,           0           , 1]])
+
+    rotateYAxis = np.array([
+            [ np.cos(theta), 0, np.sin(theta)],
+            [       0,       1,       0      ],
+            [-np.sin(theta), 0 ,np.cos(theta)]])
+
+    rotateXAxis = np.array([
+            [1,        0     ,       0       ],
+            [0, np.cos(theta), -np.sin(theta)],
+            [0, np.sin(theta),  np.cos(theta)]])
+
+
+    # rotationMatrix = np.array([
+        # [ np.cos(theta)*np.cos(phi), -np.cos(theta)*np.sin(phi), np.sin(theta)],
+        # [ np.sin(phi),                  np.cos(phi),                    0     ] ,
+        # [-np.sin(theta)*np.cos(phi),  np.sin(theta)*np.sin(phi), np.cos(theta)]])
+
+
+    # rotatedCoordinates = []
+    # for coordinate in coordinates:
+        # print coordinate[:,None]
+        # rotatedCoordinates.append(np.dot(rotationMatrix, coordinate[:,None]))
+
+    # print "sv.rotate:"
+    # print rotationMatrix
+    # print coordinates
+
+    rotatedZCoordinates = np.dot(coordinates, rotateZAxis.T.tolist())
+    rotatedZXCoordinates = np.dot(rotatedZCoordinates, rotateXAxis.T.tolist())
+
+    return rotatedZXCoordinates
+
+    # rotatedCoordinates = np.dot(coordinates, rotationMatrix.T.tolist())
+    # return rotatedCoordinates
+
 def weightVector(waveNumbers, receiverLocations):
 
-    weights  = np.exp(-1j*np.dot(receiverLocations, waveNumbers))
+    delays = np.dot(receiverLocations, waveNumbers)
+    weights  = np.exp(-1j*delays)
 
     return  np.array(weights)
 
