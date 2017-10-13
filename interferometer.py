@@ -27,6 +27,7 @@ class InterferometryObservation:
         self.baselines = []
         self.boreSightHorizontal = []
         self.projectedBaselines = []
+        self.baselineIndex = []
         self.beamAxis = []
         self.beamSizeFactor = 1
         self.beamCoordinates = []
@@ -96,7 +97,9 @@ class InterferometryObservation:
 
     def getProjectedBaselines(self):
         projectedBaselines = np.array(self.projectedBaselines)
-        return np.concatenate((projectedBaselines, -projectedBaselines))
+        uvCoord = sv.rotateCoordinate(projectedBaselines, np.pi/2.0 -
+                self.boreSightHorizontal[1], self.boreSightHorizontal[0])
+        return np.concatenate((uvCoord, -uvCoord))
 
     def getBeamAxis(self):
         return self.beamAxis
@@ -140,12 +143,6 @@ class InterferometryObservation:
 
         arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[1])
 
-        # RA = np.deg2rad(self.beamCoordinates[:,0])
-        # DEC = np.deg2rad(self.beamCoordinates[:,1])
-        # LST = np.deg2rad(LSTDeg)
-        # longitude = np.deg2rad(antCoordinatesGEODET[:,0])
-        # latitude = np.deg2rad(antCoordinatesGEODET[:,1])
-
         altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
                 LSTDeg, arrayRefereceLatitude)
 
@@ -154,8 +151,14 @@ class InterferometryObservation:
             return
 
         # print 'autoZoom: ', self.autoZoom
-        self.projectedBaselines = sv.projectedBaselines(
+        self.baselineIndex, self.projectedBaselines = sv.projectedBaselines(
                 np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
+
+        drop, projectedEastNorth = sv.projectedBaselines(
+                np.array([altitude[0]]), np.array([azimuth[0]]),
+                [[1,0,0], [0,1,0]])
+
+        # print projectedEastNorth
 
         # print sphericalToCartesian(np.pi/2.-altitude[0], np.pi/2-azimuth[0])
 
@@ -165,6 +168,7 @@ class InterferometryObservation:
             baselineMax = np.amax(baselineLengths)
             indexOfMaximum = np.argmax(baselineLengths)
             maxBaselineVector = self.projectedBaselines[indexOfMaximum]
+            maxBaselineVectorOriginal = self.baselineIndex[indexOfMaximum]
             # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
             perpendicularOfMaxBaselineVector = sv.projectedRotate(
                     altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
@@ -197,36 +201,60 @@ class InterferometryObservation:
             phi, theta = cartesianToSpherical(np.array([maxBaselineVector/sv.distances(maxBaselineVector)]))
             perpendicularRA, perpendicularDEC = coord.convertHorizontalToEquatorial(
                     np.pi/2. - phi, np.pi/2. - theta, np.deg2rad(LSTDeg), arrayRefereceLatitude)
-            print perpendicularRA, perpendicularDEC
+            # print perpendicularRA, perpendicularDEC
 
-            angle = np.arctan2(np.rad2deg(perpendicularDEC[0]), np.rad2deg(perpendicularRA[0]))
+            # angle = np.arctan2(np.rad2deg(perpendicularDEC[0]), np.rad2deg(perpendicularRA[0]))
 
+            # rotatedUV = sv.rotateCoordinate(maxBaselineVector, -np.pi/2.0 + altitude[0], -np.pi/2.0 + azimuth[0])
+            # rotatedUV = sv.rotateCoordinate(maxBaselineVector, np.pi/2.0 - altitude[0], azimuth[0])
+            print "rotate:"
+            angle = np.pi/2.0 + np.arccos(np.dot(maxBaselineVector, projectedEastNorth[0])/baselineMax*sv.distances(projectedEastNorth[0]))
+            # angle =  np.arctan2(rotatedUV [0], rotatedUV [1])
+            print np.rad2deg(angle)
             self.beamAxis = [np.rad2deg(1.22*self.waveLength/perpendicularBaselineMax/2.),
                 np.rad2deg(1.22*self.waveLength/baselineMax/2.), np.rad2deg(angle)]
             # print zenithUnitVector, perpendicularUnitVector
-            print 'aixsLengthCal: ', self.beamAxis, np.rad2deg(angle)
+            # print 'aixsLengthCal: ', self.beamAxis, np.rad2deg(angle)
             requireBeamSizeFactor = factor *  self.beamSize/(1.22*self.waveLength/perpendicularBaselineMax)
             if abs(requireBeamSizeFactor - self.beamSizeFactor) > 1:
                 rounedFactor = round(requireBeamSizeFactor)
                 self.setBeamSizeFactor(rounedFactor if rounedFactor != 0 else 1)
                 altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
                     LSTDeg, arrayRefereceLatitude)
-                self.projectedBaselines = sv.projectedBaselines(np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
+                self.baselineIndex, self.projectedBaselines =sv.projectedBaselines(
+                        np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
 
         else:
             self.autoZoom = True
 
         # print self.projectedBaselines
-        waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength)
+        waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength, False)
 
         weights = sv.weightVector(waveNumbers, self.baselines)
+        # maxOriginalBaseline = [maxBaselineVectorOriginal,]
+        # weightMaxOriginal = sv.weightVector(waveNumbers, maxOriginalBaseline )
 
 
 
         self.boreSightHorizontal = (azimuth[0], altitude[0])
-        self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
+        self.amplitude = bs.fringePlot(np.column_stack((np.rad2deg(altitude), np.rad2deg(azimuth))), weights, self.baselines,
+        # self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
                 self.boreSight, np.rad2deg(self.beamSize),
                 self.interpolating, fileName=fileName)
+
+        # originalAmplitude = bs.fringePlot(self.beamCoordinates,
+                # weightMaxOriginal,maxOriginalBaseline ,
+                # self.boreSight, np.rad2deg(self.beamSize),
+                # self.interpolating, fileName='maxBaseline.png')
+
+        # print maxBaselineVector
+        # rotatedUV = sv.rotateCoordinate(maxBaselineVector, -np.pi/2.0 + altitude[0], -np.pi/2.0 + azimuth[0])
+        # print rotatedUV
+        # print np.rad2deg(np.arctan2(maxBaselineVector[1], maxBaselineVector[0]))
+
+        # np.savetxt('beamOrignal', originalAmplitude)
+        # getCentralLine(self.beamCoordinates, originalAmplitude)
+
 
         # print "max baseline: ", maxBaseline
 
@@ -235,6 +263,7 @@ class InterferometryObservation:
         # np.savetxt('waveNumberPy', waveNumbers )
         # np.savetxt('baselines0421', projectedBaselines)
         # np.savetxt('weights0421', weights)
+
 
 def sphericalToCartesian(theta, phi):
     x = np.sin(theta)*np.cos(phi)
