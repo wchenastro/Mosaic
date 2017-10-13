@@ -23,79 +23,27 @@ def createBaselines(antCoordinatesENU):
     return baselines
 
 def fringePlot(beamCoordinates, weights, baselines, boresight, beamAperture, interpolating=True, outputFormat='png', allFringe=False, fileName='contour.png'):
-    beamPattern = primaryBeamPattern(beamAperture, boresight)
-    # fringeFile = open('fringes', 'w')
-    # factorFile = open('factor', 'w')
-    # beamFile = open('beam', 'w')
-    # fringeSum = [0]*len(beamCoordinates)
-    fringesOfAllBaselines = []
-    for weightOfEachBaseline in weights:
-        fringesOfEachBaseline = []
-        # offset = np.angle(weightOfEachBaseline[0])
-        phaseShifter = np.conj(weightOfEachBaseline[0])
-        for beamCoord, weightOfBeam in zip(beamCoordinates, weightOfEachBaseline):
+    # beamPattern = primaryBeamPattern(beamAperture, boresight)
+    # fringesOfAllBaselines = []
+    phaseShifters = np.conj(weights[:,0][:,None])
+    fringes = weights * phaseShifters
+    sumOfFringes = np.sum(fringes.real, axis=0)
+    # for weightOfEachBaseline in weights:
+        # fringesOfEachBaseline = []
+        # phaseShifter = np.conj(weightOfEachBaseline[0])
+        # for beamCoord, weightOfBeam in zip(beamCoordinates, weightOfEachBaseline):
             # beamFactor = beamPattern.beamFactor(beamCoord)
-            beamFactor = 1
-            # factorFile.write(str(beamFactor) + '\n')
-            # amplitude = beamFactor*np.cos(np.angle(weight) - offset)
-            amplitude = beamFactor*(weightOfBeam*phaseShifter).real
-            fringesOfEachBaseline.append(amplitude)
-            # fringeFile.write(' '.join([str(coord[0]), str(coord[1]), str(amplitude)]) + '\n')
-        fringesOfAllBaselines.append(fringesOfEachBaseline)
-    sumOfFringes = np.sum(fringesOfAllBaselines, axis=0)
-        # fringeSum = sumOfEachBaseline[:]
-        # fringeFile.write('\n')
-    # fringeFile.close()
-    # factorFile.close()
-    # baselinesString = ''
-    # for baseline in baselines:
-        # baselineINT = '{:7.0f}'.format(baseline[0]) + '{:7.0f}'.format(baseline[1]) + '{:7.0f}'.format(baseline[2])
-        # baselinesString += baselineINT + " " + '{:7.0f}'.format(np.linalg.norm(baseline)) + ' meters '
-    # stringSegmentLength = len(baselinesString)/len(weights)
-    # plotFringesViaGnuplot('fringes', len(weights))
-    # if(allFringe == True):
-        # plotFringesContour('fringes', len(weights), baselinesString, stringSegmentLength, outputFormat)
+            # beamFactor = 1
+            # amplitude = beamFactor*(weightOfBeam*phaseShifter).real
+            # fringesOfEachBaseline.append(amplitude)
+        # fringesOfAllBaselines.append(fringesOfEachBaseline)
+    # sumOfFringes = np.sum(fringesOfAllBaselines, axis=0)
 
-    # beamSynthesized = []
-    # for coord, weight in zip(beamCoordinates, fringeSum):
-        # beamSynthesized.append([coord[0], coord[1], weight])
-        # beamFile.write(' '.join([str(coord[0]), str(coord[1]), str(weight)]) + '\n')
-
-    # beamFile.close()
-
-    angle = 0;
-    axis1 = 0;
-    axis2 = 0;
-    # if len(weights) >= 6:
-        # try:
-            # points = readMarginalPoints(len(weights)*0.4)
-            # angle, axis1, axis2 = fitContour(points)
-        # except Exception as e:
-            # print(e)
-
-    # plotBeamViaGnuplot('beam')
     blocks = len(weights)
     if interpolating == True:
-        # plotBeamContour('beam', len(weights), outputFormat)
         plotBeamContour2(beamCoordinates[:,0], beamCoordinates[:,1], np.abs(sumOfFringes), blocks, fileName)
     else:
-        # plotBeamContourDot('beam', len(weights), outputFormat, np.rad2deg(angle), axis1, axis2)
         plotBeamScatter(beamCoordinates[:,0], beamCoordinates[:,1], np.abs(sumOfFringes), blocks, fileName)
-
-    # with open('beam', 'w') as fringeFile:
-        # fringeSum = [0]*len(beamCoordinates)
-        # for weightOfEachBaseline in weights:
-            # sumOfEachBaseline = []
-            # offset = np.angle(weightOfEachBaseline[0])
-            # for weight, fring, coord in zip(weightOfEachBaseline, fringeSum, beamCoordinates):
-                # beamFactor = beamPattern.beamFactor(coord)
-                # sumOfEachBaseline.append(fring + np.cos(np.angle(weight) - offset)*beamFactor)
-            # fringeSum = sumOfEachBaseline[:]
-
-        # for coord, weight in zip(beamCoordinates, fringeSum):
-            # fringeFile.write(' '.join([str(coord[0]), str(coord[1]), str(weight)]) + '\n')
-
-    # plotBeamViaGnuplot('beam')
 
     return sumOfFringes
 
