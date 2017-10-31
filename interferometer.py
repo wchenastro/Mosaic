@@ -150,17 +150,55 @@ class InterferometryObservation:
             self.boreSightHorizontal = (azimuth[0], altitude[0])
             return
 
-        # print 'autoZoom: ', self.autoZoom
-        self.baselineIndex, self.projectedBaselines = sv.projectedBaselines(
+        self.projectedBaselines = sv.projectedBaselines(
                 np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
 
-        drop, projectedEastNorth = sv.projectedBaselines(
+        rotatedProjectedBaselines = sv.rotateCoordinate(self.projectedBaselines,
+                np.pi/2.0 - altitude[0], azimuth[0])
+
+        halfGridNum = 500.0
+        gridNum = halfGridNum*2
+        uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
+        uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/self.waveLength
+        vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/self.waveLength
+        uvMax = uMax if uMax > vMax else vMax
+        step = halfGridNum/(uvMax/self.waveLength*1.1)
+        uvSamples = []
+        for baseline in rotatedProjectedBaselines:
+            # print baseline
+            uSlot = int((baseline[0]/self.waveLength*step + halfGridNum))
+            vSlot = int((halfGridNum - baseline[1]/self.waveLength*step))
+            # print uSlot, vSlot
+
+            uvSamples.append([uSlot, vSlot])
+            uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
+            uvGrids[vSlot][uSlot] = 1
+            uvGrids[-vSlot-1][-uSlot-1] = 1
+
+
+        # imagesCoord = mgrid[0:gridNum:1, 0:gridNum:1].reshape(2,-1).T
+        imagesCoord = np.mgrid[0:gridNum:1, 0:gridNum:1].reshape(2,-1)
+        uvSampes = np.array(uvSamples)
+        imagesValue = []
+        # for coord in imagesCoord:
+        fringeSum = np.zeros(1000*1000)
+        for uv in uvSamples:
+            fringeSum = fringeSum +  np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
+        fringeSum = fringeSum.reshape(1000,1000)/1000000.0
+
+
+        psf = np.fft.ifft2(uvGrids)
+
+        np.savetxt('psf', np.abs(psf))
+        np.savetxt('psf2', np.abs(fringeSum))
+        np.savetxt('vuGrid', uvGrids, fmt='%.0f')
+
+
+
+
+        projectedEastNorth = sv.projectedBaselines(
                 np.array([altitude[0]]), np.array([azimuth[0]]),
                 [[1,0,0], [0,1,0]])
-
-        # print projectedEastNorth
-
-        # print sphericalToCartesian(np.pi/2.-altitude[0], np.pi/2-azimuth[0])
 
         if self.autoZoom == True:
             # np.savetxt('baselines0421', projectedBaselines)
@@ -168,7 +206,6 @@ class InterferometryObservation:
             baselineMax = np.amax(baselineLengths)
             indexOfMaximum = np.argmax(baselineLengths)
             maxBaselineVector = self.projectedBaselines[indexOfMaximum]
-            maxBaselineVectorOriginal = self.baselineIndex[indexOfMaximum]
             # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
             perpendicularOfMaxBaselineVector = sv.projectedRotate(
                     altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
@@ -221,7 +258,7 @@ class InterferometryObservation:
                 self.setBeamSizeFactor(rounedFactor if rounedFactor != 0 else 1)
                 altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
                     LSTDeg, arrayRefereceLatitude)
-                self.baselineIndex, self.projectedBaselines =sv.projectedBaselines(
+                self.projectedBaselines =sv.projectedBaselines(
                         np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
 
         else:
@@ -237,8 +274,8 @@ class InterferometryObservation:
 
 
         self.boreSightHorizontal = (azimuth[0], altitude[0])
-        self.amplitude = bs.fringePlot(np.column_stack((np.rad2deg(altitude), np.rad2deg(azimuth))), weights, self.baselines,
-        # self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
+        # self.amplitude = bs.fringePlot(np.column_stack((np.rad2deg(altitude), np.rad2deg(azimuth))), weights, self.baselines,
+        self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
                 self.boreSight, np.rad2deg(self.beamSize),
                 self.interpolating, fileName=fileName)
 
