@@ -135,6 +135,20 @@ def plotBeamContour2(x, y, z, maxValue, fileName='contour.png'):
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
+def plotBeamContour3(array, fileName='contour.png'):
+    thisDpi = 96.
+    matplotlib.rcParams.update({'font.size': 8})
+    plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    plt.imshow(array,cmap=plt.cm.jet, vmin=0, interpolation='bicubic')
+    plt.colorbar()
+    plt.axes().set_aspect('equal', 'datalim')
+    axes = plt.gca()
+    # axes.set_xlim([x.min(),x.max()])
+    # axes.set_ylim([y.min(),y.max()])
+    plt.savefig(fileName, dpi=thisDpi)
+    plt.close()
+
+
 def plotBeamScatter(x, y, z, maxValue, fileName='contour.png'):
     pointSize = 10
     thisDpi = 96
