@@ -29,13 +29,14 @@ class InterferometryObservation:
         self.projectedBaselines = []
         self.baselineIndex = []
         self.beamAxis = []
-        self.beamSizeFactor = 1
+        self.beamSizeFactor = 0.1
         self.beamCoordinates = []
         self.beamNumber = 400
         self.beamSize = 1.22*self.waveLength/13.5
         self.interpolating = True
         self.amplitude = []
         self.autoZoom = True
+        self.gridNumOfDFT = 1000.0
 
     def setInterpolating(self, state):
         if state == True:
@@ -112,6 +113,26 @@ class InterferometryObservation:
                 self.beamNumber, np.rad2deg(self.beamSize/self.beamSizeFactor)/2.,
                 cb.recGrid, 50, np.array(self.boreSight))
         self.beamCoordinates = np.array(beamCoordinates)
+        self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, 10, 1)
+
+
+    def createDFTGrid(self, gridNum, halfLength, interval):
+        ul = np.mgrid[0:halfLength:interval, 0:halfLength:interval]
+        ur = np.mgrid[0:halfLength:interval, gridNum-halfLength:gridNum:interval]
+        bl = np.mgrid[gridNum-halfLength:gridNum:interval, 0:halfLength:interval]
+        br = np.mgrid[gridNum-halfLength:gridNum:interval, gridNum-halfLength:gridNum:interval]
+        imagesCoord = np.array([
+                        np.concatenate((
+                        np.concatenate((ul[0].T, ur[0].T)).T,
+                        np.concatenate((bl[0].T,br[0].T)).T)).flatten(),
+                        np.concatenate((
+                        np.concatenate((ul[1].T, ur[1].T)).T,
+                        np.concatenate((bl[1].T, br[1].T)).T)).flatten()])
+
+        return imagesCoord
+
+    def partialDFT(self):
+        pass
 
 
     def createContour(self, antennacoor, fileName='contour.png', minAlt=0):
@@ -157,42 +178,52 @@ class InterferometryObservation:
                 np.pi/2.0 - altitude[0], azimuth[0])
 
         halfGridNum = 500.0
-        gridNum = halfGridNum*2
-        uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
+        gridNum = halfGridNum*2.0
+        imageLength = 20.0
+        pixelNum = imageLength * imageLength
+        # uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
         uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/self.waveLength
         vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/self.waveLength
         uvMax = uMax if uMax > vMax else vMax
-        step = halfGridNum/(uvMax/self.waveLength*1.1)
+        step = halfGridNum/(uvMax/self.waveLength)
+        # imageUnit = 1/(1/(halfGridNum/(uvMax/self.waveLength))) / pixelNum
+        imageUnit = step / pixelNum
+        print imageUnit
         uvSamples = []
         for baseline in rotatedProjectedBaselines:
             # print baseline
-            uSlot = int((baseline[0]/self.waveLength*step + halfGridNum))
-            vSlot = int((halfGridNum - baseline[1]/self.waveLength*step))
+            uSlot = int((baseline[0]/self.waveLength*step + halfGridNum - 1))
+            vSlot = int((halfGridNum - baseline[1]/self.waveLength*step - 1))
             # print uSlot, vSlot
 
             uvSamples.append([uSlot, vSlot])
             uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
-            uvGrids[vSlot][uSlot] = 1
-            uvGrids[-vSlot-1][-uSlot-1] = 1
+            # uvGrids[vSlot][uSlot] = 1
+            # uvGrids[-vSlot-1][-uSlot-1] = 1
 
 
-        # imagesCoord = mgrid[0:gridNum:1, 0:gridNum:1].reshape(2,-1).T
-        imagesCoord = np.mgrid[0:gridNum:1, 0:gridNum:1].reshape(2,-1)
-        uvSampes = np.array(uvSamples)
+        # ul = np.mgrid[0:10:1, 0:10:1]
+        # ur = np.mgrid[0:10:1, gridNum-10:gridNum:1]
+        # bl = np.mgrid[gridNum-10:gridNum:1, 0:10:1]
+        # br = np.mgrid[gridNum-10:gridNum:1, gridNum-10:gridNum:1]
+        # imagesCoord = np.array([np.concatenate((np.concatenate((ul[0].T, ur[0].T)).T, np.concatenate((bl[0].T,br[0].T)).T)).flatten(), np.concatenate((np.concatenate((ul[1].T, ur[1].T)).T, np.concatenate((bl[1].T, br[1].T)).T)).flatten()])
+        # uvSampes = np.array(uvSamples)
+        imagesCoord = self.partialDFTGrid
         imagesValue = []
         # for coord in imagesCoord:
-        fringeSum = np.zeros(1000*1000)
+        fringeSum = np.zeros(20*20)
         for uv in uvSamples:
             fringeSum = fringeSum +  np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
-        fringeSum = fringeSum.reshape(1000,1000)/1000000.0
+        fringeSum = fringeSum.reshape(20,20)/(len(uvSamples))
 
 
-        psf = np.fft.ifft2(uvGrids)
+        # psf = np.fft.ifft2(uvGrids)
 
-        np.savetxt('psf', np.abs(psf))
-        np.savetxt('psf2', np.abs(fringeSum))
-        np.savetxt('vuGrid', uvGrids, fmt='%.0f')
+        # np.savetxt('psf', np.abs(psf))
+        # np.savetxt('psf2', np.abs(fringeSum))
+        # np.savetxt('vuGrid', uvGrids, fmt='%.0f')
 
+        bs.plotBeamContour3(np.fft.fftshift(np.abs(fringeSum)))
 
 
 
@@ -265,9 +296,9 @@ class InterferometryObservation:
             self.autoZoom = True
 
         # print self.projectedBaselines
-        waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength, False)
+        # waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength, False)
 
-        weights = sv.weightVector(waveNumbers, self.baselines)
+        # weights = sv.weightVector(waveNumbers, self.baselines)
         # maxOriginalBaseline = [maxBaselineVectorOriginal,]
         # weightMaxOriginal = sv.weightVector(waveNumbers, maxOriginalBaseline )
 
@@ -275,9 +306,9 @@ class InterferometryObservation:
 
         self.boreSightHorizontal = (azimuth[0], altitude[0])
         # self.amplitude = bs.fringePlot(np.column_stack((np.rad2deg(altitude), np.rad2deg(azimuth))), weights, self.baselines,
-        self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
-                self.boreSight, np.rad2deg(self.beamSize),
-                self.interpolating, fileName=fileName)
+        # self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
+                # self.boreSight, np.rad2deg(self.beamSize),
+                # self.interpolating, fileName=fileName)
 
         # originalAmplitude = bs.fringePlot(self.beamCoordinates,
                 # weightMaxOriginal,maxOriginalBaseline ,
