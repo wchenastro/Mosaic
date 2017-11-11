@@ -135,11 +135,17 @@ def plotBeamContour2(x, y, z, maxValue, fileName='contour.png'):
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotBeamContour3(array, fileName='contour.png'):
+def plotBeamContour3(array, center, sideLength, fileName='contour.png'):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
     plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
-    plt.imshow(array,cmap=plt.cm.jet, vmin=0, interpolation='bicubic')
+    halfSideLength = sideLength/2.0
+    xStart = np.rad2deg(center[0] - halfSideLength)
+    xEnd = np.rad2deg(center[0] + halfSideLength)
+    yStart = np.rad2deg(center[1] - halfSideLength)
+    yEnd = np.rad2deg(center[1] + halfSideLength)
+    plotRange = [xStart, xEnd, yStart, yEnd]
+    plt.imshow(array,cmap=plt.cm.jet,  interpolation='bicubic', extent=plotRange)
     plt.colorbar()
     plt.axes().set_aspect('equal', 'datalim')
     axes = plt.gca()
@@ -247,11 +253,12 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, beamRadius, fileName='pack.
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotBeamFit(coordinates, center, angle, axis1, axis2, fileName='fit.png'):
-    xMin = coordinates[:,0].min()
-    xMax = coordinates[:,0].max()
-    yMin = coordinates[:,1].min()
-    yMax = coordinates[:,1].max()
+def plotBeamFit(sideLength, center, angle, axis1, axis2, fileName='fit.png'):
+    halfSideLength = sideLength/2.0
+    xMin = center[0] - halfSideLength
+    xMax = center[0] + halfSideLength
+    yMin = center[1] - halfSideLength
+    yMax = center[1] + halfSideLength
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
