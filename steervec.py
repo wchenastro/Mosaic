@@ -42,10 +42,9 @@ def projectedBaselines(altitude, azimuth, baselines):
         for baseline in baselines:
             projectedBaseline = baseline - np.dot(baseline, source)*source
             projectedBaselines.append(projectedBaseline)
-            baselineIndex.append(baseline)
     # projectedBaselines  = np.absolute(np.cross(baselines, sourcePosition.T))
 
-    return baselineIndex, projectedBaselines
+    return projectedBaselines
 
 def distances(vector):
     squares = np.square(vector)
@@ -131,6 +130,19 @@ def weightVector(waveNumbers, receiverLocations):
     weights  = np.exp(-1j*delays)
 
     return  np.array(weights)
+
+def complexer(coords, waveLength):
+
+    complexes  = np.exp(1j*np.pi*2*(coords/waveLength))
+
+    return complexes
+
+def complexer2D(x, y, waveLength):
+
+    complexes  = np.exp(1j*np.pi*2*(x/waveLength))*np.exp(1j*np.pi*2*(y/waveLength))
+
+    return complexes
+
 
 def waveNumberFreq(altitude, azimuth, frequencies, compensate=True):
     speedOfLight = 299792458
