@@ -389,27 +389,29 @@ def onClickedPackButton2():
         return
 
     number = observation.getBaselinesNumber()
-    amplitude = observation.getAmplitude()
-    coordinates = observation.getBeamCoordinates()
-    center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
+    # amplitude = observation.getAmplitude()
+    # coordinates = observation.getBeamCoordinates()
+    # center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
+    center = np.rad2deg(observation.getHorizontal())
+    imageLength = np.rad2deg(observation.getImageLength())
     axisH2, axisV2, angle2, = observation.getBeamAxis()
     if center == []: return
-    print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle)
+    # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
     # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
-    plotBeamFit(coordinates, center, angle2, axisH2, axisV2)
+    plotBeamFit(imageLength, center, angle2, axisH2, axisV2)
     bottomImage = QImage(os.getcwd() + '/contour.png')
     topImage = QImage(os.getcwd() + '/fit.png')
     fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
     onClickedPackButton2.fittedImage = fittedImage
     label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
-    coordinates, beamRadius = ellipseCompact(400, axisH, axisV, angle, 10)
-    beamNumber = coordinates.shape[0]
-    beamArea = np.pi*axisH*axisV
-    primaryBeamArea = np.pi*(beamRadius**2)
-    ratio = beamNumber*beamArea/primaryBeamArea
+    coordinates, beamRadius = ellipseCompact(400, axisH2, axisV2, angle2, 10)
+    # beamNumber = coordinates.shape[0]
+    # beamArea = np.pi*axisH*axisV
+    # primaryBeamArea = np.pi*(beamRadius**2)
+    # ratio = beamNumber*beamArea/primaryBeamArea
     # print(beamRadius)
     # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
-    plotPackedBeam(coordinates, np.rad2deg(angle), axisH, axisV, beamRadius)
+    plotPackedBeam(coordinates, np.rad2deg(angle2), axisH2, axisV2, beamRadius)
     pixmap = QPixmap(os.getcwd() + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     onClickedPackButton2.state = 1
@@ -594,7 +596,7 @@ beamSizeEdit = QSpinBox(w)
 beamSizeEdit.move(710, 340)
 beamSizeEdit.setValue(defaultBeamSizeFactor)
 beamSizeEdit.setMinimum(1)
-beamSizeEdit.setMaximum(1000)
+beamSizeEdit.setMaximum(100000)
 beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
 
 beamNumberLabel = QLabel(w)
