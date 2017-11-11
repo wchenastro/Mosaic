@@ -105,14 +105,17 @@ class InterferometryObservation:
     def getBeamAxis(self):
         return self.beamAxis
 
+    def getImageLength(self):
+        return self.imageLength
+
     def getAntCoordinates(self):
         return self.antCoordinatesGEODET.tolist()
 
     def updateBeamCoordinates(self):
-        beamCoordinates, subBeamRadius = cb.optimizeGrid(
-                self.beamNumber, np.rad2deg(self.beamSize/self.beamSizeFactor)/2.,
-                cb.recGrid, 50, np.array(self.boreSight))
-        self.beamCoordinates = np.array(beamCoordinates)
+        # beamCoordinates, subBeamRadius = cb.optimizeGrid(
+                # self.beamNumber, np.rad2deg(self.beamSize/self.beamSizeFactor)/2.,
+                # cb.recGrid, 50, np.array(self.boreSight))
+        # self.beamCoordinates = np.array(beamCoordinates)
         self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, 10, 1)
 
 
@@ -164,11 +167,12 @@ class InterferometryObservation:
 
         arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[1])
 
-        altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
+        altitude, azimuth = getAltAziFromRADEC(np.array([self.boreSight]),
                 LSTDeg, arrayRefereceLatitude)
 
+        self.boreSightHorizontal = (azimuth[0], altitude[0])
+
         if abs(altitude[0]) < minAlt:
-            self.boreSightHorizontal = (azimuth[0], altitude[0])
             return
 
         self.projectedBaselines = sv.projectedBaselines(
@@ -179,16 +183,17 @@ class InterferometryObservation:
 
         halfGridNum = 500.0
         gridNum = halfGridNum*2.0
-        imageLength = 20.0
-        pixelNum = imageLength * imageLength
+        # pixelNum = imageLength * imageLength
         # uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
         uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/self.waveLength
         vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/self.waveLength
         uvMax = uMax if uMax > vMax else vMax
         step = halfGridNum/(uvMax/self.waveLength)
-        # imageUnit = 1/(1/(halfGridNum/(uvMax/self.waveLength))) / pixelNum
-        imageUnit = step / pixelNum
-        print imageUnit
+        # imageLength = 1/(1/(halfGridNum/(uvMax/self.waveLength)))
+        imageLength = step
+        windowLength = imageLength/1000.0*20.0
+        self.imageLength = windowLength
+        # print step
         uvSamples = []
         for baseline in rotatedProjectedBaselines:
             # print baseline
@@ -202,12 +207,6 @@ class InterferometryObservation:
             # uvGrids[-vSlot-1][-uSlot-1] = 1
 
 
-        # ul = np.mgrid[0:10:1, 0:10:1]
-        # ur = np.mgrid[0:10:1, gridNum-10:gridNum:1]
-        # bl = np.mgrid[gridNum-10:gridNum:1, 0:10:1]
-        # br = np.mgrid[gridNum-10:gridNum:1, gridNum-10:gridNum:1]
-        # imagesCoord = np.array([np.concatenate((np.concatenate((ul[0].T, ur[0].T)).T, np.concatenate((bl[0].T,br[0].T)).T)).flatten(), np.concatenate((np.concatenate((ul[1].T, ur[1].T)).T, np.concatenate((bl[1].T, br[1].T)).T)).flatten()])
-        # uvSampes = np.array(uvSamples)
         imagesCoord = self.partialDFTGrid
         imagesValue = []
         # for coord in imagesCoord:
@@ -223,114 +222,62 @@ class InterferometryObservation:
         # np.savetxt('psf2', np.abs(fringeSum))
         # np.savetxt('vuGrid', uvGrids, fmt='%.0f')
 
-        bs.plotBeamContour3(np.fft.fftshift(np.abs(fringeSum)))
+        # print self.boreSightHorizontal
+        bs.plotBeamContour3(np.fft.fftshift(np.abs(fringeSum)), self.boreSightHorizontal, windowLength)
 
 
 
-        projectedEastNorth = sv.projectedBaselines(
-                np.array([altitude[0]]), np.array([azimuth[0]]),
-                [[1,0,0], [0,1,0]])
+        # projectedEastNorth = sv.projectedBaselines(
+                # np.array([altitude[0]]), np.array([azimuth[0]]),
+                # [[1,0,0], [0,1,0]])
 
-        if self.autoZoom == True:
-            # np.savetxt('baselines0421', projectedBaselines)
-            baselineLengths = sv.distances(self.projectedBaselines)
-            baselineMax = np.amax(baselineLengths)
-            indexOfMaximum = np.argmax(baselineLengths)
-            maxBaselineVector = self.projectedBaselines[indexOfMaximum]
-            # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
-            perpendicularOfMaxBaselineVector = sv.projectedRotate(
-                    altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
-            perpendicularUnitVector = perpendicularOfMaxBaselineVector/sv.distances(perpendicularOfMaxBaselineVector)
-            perpendicularBaselines = np.dot(self.projectedBaselines, perpendicularUnitVector)
-            perpendicularBaselineMax = np.amax(np.abs(perpendicularBaselines))
-            # maxBaseline = np.amax(baselineLengths)
-            # minBaseline = np.amin(baselineLengths)
-            baseNum = len(antCoordinatesENU)
-            # factor = (0.140845*baseNum + 28.7887)/(baseNum + 11.6056)
-            # Hyperbola function
-            factor = (50.5223 - 0.382166*baseNum)/(baseNum + 22.879)
-            factor = factor * (1 - abs(altitude[0])/(np.pi/2.)*0.5)
-            # factor = 1
-            # print maxBaselineVector , perpendicularUnitVector
-            # print self.baselines
-            # print self.baselines
-            # print baselineMax , perpendicularBaselineMax
-            # projectedZenithVector = sv.projectedBaselines(
-                    # np.array([altitude[0]]), np.array([azimuth[0]]), [[0,0,1],])[0]
-            # zenithUnitVector = projectedZenithVector/sv.distances(projectedZenithVector)
-            # maxBaselineUnitVector = maxBaselineVector/baselineMax
+        baselineLengths = sv.distances(rotatedProjectedBaselines)
+        baselineMax = np.amax(baselineLengths)
+        baselineMin = np.amin(baselineLengths)
+        indexOfMaximum = np.argmax(baselineLengths)
+        maxBaselineVector = rotatedProjectedBaselines[indexOfMaximum]
+        # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
+        perpendicularOfMaxBaselineVector = sv.projectedRotate(
+                np.pi/2., 0, maxBaselineVector, np.pi/2.)
+                # altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
+        perpendicularUnitVector = perpendicularOfMaxBaselineVector/sv.distances(perpendicularOfMaxBaselineVector)
+        perpendicularBaselines = np.dot(rotatedProjectedBaselines, perpendicularUnitVector)
+        perpendicularBaselineMax = np.amax(np.abs(perpendicularBaselines))
+        baseNum = len(antCoordinatesENU)
+        # factor = (0.140845*baseNum + 28.7887)/(baseNum + 11.6056)
+        # Hyperbola function
+        # factor = (50.5223 - 0.382166*baseNum)/(baseNum + 22.879)
+        # factor = factor * (1 - abs(altitude[0])/(np.pi/2.)*0.5)
 
-            # rotatedMaxBaselineVector = rotateCoordinate([maxBaselineVector,],
-                    # (np.pi/2. - altitude[0]), (np.pi/2. - azimuth[0]))[0]
+        # angle = np.arccos(np.dot(zenithUnitVector, maxBaselineUnitVector)/1)
+        # phi, theta = cartesianToSpherical(np.array([maxBaselineVector/sv.distances(maxBaselineVector)]))
+        # perpendicularRA, perpendicularDEC = coord.convertHorizontalToEquatorial(
+                # np.pi/2. - phi, np.pi/2. - theta, np.deg2rad(LSTDeg), arrayRefereceLatitude)
+        # print perpendicularRA, perpendicularDEC
 
-            # maxBaselineUnitVector = rotatedMaxBaselineVector/sv.distances(rotatedMaxBaselineVector)
+        # angle = np.arctan2(np.rad2deg(perpendicularDEC[0]), np.rad2deg(perpendicularRA[0]))
 
-            # angle = np.arccos(np.dot(zenithUnitVector, maxBaselineUnitVector)/1)
-            phi, theta = cartesianToSpherical(np.array([maxBaselineVector/sv.distances(maxBaselineVector)]))
-            perpendicularRA, perpendicularDEC = coord.convertHorizontalToEquatorial(
-                    np.pi/2. - phi, np.pi/2. - theta, np.deg2rad(LSTDeg), arrayRefereceLatitude)
-            # print perpendicularRA, perpendicularDEC
-
-            # angle = np.arctan2(np.rad2deg(perpendicularDEC[0]), np.rad2deg(perpendicularRA[0]))
-
-            # rotatedUV = sv.rotateCoordinate(maxBaselineVector, -np.pi/2.0 + altitude[0], -np.pi/2.0 + azimuth[0])
-            # rotatedUV = sv.rotateCoordinate(maxBaselineVector, np.pi/2.0 - altitude[0], azimuth[0])
-            print "rotate:"
-            angle = np.pi/2.0 + np.arccos(np.dot(maxBaselineVector, projectedEastNorth[0])/baselineMax*sv.distances(projectedEastNorth[0]))
-            # angle =  np.arctan2(rotatedUV [0], rotatedUV [1])
-            print np.rad2deg(angle)
-            self.beamAxis = [np.rad2deg(1.22*self.waveLength/perpendicularBaselineMax/2.),
-                np.rad2deg(1.22*self.waveLength/baselineMax/2.), np.rad2deg(angle)]
-            # print zenithUnitVector, perpendicularUnitVector
-            # print 'aixsLengthCal: ', self.beamAxis, np.rad2deg(angle)
-            requireBeamSizeFactor = factor *  self.beamSize/(1.22*self.waveLength/perpendicularBaselineMax)
-            if abs(requireBeamSizeFactor - self.beamSizeFactor) > 1:
-                rounedFactor = round(requireBeamSizeFactor)
-                self.setBeamSizeFactor(rounedFactor if rounedFactor != 0 else 1)
-                altitude, azimuth = getAltAziFromRADEC(self.beamCoordinates,
-                    LSTDeg, arrayRefereceLatitude)
-                self.projectedBaselines =sv.projectedBaselines(
-                        np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
-
-        else:
-            self.autoZoom = True
-
-        # print self.projectedBaselines
-        # waveNumbers = sv.waveNumber(altitude, azimuth, self.waveLength, False)
-
-        # weights = sv.weightVector(waveNumbers, self.baselines)
-        # maxOriginalBaseline = [maxBaselineVectorOriginal,]
-        # weightMaxOriginal = sv.weightVector(waveNumbers, maxOriginalBaseline )
-
-
-
-        self.boreSightHorizontal = (azimuth[0], altitude[0])
-        # self.amplitude = bs.fringePlot(np.column_stack((np.rad2deg(altitude), np.rad2deg(azimuth))), weights, self.baselines,
-        # self.amplitude = bs.fringePlot(self.beamCoordinates, weights, self.baselines,
-                # self.boreSight, np.rad2deg(self.beamSize),
-                # self.interpolating, fileName=fileName)
-
-        # originalAmplitude = bs.fringePlot(self.beamCoordinates,
-                # weightMaxOriginal,maxOriginalBaseline ,
-                # self.boreSight, np.rad2deg(self.beamSize),
-                # self.interpolating, fileName='maxBaseline.png')
-
-        # print maxBaselineVector
         # rotatedUV = sv.rotateCoordinate(maxBaselineVector, -np.pi/2.0 + altitude[0], -np.pi/2.0 + azimuth[0])
-        # print rotatedUV
-        # print np.rad2deg(np.arctan2(maxBaselineVector[1], maxBaselineVector[0]))
+        # rotatedUV = sv.rotateCoordinate(maxBaselineVector, np.pi/2.0 - altitude[0], azimuth[0])
+        print baselineMin, baselineMax
+        # angle = np.pi/2.0 + np.arccos(np.dot(maxBaselineVector, projectedEastNorth[0])/baselineMax*sv.distances(projectedEastNorth[0]))
 
-        # np.savetxt('beamOrignal', originalAmplitude)
-        # getCentralLine(self.beamCoordinates, originalAmplitude)
+        vectorSum = np.sum(rotatedProjectedBaselines, axis=0)
 
+        # angle =  np.arctan2(maxBaselineVector[1], maxBaselineVector[0])
+        # minorAixs = np.rad2deg(1.22*self.waveLength/baselineMax/2.)
+        # majorAixs = np.rad2deg(1.22*self.waveLength/perpendicularBaselineMax/2.)
+        # self.beamAxis = [majorAixs, minorAixs, np.rad2deg(angle)]
 
-        # print "max baseline: ", maxBaseline
+        angle = np.pi/2.0 +  np.arctan2(vectorSum[1], vectorSum[0])
+        summedLength = sv.distances(vectorSum)
+        print summedLength
+        minorAixs = np.rad2deg(1.22*self.waveLength/summedLength/2.)
+        majorAixs = np.rad2deg(1.22*self.waveLength/(summedLength*2)/2.)
+        self.beamAxis = [majorAixs, minorAixs, np.rad2deg(angle)]
 
-        # np.savetxt('beamCoor', np.c_[altitude, azimuth])
-        # np.savetxt('antennaCoor', self.baselines)
-        # np.savetxt('waveNumberPy', waveNumbers )
-        # np.savetxt('baselines0421', projectedBaselines)
-        # np.savetxt('weights0421', weights)
+        print minorAixs, majorAixs, np.rad2deg(angle)
+
 
 
 def sphericalToCartesian(theta, phi):
