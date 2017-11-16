@@ -9,6 +9,7 @@ import beamShape as bs
 import createBeam as cb
 
 import inspect
+from scipy import interpolate
 
 
 class InterferometryObservation:
@@ -175,6 +176,7 @@ class InterferometryObservation:
         if abs(altitude[0]) < minAlt:
             return
 
+        baselineNum = len(self.baselines)
         self.projectedBaselines = sv.projectedBaselines(
                 np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
 
@@ -183,6 +185,7 @@ class InterferometryObservation:
 
         halfGridNum = 500.0
         gridNum = halfGridNum*2.0
+        sidelength = 20.0
         # pixelNum = imageLength * imageLength
         # uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
         uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/self.waveLength
@@ -191,7 +194,7 @@ class InterferometryObservation:
         step = halfGridNum/(uvMax/self.waveLength)
         # imageLength = 1/(1/(halfGridNum/(uvMax/self.waveLength)))
         imageLength = step
-        windowLength = imageLength/1000.0*20.0
+        windowLength = imageLength/gridNum*sidelength
         self.imageLength = windowLength
         # print step
         uvSamples = []
@@ -213,70 +216,158 @@ class InterferometryObservation:
         fringeSum = np.zeros(20*20)
         for uv in uvSamples:
             fringeSum = fringeSum +  np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
-        fringeSum = fringeSum.reshape(20,20)/(len(uvSamples))
+        fringeSum = fringeSum.reshape(int(sidelength),int(sidelength))/(len(uvSamples))
 
 
-        # psf = np.fft.ifft2(uvGrids)
+        image = np.fft.fftshift(np.abs(fringeSum))
+        bs.plotBeamContour3(image, self.boreSightHorizontal, windowLength)
 
-        # np.savetxt('psf', np.abs(psf))
-        # np.savetxt('psf2', np.abs(fringeSum))
-        # np.savetxt('vuGrid', uvGrids, fmt='%.0f')
+        angle = 0
+        if baselineNum > 2:
 
-        # print self.boreSightHorizontal
-        bs.plotBeamContour3(np.fft.fftshift(np.abs(fringeSum)), self.boreSightHorizontal, windowLength)
+            interpolatedLength = 800
+            interpolater = interpolate.interp2d(range(int(sidelength)), range(int(sidelength)), image ,kind='cubic')
+            image = interpolater(np.linspace(0, sidelength - 1, interpolatedLength), np.linspace(0, sidelength - 1, interpolatedLength))
+            # np.savetxt('interpolate', image)
 
 
+            threshold = 0.3
+            imageCenter = [interpolatedLength/2, interpolatedLength/2]
+            rowIdx = int(imageCenter[0])
+            colIdx = int(imageCenter[1])
 
-        # projectedEastNorth = sv.projectedBaselines(
-                # np.array([altitude[0]]), np.array([azimuth[0]]),
-                # [[1,0,0], [0,1,0]])
+            class State:
+                move, addRow, findBorder, findBorderReverse, upsideDown, end = range(6)
 
-        baselineLengths = sv.distances(rotatedProjectedBaselines)
-        baselineMax = np.amax(baselineLengths)
-        baselineMin = np.amin(baselineLengths)
-        indexOfMaximum = np.argmax(baselineLengths)
-        maxBaselineVector = rotatedProjectedBaselines[indexOfMaximum]
-        # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
-        perpendicularOfMaxBaselineVector = sv.projectedRotate(
-                np.pi/2., 0, maxBaselineVector, np.pi/2.)
-                # altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
-        perpendicularUnitVector = perpendicularOfMaxBaselineVector/sv.distances(perpendicularOfMaxBaselineVector)
-        perpendicularBaselines = np.dot(rotatedProjectedBaselines, perpendicularUnitVector)
-        perpendicularBaselineMax = np.amax(np.abs(perpendicularBaselines))
-        baseNum = len(antCoordinatesENU)
-        # factor = (0.140845*baseNum + 28.7887)/(baseNum + 11.6056)
-        # Hyperbola function
-        # factor = (50.5223 - 0.382166*baseNum)/(baseNum + 22.879)
-        # factor = factor * (1 - abs(altitude[0])/(np.pi/2.)*0.5)
+            border = []
+            state = State.move
+            rowStep = -1
+            colStep = 1
+            colBorder = interpolatedLength - 1
+            rowBorder = 0
+            bottom = False
+            overstep = False
+            offset = 0.1
 
-        # angle = np.arccos(np.dot(zenithUnitVector, maxBaselineUnitVector)/1)
-        # phi, theta = cartesianToSpherical(np.array([maxBaselineVector/sv.distances(maxBaselineVector)]))
-        # perpendicularRA, perpendicularDEC = coord.convertHorizontalToEquatorial(
-                # np.pi/2. - phi, np.pi/2. - theta, np.deg2rad(LSTDeg), arrayRefereceLatitude)
-        # print perpendicularRA, perpendicularDEC
+            while state != State.end:
+                # print rowIdx, colIdx, image[rowIdx, colIdx]
+                if state == State.move:
+                    if colIdx != colBorder:
+                        colIdx += colStep
+                        if image[rowIdx, colIdx] < threshold:
+                            border.append([rowIdx, colIdx])
+                            state = State.addRow
+                    else:
+                        overstep = True
+                        state = State.addRow
 
-        # angle = np.arctan2(np.rad2deg(perpendicularDEC[0]), np.rad2deg(perpendicularRA[0]))
+                if state == State.addRow:
+                    if rowIdx != rowBorder:
+                        rowIdx += rowStep
+                        state = State.findBorder
+                    else:
+                        overstep = True
+                        state = State.upsideDown
 
-        # rotatedUV = sv.rotateCoordinate(maxBaselineVector, -np.pi/2.0 + altitude[0], -np.pi/2.0 + azimuth[0])
-        # rotatedUV = sv.rotateCoordinate(maxBaselineVector, np.pi/2.0 - altitude[0], azimuth[0])
-        print baselineMin, baselineMax
-        # angle = np.pi/2.0 + np.arccos(np.dot(maxBaselineVector, projectedEastNorth[0])/baselineMax*sv.distances(projectedEastNorth[0]))
 
-        vectorSum = np.sum(rotatedProjectedBaselines, axis=0)
+                if state == State.findBorder:
+                    if image[rowIdx, colIdx] < threshold:
+                        colStep *= -1
+                        colBorder = interpolatedLength - 1 - colBorder
+                        state = State.findBorderReverse
+                    else:
+                        if colIdx != colBorder:
+                            colIdx += colStep
+                        else:
+                            overstep = True
+                            colStep *= -1
+                            colBorder = interpolatedLength - 1 - colBorder
+                            state = State.move
 
-        # angle =  np.arctan2(maxBaselineVector[1], maxBaselineVector[0])
-        # minorAixs = np.rad2deg(1.22*self.waveLength/baselineMax/2.)
-        # majorAixs = np.rad2deg(1.22*self.waveLength/perpendicularBaselineMax/2.)
-        # self.beamAxis = [majorAixs, minorAixs, np.rad2deg(angle)]
+                if state == State.findBorderReverse:
+                    try:
+                        if image[rowIdx, colIdx] < threshold:
+                            if colIdx != colBorder:
+                                colIdx += colStep
+                            else:
+                                state = State.upsideDown
 
-        angle = np.pi/2.0 +  np.arctan2(vectorSum[1], vectorSum[0])
-        summedLength = sv.distances(vectorSum)
-        print summedLength
-        minorAixs = np.rad2deg(1.22*self.waveLength/summedLength/2.)
-        majorAixs = np.rad2deg(1.22*self.waveLength/(summedLength*2)/2.)
-        self.beamAxis = [majorAixs, minorAixs, np.rad2deg(angle)]
+                        else:
+                            if len(border) > 2:
+                                distLastSQ = (border[-1][0] - border[-2][0])**2 + (border[-1][1] - border[-2][1])**2
+                                distNowSQ = (border[-1][0] - rowIdx)**2 + (border[-1][1] - colIdx)**2
+                                if (distNowSQ - distLastSQ*1.5) > 0:
+                                    state = State.upsideDown
+                                    continue
+                            border.append([rowIdx, colIdx])
+                            state = State.move
+                    except IndexError:
+                        print rowIdx, colIdx
+                        raise
 
-        print minorAixs, majorAixs, np.rad2deg(angle)
+                if state == State.upsideDown:
+                    if bottom == True:
+                        state = State.end
+                    else:
+                        bottom = True
+                        rowStep = 1
+                        colStep = -1
+                        colBorder = 0
+                        rowBorder = interpolatedLength - 1
+                        rowIdx = imageCenter[0]
+                        colIdx = imageCenter[1]
+                        state = State.move
+
+            # np.savetxt('border', border)
+
+            imageArray = np.array(border) - [0, imageCenter[1]]
+            imageArray[:, 0] = imageCenter[0] - imageArray[:, 0]
+            np.savetxt('border', imageArray)
+            distancesSQ = np.sum(np.square(imageArray), axis=1)
+            minDistIndex = np.argmin(distancesSQ)
+            minDist = np.sqrt(distancesSQ[minDistIndex])
+            minDistVector = imageArray[minDistIndex]
+            if overstep == False:
+                maxDistIndex = np.argmax(distancesSQ)
+                maxDist = np.sqrt(distancesSQ[maxDistIndex])
+                maxDistVector = imageArray[maxDistIndex]
+                angle = np.arctan2(maxDistVector[0], maxDistVector[1])
+                # angleVert = np.arctan2(maxDistVector[0], maxDistVector[1])
+                # angleHonr = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
+
+                minorAixs  = np.rad2deg(windowLength/interpolatedLength*minDist)
+                majorAixs  = np.rad2deg(windowLength/interpolatedLength*maxDist)
+                # print np.rad2deg(majorAixs1), np.rad2deg(minorAixs1)
+            else:
+                angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
+
+
+                baselineLengths = sv.distances(rotatedProjectedBaselines)
+                baselineMax = np.amax(baselineLengths)
+                baselineMin = np.amin(baselineLengths)
+                indexOfMaximum = np.argmax(baselineLengths)
+                maxBaselineVector = rotatedProjectedBaselines[indexOfMaximum]
+                # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
+                perpendicularOfMaxBaselineVector = sv.projectedRotate(
+                        np.pi/2., 0, maxBaselineVector, np.pi/2.)
+                        # altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
+                perpendicularUnitVector = perpendicularOfMaxBaselineVector/sv.distances(perpendicularOfMaxBaselineVector)
+                perpendicularBaselines = np.dot(rotatedProjectedBaselines, perpendicularUnitVector)
+                perpendicularBaselineMax = np.amax(np.abs(perpendicularBaselines))
+                baseNum = len(antCoordinatesENU)
+                # factor = (0.140845*baseNum + 28.7887)/(baseNum + 11.6056)
+                # Hyperbola function
+                # factor = (50.5223 - 0.382166*baseNum)/(baseNum + 22.879)
+                # factor = factor * (1 - abs(altitude[0])/(np.pi/2.)*0.5)
+
+                # angle =  np.arctan2(maxBaselineVector[1], maxBaselineVector[0])
+                # minorAixs = np.rad2deg(1.22*self.waveLength/baselineMax/2.)
+                majorAixs = np.rad2deg(1.22*self.waveLength/perpendicularBaselineMax/2.)
+                minorAixs  = np.rad2deg(windowLength/interpolatedLength*minDist)
+                # self.beamAxis = [majorAixs, minorAixs, angle]
+            self.beamAxis = [majorAixs, minorAixs, angle]
+
+            print majorAixs, minorAixs, np.rad2deg(angle)
 
 
 

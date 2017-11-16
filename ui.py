@@ -398,7 +398,7 @@ def onClickedPackButton2():
     if center == []: return
     # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
     # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
-    plotBeamFit(imageLength, center, angle2, axisH2, axisV2)
+    plotBeamFit(imageLength, center, np.rad2deg(angle2), axisH2, axisV2)
     bottomImage = QImage(os.getcwd() + '/contour.png')
     topImage = QImage(os.getcwd() + '/fit.png')
     fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
@@ -507,7 +507,7 @@ observationTime = QDateTime.currentDateTime().toPyDateTime()
 '''observation waveLength in meter'''
 waveLength = 0.21
 
-defaultBeamSizeFactor = 90
+defaultBeamSizeFactor = 1
 defaultBeamNumber = 400
 defaultBoreSight = (21.44389, -30.71317)
 
