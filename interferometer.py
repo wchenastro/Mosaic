@@ -30,7 +30,7 @@ class InterferometryObservation:
         self.projectedBaselines = []
         self.baselineIndex = []
         self.beamAxis = []
-        self.beamSizeFactor = 0.1
+        self.beamSizeFactor = 1
         self.beamCoordinates = []
         self.beamNumber = 400
         self.beamSize = 1.22*self.waveLength/13.5
@@ -52,7 +52,6 @@ class InterferometryObservation:
         return self.observeTime
 
     def setBeamSizeFactor(self, size, autoZoom = True):
-        # print inspect.stack()[1][3]
         if size != self.beamSizeFactor:
             self.beamSizeFactor = size
             self.updateBeamCoordinates()
@@ -94,8 +93,6 @@ class InterferometryObservation:
     def getHorizontal(self):
         return self.boreSightHorizontal
 
-    # def getProjectedBaselines(self):
-        # return np.array(self.projectedBaselines)
 
     def getProjectedBaselines(self):
         projectedBaselines = np.array(self.projectedBaselines)
@@ -117,7 +114,9 @@ class InterferometryObservation:
                 # self.beamNumber, np.rad2deg(self.beamSize/self.beamSizeFactor)/2.,
                 # cb.recGrid, 50, np.array(self.boreSight))
         # self.beamCoordinates = np.array(beamCoordinates)
-        self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, 10, 1)
+        halfLength = self.beamSizeFactor * 10
+        interval = self.beamSizeFactor
+        self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, halfLength, interval)
 
 
     def createDFTGrid(self, gridNum, halfLength, interval):
@@ -185,7 +184,8 @@ class InterferometryObservation:
 
         halfGridNum = 500.0
         gridNum = halfGridNum*2.0
-        sidelength = 20.0
+        sidelength = 20.0 * self.beamSizeFactor
+        density = 20
         # pixelNum = imageLength * imageLength
         # uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
         uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/self.waveLength
@@ -213,10 +213,10 @@ class InterferometryObservation:
         imagesCoord = self.partialDFTGrid
         imagesValue = []
         # for coord in imagesCoord:
-        fringeSum = np.zeros(20*20)
+        fringeSum = np.zeros(density*density)
         for uv in uvSamples:
             fringeSum = fringeSum +  np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
-        fringeSum = fringeSum.reshape(int(sidelength),int(sidelength))/(len(uvSamples))
+        fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
 
 
         image = np.fft.fftshift(np.abs(fringeSum))
@@ -226,8 +226,8 @@ class InterferometryObservation:
         if baselineNum > 2:
 
             interpolatedLength = 800
-            interpolater = interpolate.interp2d(range(int(sidelength)), range(int(sidelength)), image ,kind='cubic')
-            image = interpolater(np.linspace(0, sidelength - 1, interpolatedLength), np.linspace(0, sidelength - 1, interpolatedLength))
+            interpolater = interpolate.interp2d(range(density), range(density), image ,kind='cubic')
+            image = interpolater(np.linspace(0, density - 1, interpolatedLength), np.linspace(0, density - 1, interpolatedLength))
             # np.savetxt('interpolate', image)
 
 
@@ -248,6 +248,8 @@ class InterferometryObservation:
             bottom = False
             overstep = False
             offset = 0.1
+            closestToCenter = 1
+            closestToCenterIndex = []
 
             while state != State.end:
                 # print rowIdx, colIdx, image[rowIdx, colIdx]
@@ -257,6 +259,11 @@ class InterferometryObservation:
                         if image[rowIdx, colIdx] < threshold:
                             border.append([rowIdx, colIdx])
                             state = State.addRow
+                        else:
+                            distToCenter = 1 - image[rowIdx, colIdx]
+                            if distToCenter  < closestToCenter:
+                                closestToCenter = distToCenter
+                                closestToCenterIndex = [rowIdx, colIdx]
                     else:
                         overstep = True
                         state = State.addRow
@@ -320,8 +327,8 @@ class InterferometryObservation:
 
             # np.savetxt('border', border)
 
-            imageArray = np.array(border) - [0, imageCenter[1]]
-            imageArray[:, 0] = imageCenter[0] - imageArray[:, 0]
+            imageArray = np.array(border) - [0, closestToCenterIndex[1]]
+            imageArray[:, 0] = closestToCenterIndex[0] - imageArray[:, 0]
             np.savetxt('border', imageArray)
             distancesSQ = np.sum(np.square(imageArray), axis=1)
             minDistIndex = np.argmin(distancesSQ)
