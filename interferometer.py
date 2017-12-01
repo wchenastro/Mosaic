@@ -55,7 +55,7 @@ class InterferometryObservation:
         if size != self.beamSizeFactor:
             self.beamSizeFactor = size
             self.updateBeamCoordinates()
-            self.autoZoom = autoZoom
+            # self.autoZoom = autoZoom
 
     def setAutoZoom(self, switch):
         self.autoZoom = switch
@@ -93,7 +93,6 @@ class InterferometryObservation:
     def getHorizontal(self):
         return self.boreSightHorizontal
 
-
     def getProjectedBaselines(self):
         projectedBaselines = np.array(self.projectedBaselines)
         uvCoord = sv.rotateCoordinate(projectedBaselines, np.pi/2.0 -
@@ -110,10 +109,6 @@ class InterferometryObservation:
         return self.antCoordinatesGEODET.tolist()
 
     def updateBeamCoordinates(self):
-        # beamCoordinates, subBeamRadius = cb.optimizeGrid(
-                # self.beamNumber, np.rad2deg(self.beamSize/self.beamSizeFactor)/2.,
-                # cb.recGrid, 50, np.array(self.boreSight))
-        # self.beamCoordinates = np.array(beamCoordinates)
         halfLength = self.beamSizeFactor * 10
         interval = self.beamSizeFactor
         self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, halfLength, interval)
@@ -134,8 +129,172 @@ class InterferometryObservation:
 
         return imagesCoord
 
-    def partialDFT(self):
-        pass
+
+    def calculateImageLength(self, rotatedProjectedBaselines, waveLength,
+            zoomIn, density = 20, gridNum = 1000.0):
+
+        halfGridNum = gridNum/2.
+        # sidelength = density * zoomIn
+        uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/waveLength
+        vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/waveLength
+        uvMax = uMax if uMax > vMax else vMax
+        step = halfGridNum/(uvMax/waveLength)
+        # imageLength = 1/(1/(halfGridNum/(uvMax/self.waveLength)))
+        imageLength = step
+        # windowLength = imageLength/gridNum*sidelength
+        # print step
+
+        return imageLength
+
+    def partialDFT(self, partialDFTGrid, rotatedProjectedBaselines, waveLength,
+            imageLength, zoomIn, density = 20, gridNum = 1000.0):
+
+        step = imageLength
+        halfGridNum = gridNum/2.
+        uvSamples = []
+        for baseline in rotatedProjectedBaselines:
+            # print baseline
+            uSlot = int((baseline[0]/waveLength*step + halfGridNum - 1))
+            vSlot = int((halfGridNum - baseline[1]/waveLength*step - 1))
+
+            uvSamples.append([uSlot, vSlot])
+            uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
+            # uvGrids[vSlot][uSlot] = 1
+            # uvGrids[-vSlot-1][-uSlot-1] = 1
+
+
+        imagesCoord = partialDFTGrid
+        fringeSum = np.zeros(density*density)
+        for uv in uvSamples:
+            fringeSum = fringeSum + np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
+        fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
+
+        image = np.fft.fftshift(np.abs(fringeSum))
+
+        return image
+
+    def calculateBeamScaleFromBaselines(self, rotatedProjectedBaselines):
+        baselineLengths = sv.distances(rotatedProjectedBaselines)
+        baselineMax = np.amax(baselineLengths)
+        baselineMin = np.amin(baselineLengths)
+        indexOfMaximum = np.argmax(baselineLengths)
+        maxBaselineVector = rotatedProjectedBaselines[indexOfMaximum]
+        # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
+        perpendicularOfMaxBaselineVector = sv.projectedRotate(
+                np.pi/2., 0, maxBaselineVector, np.pi/2.)
+        perpendicularUnitVector = perpendicularOfMaxBaselineVector/sv.distances(
+                perpendicularOfMaxBaselineVector)
+        perpendicularBaselines = np.dot(rotatedProjectedBaselines, perpendicularUnitVector)
+        perpendicularBaselineMax = np.amax(np.abs(perpendicularBaselines))
+
+        minorAxis = 1.22*self.waveLength/baselineMax/2.
+        majorAxis = 1.22*self.waveLength/perpendicularBaselineMax/2.
+
+        return majorAxis, minorAxis
+
+
+    def trackBorder(self, image, threshold = 0.3, density = 20, interpolatedLength = 800):
+
+        interpolater = interpolate.interp2d(range(density), range(density), image ,kind='cubic')
+        image = interpolater(np.linspace(0, density - 1, interpolatedLength),
+                np.linspace(0, density - 1, interpolatedLength))
+        # np.savetxt('interpolate', image)
+
+
+        imageCenter = [interpolatedLength/2, interpolatedLength/2]
+        rowIdx = int(imageCenter[0])
+        colIdx = int(imageCenter[1])
+
+        class State:
+            move, addRow, findBorder, findBorderReverse, upsideDown, end = range(6)
+
+        border = []
+        state = State.move
+        rowStep = -1
+        colStep = 1
+        colBorder = interpolatedLength - 1
+        rowBorder = 0
+        bottom = False
+        overstep = False
+        offset = 0.1
+        closestToCenter = 1
+        closestToCenterIndex = []
+
+        while state != State.end:
+            # print rowIdx, colIdx, image[rowIdx, colIdx]
+            if state == State.move:
+                if colIdx != colBorder:
+                    colIdx += colStep
+                    if image[rowIdx, colIdx] < threshold:
+                        border.append([rowIdx, colIdx])
+                        state = State.addRow
+                    else:
+                        distToCenter = 1 - image[rowIdx, colIdx]
+                        if distToCenter  < closestToCenter:
+                            closestToCenter = distToCenter
+                            closestToCenterIndex = [rowIdx, colIdx]
+                else:
+                    overstep = True
+                    state = State.addRow
+
+            if state == State.addRow:
+                if rowIdx != rowBorder:
+                    rowIdx += rowStep
+                    state = State.findBorder
+                else:
+                    overstep = True
+                    state = State.upsideDown
+
+
+            if state == State.findBorder:
+                if image[rowIdx, colIdx] < threshold:
+                    colStep *= -1
+                    colBorder = interpolatedLength - 1 - colBorder
+                    state = State.findBorderReverse
+                else:
+                    if colIdx != colBorder:
+                        colIdx += colStep
+                    else:
+                        overstep = True
+                        colStep *= -1
+                        colBorder = interpolatedLength - 1 - colBorder
+                        state = State.move
+
+            if state == State.findBorderReverse:
+                try:
+                    if image[rowIdx, colIdx] < threshold:
+                        if colIdx != colBorder:
+                            colIdx += colStep
+                        else:
+                            state = State.upsideDown
+
+                    else:
+                        if len(border) > 2:
+                            distLastSQ = (border[-1][0] - border[-2][0])**2 + (border[-1][1] - border[-2][1])**2
+                            distNowSQ = (border[-1][0] - rowIdx)**2 + (border[-1][1] - colIdx)**2
+                            if (distNowSQ - distLastSQ*1.5) > 0:
+                                state = State.upsideDown
+                                continue
+                        border.append([rowIdx, colIdx])
+                        state = State.move
+                except IndexError:
+                    print rowIdx, colIdx
+                    raise
+
+            if state == State.upsideDown:
+                if bottom == True:
+                    state = State.end
+                else:
+                    bottom = True
+                    rowStep = 1
+                    colStep = -1
+                    colBorder = 0
+                    rowBorder = interpolatedLength - 1
+                    rowIdx = imageCenter[0]
+                    colIdx = imageCenter[1]
+                    state = State.move
+
+        return border, closestToCenterIndex, overstep
 
 
     def createContour(self, antennacoor, fileName='contour.png', minAlt=0):
@@ -150,10 +309,6 @@ class InterferometryObservation:
 
             return altitude, azimuth
 
-        # antennasCoordinateFile = 'antennacoor'
-        # beamCoordinateFile = 'inCoord'
-
-        # beamCoordinates = coord.readCoordinates(beamCoordinateFile)
         self.antCoordinatesGEODET = np.array(antennacoor)
 
         antCoordinatesECEF = coord.convertGodeticToECEF(self.antCoordinatesGEODET)
@@ -182,154 +337,59 @@ class InterferometryObservation:
         rotatedProjectedBaselines = sv.rotateCoordinate(self.projectedBaselines,
                 np.pi/2.0 - altitude[0], azimuth[0])
 
-        halfGridNum = 500.0
-        gridNum = halfGridNum*2.0
-        sidelength = 20.0 * self.beamSizeFactor
+        beamMajorAxisScale, beamMinorAxisScale = self.calculateBeamScaleFromBaselines(
+                rotatedProjectedBaselines)
+
         density = 20
-        # pixelNum = imageLength * imageLength
-        # uvGrids = np.zeros((gridNum, gridNum), dtype=np.int)
-        uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/self.waveLength
-        vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/self.waveLength
-        uvMax = uMax if uMax > vMax else vMax
-        step = halfGridNum/(uvMax/self.waveLength)
-        # imageLength = 1/(1/(halfGridNum/(uvMax/self.waveLength)))
-        imageLength = step
+        gridNum = 1000.0
+
+        imageLength = self.calculateImageLength(rotatedProjectedBaselines,
+                self.waveLength, self.beamSizeFactor, density)
+
+        newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
+        # print "new factor", newBeamSizeFactor
+
+
+        if newBeamSizeFactor < 1:
+            newBeamSizeFactor = 1
+        else:
+            newBeamSizeFactor = int(newBeamSizeFactor)
+
+        if baselineNum > 2 and self.autoZoom == True and abs(newBeamSizeFactor - self.beamSizeFactor) > 0:
+
+            # self.beamSizeFactor = newBeamSizeFactor
+            print "new beam factor:", newBeamSizeFactor
+            self.setBeamSizeFactor(newBeamSizeFactor)
+
+        sidelength = density * self.beamSizeFactor
         windowLength = imageLength/gridNum*sidelength
+
+        image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                self.waveLength, imageLength, self.beamSizeFactor, density)
+
         self.imageLength = windowLength
-        # print step
-        uvSamples = []
-        for baseline in rotatedProjectedBaselines:
-            # print baseline
-            uSlot = int((baseline[0]/self.waveLength*step + halfGridNum - 1))
-            vSlot = int((halfGridNum - baseline[1]/self.waveLength*step - 1))
-            # print uSlot, vSlot
-
-            uvSamples.append([uSlot, vSlot])
-            uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
-            # uvGrids[vSlot][uSlot] = 1
-            # uvGrids[-vSlot-1][-uSlot-1] = 1
-
-
-        imagesCoord = self.partialDFTGrid
-        imagesValue = []
-        # for coord in imagesCoord:
-        fringeSum = np.zeros(density*density)
-        for uv in uvSamples:
-            fringeSum = fringeSum +  np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
-        fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
-
-
-        image = np.fft.fftshift(np.abs(fringeSum))
-        bs.plotBeamContour3(image, self.boreSightHorizontal, windowLength)
+        bs.plotBeamContour3(image, self.boreSightHorizontal, windowLength,
+                interpolation = self.interpolating)
 
         angle = 0
         if baselineNum > 2:
-
             interpolatedLength = 800
-            interpolater = interpolate.interp2d(range(density), range(density), image ,kind='cubic')
-            image = interpolater(np.linspace(0, density - 1, interpolatedLength), np.linspace(0, density - 1, interpolatedLength))
-            # np.savetxt('interpolate', image)
-
-
-            threshold = 0.3
-            imageCenter = [interpolatedLength/2, interpolatedLength/2]
-            rowIdx = int(imageCenter[0])
-            colIdx = int(imageCenter[1])
-
-            class State:
-                move, addRow, findBorder, findBorderReverse, upsideDown, end = range(6)
-
-            border = []
-            state = State.move
-            rowStep = -1
-            colStep = 1
-            colBorder = interpolatedLength - 1
-            rowBorder = 0
-            bottom = False
-            overstep = False
-            offset = 0.1
-            closestToCenter = 1
-            closestToCenterIndex = []
-
-            while state != State.end:
-                # print rowIdx, colIdx, image[rowIdx, colIdx]
-                if state == State.move:
-                    if colIdx != colBorder:
-                        colIdx += colStep
-                        if image[rowIdx, colIdx] < threshold:
-                            border.append([rowIdx, colIdx])
-                            state = State.addRow
-                        else:
-                            distToCenter = 1 - image[rowIdx, colIdx]
-                            if distToCenter  < closestToCenter:
-                                closestToCenter = distToCenter
-                                closestToCenterIndex = [rowIdx, colIdx]
-                    else:
-                        overstep = True
-                        state = State.addRow
-
-                if state == State.addRow:
-                    if rowIdx != rowBorder:
-                        rowIdx += rowStep
-                        state = State.findBorder
-                    else:
-                        overstep = True
-                        state = State.upsideDown
-
-
-                if state == State.findBorder:
-                    if image[rowIdx, colIdx] < threshold:
-                        colStep *= -1
-                        colBorder = interpolatedLength - 1 - colBorder
-                        state = State.findBorderReverse
-                    else:
-                        if colIdx != colBorder:
-                            colIdx += colStep
-                        else:
-                            overstep = True
-                            colStep *= -1
-                            colBorder = interpolatedLength - 1 - colBorder
-                            state = State.move
-
-                if state == State.findBorderReverse:
-                    try:
-                        if image[rowIdx, colIdx] < threshold:
-                            if colIdx != colBorder:
-                                colIdx += colStep
-                            else:
-                                state = State.upsideDown
-
-                        else:
-                            if len(border) > 2:
-                                distLastSQ = (border[-1][0] - border[-2][0])**2 + (border[-1][1] - border[-2][1])**2
-                                distNowSQ = (border[-1][0] - rowIdx)**2 + (border[-1][1] - colIdx)**2
-                                if (distNowSQ - distLastSQ*1.5) > 0:
-                                    state = State.upsideDown
-                                    continue
-                            border.append([rowIdx, colIdx])
-                            state = State.move
-                    except IndexError:
-                        print rowIdx, colIdx
-                        raise
-
-                if state == State.upsideDown:
-                    if bottom == True:
-                        state = State.end
-                    else:
-                        bottom = True
-                        rowStep = 1
-                        colStep = -1
-                        colBorder = 0
-                        rowBorder = interpolatedLength - 1
-                        rowIdx = imageCenter[0]
-                        colIdx = imageCenter[1]
-                        state = State.move
-
+            threshold = 0.5
+            border, closestToCenterIndex, overstep = self.trackBorder(
+                    image, threshold, density, interpolatedLength)
             # np.savetxt('border', border)
+
+
+            if len(border) < 10:
+                majorAixs = np.rad2deg(beamMajorAxisScale)
+                minorAixs = np.rad2deg(beamMajorAxisScale)
+                angle = 0
+                self.beamAxis = [majorAixs, minorAixs, angle]
+                return
 
             imageArray = np.array(border) - [0, closestToCenterIndex[1]]
             imageArray[:, 0] = closestToCenterIndex[0] - imageArray[:, 0]
-            np.savetxt('border', imageArray)
+            # np.savetxt('border', imageArray)
             distancesSQ = np.sum(np.square(imageArray), axis=1)
             minDistIndex = np.argmin(distancesSQ)
             minDist = np.sqrt(distancesSQ[minDistIndex])
@@ -349,27 +409,7 @@ class InterferometryObservation:
                 angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
 
 
-                baselineLengths = sv.distances(rotatedProjectedBaselines)
-                baselineMax = np.amax(baselineLengths)
-                baselineMin = np.amin(baselineLengths)
-                indexOfMaximum = np.argmax(baselineLengths)
-                maxBaselineVector = rotatedProjectedBaselines[indexOfMaximum]
-                # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
-                perpendicularOfMaxBaselineVector = sv.projectedRotate(
-                        np.pi/2., 0, maxBaselineVector, np.pi/2.)
-                        # altitude[0], azimuth[0], maxBaselineVector, np.pi/2.)
-                perpendicularUnitVector = perpendicularOfMaxBaselineVector/sv.distances(perpendicularOfMaxBaselineVector)
-                perpendicularBaselines = np.dot(rotatedProjectedBaselines, perpendicularUnitVector)
-                perpendicularBaselineMax = np.amax(np.abs(perpendicularBaselines))
-                baseNum = len(antCoordinatesENU)
-                # factor = (0.140845*baseNum + 28.7887)/(baseNum + 11.6056)
-                # Hyperbola function
-                # factor = (50.5223 - 0.382166*baseNum)/(baseNum + 22.879)
-                # factor = factor * (1 - abs(altitude[0])/(np.pi/2.)*0.5)
-
-                # angle =  np.arctan2(maxBaselineVector[1], maxBaselineVector[0])
-                # minorAixs = np.rad2deg(1.22*self.waveLength/baselineMax/2.)
-                majorAixs = np.rad2deg(1.22*self.waveLength/perpendicularBaselineMax/2.)
+                majorAixs = np.rad2deg(beamMajorAxisScale)
                 minorAixs  = np.rad2deg(windowLength/interpolatedLength*minDist)
                 # self.beamAxis = [majorAixs, minorAixs, angle]
             self.beamAxis = [majorAixs, minorAixs, angle]
