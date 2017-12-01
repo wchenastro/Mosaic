@@ -192,7 +192,8 @@ def onBoreSightUpdated():
     updateHorizontal(observation.getHorizontal())
 
 def onBeamSizeChanged():
-    observation.setBeamSizeFactor(beamSizeEdit.value(), autoZoom = False)
+    autoZoomCheckbox.setCheckState(Qt.Unchecked)
+    observation.setBeamSizeFactor(beamSizeEdit.value())
     updateCountour()
 
 def onBeamNumberChanged():
@@ -204,6 +205,13 @@ def onInterpolateOptionChanged(state):
         observation.setInterpolating(True)
     else:
         observation.setInterpolating(False)
+    updateCountour()
+
+def onAutoZoomOptionChanged(state):
+    if state == Qt.Checked:
+        observation.setAutoZoom(True)
+    else:
+        observation.setAutoZoom(False)
     updateCountour()
 
 def onDateTimeChanged(dateTime):
@@ -596,22 +604,34 @@ beamSizeEdit = QSpinBox(w)
 beamSizeEdit.move(710, 340)
 beamSizeEdit.setValue(defaultBeamSizeFactor)
 beamSizeEdit.setMinimum(1)
-beamSizeEdit.setMaximum(100000)
+beamSizeEdit.setMaximum(99)
 beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
+
+autoZoomLabel = QLabel(w)
+autoZoomLabel.setText(u"\u25F1")
+autoZoomLabel.setToolTip('Auto Zoom')
+autoZoomLabel.move(763, 320)
+autoZoomCheckbox = QCheckBox(w)
+autoZoomCheckbox.move(763, 345)
+autoZoomCheckbox.setToolTip('Auto Zoom')
+autoZoomCheckbox.setCheckState(Qt.Checked)
+autoZoomCheckbox.stateChanged.connect(onAutoZoomOptionChanged)
+
+
 
 beamNumberLabel = QLabel(w)
 beamNumberLabel.setText('Beams')
 beamNumberLabel.move(780, 320)
 beamNumberEdit = QLineEdit(w)
-beamNumberEdit.move(780, 340)
-beamNumberEdit.resize(50,30)
+beamNumberEdit.move(785, 340)
+beamNumberEdit.resize(40,30)
 beamNumberEdit.setText(str(defaultBeamNumber))
 beamNumberEdit.editingFinished.connect(onBeamNumberChanged)
 
 interpolateLabel = QLabel(w)
-interpolateLabel.setText('INTL.')
+interpolateLabel.setText(u"\u25A6")
 interpolateLabel.setToolTip('Interpolation')
-interpolateLabel.move(830, 320)
+interpolateLabel.move(833, 320)
 interpolateCheckbox = QCheckBox(w)
 interpolateCheckbox.move(830, 345)
 interpolateCheckbox.setToolTip('Interpolation')
@@ -675,20 +695,6 @@ coordinateList.itemSelectionChanged.connect(onCoordinateListSelectionChanged)
 # coordinateList.itemChanged.connect(onItemChangedAtCoordinateList)
 # coordinateList.installEventFilter(onItemChangedAtCoordinateList())
 coordinateList.setFocus()
-
-# baselineListLabel = QLabel(w)
-# baselineListLabel.setText('Baselines')
-# baselineListLabel.move(500, 440)
-
-
-# baselineList = QTableWidget(w)
-# baselineList.setColumnCount(2)
-# baselineList.resize(350, 300)
-# baselineList.move(500, 460)
-# baselineList.setHorizontalHeaderItem(0, QTableWidgetItem('vector'))
-# baselineList.setHorizontalHeaderItem(1, QTableWidgetItem('length'))
-# baselineHeader = baselineList.horizontalHeader()
-# baselineHeader.setResizeMode(0, QHeaderView.ResizeToContents)
 
 UVPlaneLabel = QLabel(w)
 UVPlaneLabel.setText('UV plane')
