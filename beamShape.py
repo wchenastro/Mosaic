@@ -135,7 +135,7 @@ def plotBeamContour2(x, y, z, maxValue, fileName='contour.png'):
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotBeamContour3(array, center, sideLength, fileName='contour.png'):
+def plotBeamContour3(array, center, sideLength, fileName='contour.png', interpolation = True):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
     plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
@@ -145,7 +145,8 @@ def plotBeamContour3(array, center, sideLength, fileName='contour.png'):
     yStart = np.rad2deg(center[1] - halfSideLength)
     yEnd = np.rad2deg(center[1] + halfSideLength)
     plotRange = [xStart, xEnd, yStart, yEnd]
-    plt.imshow(array,cmap=plt.cm.jet,  interpolation='bicubic', extent=plotRange)
+    interpolateOption = 'bicubic' if interpolation == True else 'nearest' 
+    plt.imshow(array,cmap=plt.cm.jet,  interpolation=interpolateOption, extent=plotRange)
     plt.colorbar()
     plt.axes().set_aspect('equal', 'datalim')
     axes = plt.gca()
@@ -265,7 +266,9 @@ def plotBeamFit(sideLength, center, angle, axis1, axis2, fileName='fit.png'):
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
     plt.subplots_adjust(right=0.75)
     ax = fig.add_subplot(111, aspect='equal')
-    ellipse = Ellipse(xy=center, width=2*axis1, height=2*axis2, angle=angle)
+    step=sideLength/20.0
+    trueCenter = [center[0] + step/2., center[1] - step/2.]
+    ellipse = Ellipse(xy=trueCenter, width=2*axis1, height=2*axis2, angle=angle)
     ellipse.fill = False
     ax.add_artist(ellipse)
     radius = max(axis1, axis2)
