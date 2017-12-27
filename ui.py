@@ -115,13 +115,13 @@ class Cartesian(QWidget):
         if angle < np.pi/2:
             x = np.sin(angle)*radius + radius
             y = radius - np.cos(angle)*radius
-        elif angle > np.pi/2 and angle < np.pi:
+        elif angle >= np.pi/2 and angle < np.pi:
             x = radius + np.sin(angle)*radius
             y = radius - np.cos(angle)*radius
-        elif angle > np.pi and angle < np.pi*1.5:
+        elif angle >= np.pi and angle < np.pi*1.5:
             x = radius + np.sin(angle)*radius
             y = -np.cos(angle)*radius + radius
-        elif angle > np.pi*1.5 and angle < np.pi*2:
+        elif angle >= np.pi*1.5 and angle < np.pi*2:
             x = radius + np.sin(angle)*radius
             y = radius - np.cos(angle)*radius
 
@@ -193,12 +193,18 @@ def onBoreSightUpdated():
 
 def onBeamSizeChanged():
     autoZoomCheckbox.setCheckState(Qt.Unchecked)
-    observation.setBeamSizeFactor(beamSizeEdit.value())
-    updateCountour()
+    isSet = observation.setBeamSizeFactor(beamSizeEdit.value())
+    if isSet:
+        updateCountour()
+    else:
+        beamSizeEdit.setValue(observation.getBeamSizeFactor())
 
 def onBeamNumberChanged():
-    observation.setBeamNumber(float(beamNumberEdit.text()))
-    updateCountour()
+    isSet = observation.setBeamNumber(float(beamNumberEdit.text()))
+    if isSet:
+        updateCountour()
+    else:
+        beamNumberEdit.setText(str(int(observation.getBeamNumber())))
 
 def onInterpolateOptionChanged(state):
     if state == Qt.Checked:
@@ -406,7 +412,10 @@ def onClickedPackButton2():
     if center == []: return
     # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
     # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
-    plotBeamFit(imageLength, center, np.rad2deg(angle2), axisH2, axisV2)
+    imageDensity = observation.getImageDensity()
+    step=imageLength*1.0/imageDensity
+    ellipseCenter = [center[0] + step/2., center[1] - step/2.]
+    plotBeamFit(imageLength, center, ellipseCenter, np.rad2deg(angle2), axisH2, axisV2)
     bottomImage = QImage(os.getcwd() + '/contour.png')
     topImage = QImage(os.getcwd() + '/fit.png')
     fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
@@ -612,7 +621,7 @@ autoZoomLabel.setText(u"\u25F1")
 autoZoomLabel.setToolTip('Auto Zoom')
 autoZoomLabel.move(763, 320)
 autoZoomCheckbox = QCheckBox(w)
-autoZoomCheckbox.move(763, 345)
+autoZoomCheckbox.move(760, 345)
 autoZoomCheckbox.setToolTip('Auto Zoom')
 autoZoomCheckbox.setCheckState(Qt.Checked)
 autoZoomCheckbox.stateChanged.connect(onAutoZoomOptionChanged)
@@ -701,7 +710,7 @@ UVPlaneLabel.setText('UV plane')
 UVPlaneLabel.move(500, 440)
 
 UVPlane = miniCartesian(w)
-UVPlane.setCenter(arrayRefereceGEODET, 4000)
+UVPlane.setCenter(arrayRefereceGEODET, 20000)
 UVPlane.move(500, 460)
 
 
