@@ -45,6 +45,67 @@ def getHourAngle(RA, LST):
 
     return LHA
 
+def projectBaselines(rotatedENU, HA, DEC):
+
+    rotationMatrix = np.array([
+            [ np.sin(HA),              np.cos(HA),                  0     ],
+            [-np.sin(DEC)*np.cos(HA),  np.sin(DEC)*np.sin(HA), np.cos(DEC)],
+            [ np.cos(DEC)*np.cos(HA), -np.cos(DEC)*np.sin(HA), np.sin(DEC)]])
+
+    projectedBaselines = np.dot(rotatedENU, rotationMatrix.T)
+    # print rotatedENU
+    # print rotationMatrix.T
+    # print projectedBaselines
+
+    return projectedBaselines
+
+
+def rotateENUToEquatorialPlane(ENU, latitude, azimuth, elevation):
+
+    # rotationMatrix = np.array([
+            # [0,     -np.sin(latitude), np.cos(latitude)],
+            # [1,             0        ,        0        ],
+            # [0,      np.cos(latitude), np.sin(latitude)]])
+
+    # rotationMatrix = np.array([
+            # [np.cos(latitude),     0, np.sin(latitude) ],
+            # [0,             1        ,        0        ],
+            # [-np.sin(latitude), 0,      np.cos(latitude)]])
+
+    lengths = np.sqrt(np.sum(np.square(ENU), axis = 1))
+
+    l = latitude
+
+    ENU = np.array(ENU)
+    epsilon = 0.000000000001
+    azimuths = np.arctan2(ENU[:,0], (ENU[:,1] + epsilon))
+    elevations = np.arcsin(ENU[:,2]/(lengths + epsilon))
+
+    a = azimuths
+    e = elevations
+
+
+    rotationMatrix = np.array([
+             np.cos(l)*np.sin(e) - np.sin(l)*np.cos(e)*np.cos(a),
+                       np.cos(e) * np.sin(a),
+             np.sin(l)*np.sin(e) + np.cos(l)*np.cos(e)*np.cos(a)])
+
+    # rotatedENU = lengths * rotationMatrix
+    rotatedENU = []
+
+    # print ENU[:,2]
+    # print (lengths + epsilon)
+
+    for length, rotates in zip(lengths, rotationMatrix.T):
+        rotatedENU.append([length*rotates[0],length*rotates[1],length*rotates[2]])
+
+
+
+    # print lengths
+    # print rotationMatrix
+    # print rotatedENU
+
+    return rotatedENU
 
 def convertENUToUVW(ENU, waveLength, RA, DEC, LST):
 
@@ -120,3 +181,33 @@ def convertECEFToENU(ECEF, ECEFReference, GeodeticReference):
 
     return np.dot(offset, rotationMatrix.T)
 
+def distances(vector):
+    squares = np.square(vector)
+    if len(squares.shape) > 1:
+        elementWiseSum = np.sum(squares, axis=1)
+    else:
+        elementWiseSum = np.sum(squares)
+    squareRoots = np.sqrt(elementWiseSum)
+    return squareRoots
+
+def projectedRotate(altitude, azimuth, baseline, angle):
+    # rotate vector on a surface
+    # https://math.stackexchange.com/questions/1830695/
+    # https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+    '''different between spherical coordinate and horizontal coordinate system'''
+    theta = np.pi/2. - altitude
+    phi = np.pi/2.- azimuth
+    # phi = azimuth
+    sourcePosition = [np.sin(theta)*np.cos(phi),
+                   np.sin(theta)*np.sin(phi),
+                   np.cos(theta)]
+    # sourcePosition = np.array([np.sin(theta)*np.cos(phi) + np.cos(theta)*np.cos(phi) - np.sin(phi),
+               # np.sin(theta)*np.sin(phi) + np.cos(theta)*np.sin(phi),
+               # np.cos(theta) - np.sin(phi)])
+
+
+    # projectedRotated = np.cos(angle)*baseline + np.sin(angle)*np.cross(sourcePosition.T, baseline)
+    # print sourcePosition, baseline
+    projectedRotated = np.cos(angle)*baseline + (1-np.cos(angle))*np.cross(sourcePosition, baseline)
+
+    return projectedRotated

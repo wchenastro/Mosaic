@@ -7,7 +7,7 @@ from matplotlib.patches import Ellipse
 import matplotlib
 import os
 
-import fitellipse
+# import fitellipse
 
 
 def createBaselines(antCoordinatesENU):
@@ -74,27 +74,27 @@ def readMarginalPointsFromFile(margin):
 
     return np.array(marginPoints)
 
-def fitContour(points):
-    xy = [points[:,0], points[:,1]]
-    try:
-        ellipse = fitellipse.fitellipse(xy)
-    except RuntimeError as e:
-        print str(e)
-        return [], None, None, None
-    center = ellipse[0]
-    axis1 = ellipse[1]
-    axis2 = ellipse[2]
-    angle = ellipse[3]
+# def fitContour(points):
+    # xy = [points[:,0], points[:,1]]
+    # try:
+        # ellipse = fitellipse.fitellipse(xy)
+    # except RuntimeError as e:
+        # print str(e)
+        # return [], None, None, None
+    # center = ellipse[0]
+    # axis1 = ellipse[1]
+    # axis2 = ellipse[2]
+    # angle = ellipse[3]
     # print(np.rad2deg(angle), axis1, axis2)
 
-    return center, angle, axis1, axis2
+    # return center, angle, axis1, axis2
 
 
-def fitEllipseBeam(coordinates, amplitude, marginal):
-    points = readMarginalPoints(coordinates, amplitude, marginal)
-    center, angle, axis1, axis2 = fitContour(points)
+# def fitEllipseBeam(coordinates, amplitude, marginal):
+    # points = readMarginalPoints(coordinates, amplitude, marginal)
+    # center, angle, axis1, axis2 = fitContour(points)
 
-    return center, angle, axis1, axis2
+    # return center, angle, axis1, axis2
 
 
 
@@ -146,7 +146,7 @@ def plotBeamContour3(array, center, sideLength, fileName='contour.png', interpol
     yEnd = np.rad2deg(center[1] + halfSideLength)
     plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest' 
-    plt.imshow(array,cmap=plt.cm.jet,  interpolation=interpolateOption, extent=plotRange)
+    plt.imshow(array,cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
     plt.colorbar()
     plt.axes().set_aspect('equal', 'datalim')
     axes = plt.gca()
@@ -254,7 +254,7 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, beamRadius, fileName='pack.
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotBeamFit(sideLength, center, angle, axis1, axis2, fileName='fit.png'):
+def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName='fit.png'):
     halfSideLength = sideLength/2.0
     xMin = center[0] - halfSideLength
     xMax = center[0] + halfSideLength
@@ -266,9 +266,9 @@ def plotBeamFit(sideLength, center, angle, axis1, axis2, fileName='fit.png'):
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
     plt.subplots_adjust(right=0.75)
     ax = fig.add_subplot(111, aspect='equal')
-    step=sideLength/20.0
-    trueCenter = [center[0] + step/2., center[1] - step/2.]
-    ellipse = Ellipse(xy=trueCenter, width=2*axis1, height=2*axis2, angle=angle)
+    # step=sideLength/20.0
+    # trueCenter = [center[0] + step/2., center[1] - step/2.]
+    ellipse = Ellipse(xy=ellipseCenter, width=2*axis1, height=2*axis2, angle=angle)
     ellipse.fill = False
     ax.add_artist(ellipse)
     radius = max(axis1, axis2)

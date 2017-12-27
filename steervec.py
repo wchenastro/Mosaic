@@ -21,7 +21,7 @@ def waveNumber(altitude, azimuth, waveLength, compensate=True):
 
     return waveNumbers
 
-def projectedBaselines(altitude, azimuth, baselines):
+def projectedBaselinesDROP(altitude, azimuth, baselines):
     '''different between spherical coordinate and horizontal coordinate system'''
     theta = np.pi/2. - altitude
     phi = np.pi/2.- azimuth
@@ -78,7 +78,7 @@ def projectedRotate(altitude, azimuth, baseline, angle):
     return projectedRotated
 
 
-def rotateCoordinate(coordinates, theta, phi):
+def rotateCoordinateDROP(coordinates, theta, phi):
 
     # rotationMatrix = np.array([
         # [ np.cos(phi)*np.cos(theta),  -np.sin(phi),  np.cos(phi)*np.sin(theta)],
