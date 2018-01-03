@@ -41,6 +41,7 @@ class InterferometryObservation:
         self.gridNumOfDFT = 100000.0
         self.imageDensity = 20
         self.projectedBaselines = []
+        self.resolution = np.deg2rad(1/3600.0)
 
     def setInterpolating(self, state):
         if state == True:
@@ -89,6 +90,10 @@ class InterferometryObservation:
             else:
                 self.beamNumber = oldBeamNumber
                 self.setImageDensity(oldDensity)
+
+    def setResolution(self, resolution):
+        '''resolution default in arc second deg for now'''
+        self.resolution = np.deg2rad(resolution/3600.0)
 
     def getBaselines(self):
         return self.baselines
@@ -186,7 +191,7 @@ class InterferometryObservation:
             uvMax = uMax if uMax > vMax else vMax
         else:
             uvMax = fixRange
-        step = halfGridNum/uvMax
+        step = halfGridNum/(uvMax/2.)
         # imageLength = 1/(1/(halfGridNum/uvMax))
         imageLength = step
         # windowLength = imageLength/gridNum*sidelength
@@ -214,7 +219,10 @@ class InterferometryObservation:
         imagesCoord = partialDFTGrid
         fringeSum = np.zeros(density*density)
         for uv in uvSamples:
-            fringeSum = fringeSum + np.exp(1j*np.pi*2*imagesCoord[1]*uv[0]/gridNum)*np.exp(1j*np.pi*2*imagesCoord[0]*uv[1]/gridNum)
+            fringeSum = fringeSum + np.exp(1j*np.pi*2*(imagesCoord[1]*uv[0] + imagesCoord[0]*uv[1])/gridNum)
+
+        # fringeSum = np.sum(np.exp(1j*np.pi*2./gridNum*np.dot(np.fliplr(uvSamples), imagesCoord)), axis=0)
+
         fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
 
         image = np.fft.fftshift(np.abs(fringeSum))
@@ -400,8 +408,9 @@ class InterferometryObservation:
         density = self.imageDensity
         gridNum = self.gridNumOfDFT
 
+        width = 1/self.resolution
         imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=12e3/0.21)
+                self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
         newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
         # print "new factor", newBeamSizeFactor
@@ -426,7 +435,7 @@ class InterferometryObservation:
                 self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
 
         self.imageLength = windowLength
-        bs.plotBeamContour3(np.fliplr(image), np.deg2rad(self.boreSight), windowLength,
+        bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
                 interpolation = self.interpolating)
 
         angle = 0
@@ -522,8 +531,9 @@ class InterferometryObservation:
             beamMajorAxisScale, beamMinorAxisScale = self.calculateBeamScaleFromBaselines(
                     rotatedProjectedBaselines, waveLength)
 
+            width = 1/self.resolution
             imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                    waveLength, self.beamSizeFactor, density, gridNum, fixRange=12e3/0.21)
+                    waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
             newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
 
