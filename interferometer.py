@@ -13,13 +13,9 @@ from scipy import interpolate
 
 
 class InterferometryObservation:
-    class Baseline:
-        def __init__(longitude1, altitude1, longitude2, altitude2):
-            self.longitude1 = longitude1
-            self.altitude1 = altitude1
-            self.longitude2 = longitude2
-            self.altitude2 = altitude2
 
+    equatorialInput = 0
+    horizontalInput = 1
 
     def __init__(self, arrayRefereceGEODET, observeTime, waveLength):
         self.arrayRefereceGEODET = arrayRefereceGEODET
@@ -42,12 +38,17 @@ class InterferometryObservation:
         self.imageDensity = 20
         self.projectedBaselines = []
         self.resolution = np.deg2rad(1/3600.0)
+        self.inputType = self.equatorialInput
+        self.WCS = {}
 
     def setInterpolating(self, state):
         if state == True:
             self.interpolating = True
         else:
             self.interpolating = False
+
+    def setInputType(self, inputType):
+        self.inputType = inputType
 
     def setObserveTime(self, dateTime):
         self.observeTime = dateTime
@@ -74,6 +75,9 @@ class InterferometryObservation:
 
     def getBeamNumber(self):
         return self.beamNumber
+
+    def setGridNumber(self, number):
+        self.gridNumOfDFT = number
 
 
     def setBeamNumber(self, number):
@@ -120,10 +124,10 @@ class InterferometryObservation:
     def getHorizontal(self):
         return self.boreSightHorizontal
 
+    def setHorizontal(self, horizontal):
+        self.boreSightHorizontal = np.deg2rad(horizontal)
+
     def getProjectedBaselines(self):
-        # projectedBaselines = np.array(self.projectedBaselines)
-        # uvCoord = sv.rotateCoordinate(projectedBaselines, np.pi/2.0 -
-                # self.boreSightHorizontal[1], self.boreSightHorizontal[0])
         uvCoord = self.projectedBaselines/self.waveLength
         return np.concatenate((uvCoord, -uvCoord))
 
@@ -153,10 +157,42 @@ class InterferometryObservation:
             self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, halfLength, interval)
             return True
 
+    def calculateBeamOverlaps(self, ellipseCenters, radius, majorAxis, minorAxis, rotation):
+
+        def isInsideEllips(center, majorAxis, minorAxis, rotation, testPointX, testPointY):
+            result = 1/majorAxis**2 * ((testPointX - center[0])*np.cos(rotation) + (testPointY - center[1]*np.sin(rotation)))**2 + 1/minorAxis**2 * ((testPointX - center[0])*np.sin(rotation) + (testPointY - center[1]*np.cos(rotation)))**2
+            return result
+
+        gridNum = 1000
+        halfSidelength = 0.3 * radius
+        offsetCenter = [radius, radius]
+        ellipseCenters = ellipseCenters + offsetCenter
+        innerEllipses = []
+        for ellipseCenter in ellipseCenters:
+            if (ellipseCenter[0] > (offsetCenter[0]-halfSidelength) and ellipseCenter[0] < (offsetCenter[0]+halfSidelength)) and (ellipseCenter[1] > (offsetCenter[1]-halfSidelength) and ellipseCenter[1] < (offsetCenter[1]+halfSidelength)):
+                innerEllipses.append(ellipseCenter)
+
+        step = 2*halfSidelength/gridNum
+        longAxis = majorAxis if majorAxis > minorAxis else minorAxis
+        width = longAxis
+        grids = np.mgrid[offsetCenter[0] - halfSidelength:offsetCenter[0] + halfSidelength:step, offsetCenter[1]-halfSidelength: offsetCenter[1] + halfSidelength:step]
+        for ellipseCenter in innerEllipses:
+            horizontalBoarder = [ellipseCenter[0]-width, ellipseCenter[0]+width]
+            verticalBoarder = [ellipseCenter[1]-width, ellipseCenter[1]+width]
+            horizontalIndex = np.round([(horizontalBoarder[0]-ellipseCenter[0])/(2.0*halfSidelength)*1000, (horizontalBoarder[0]-ellipseCenter[0])/(2.0*halfSidelength)*1000]).astype(int)
+            verticalIndex = np.round([(verticalBoarder[0]-ellipseCenter[1])/(2.0*halfSidelength)*1000, (verticalBoarder[1]-ellipseCenter[1])/(2.0*halfSidelength)*1000]).astype(int)
+            print verticalIndex, horizontalBoarder
+            gridX = grids[1][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]].flatten()
+            gridY = grids[0][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]].flatten()
+            result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
+            print result
+
+
     def getAltAziFromRADEC(self, beamCoordinates, LSTDeg, arrayRefereceLatitude):
         RA = np.deg2rad(beamCoordinates[:,0])
         DEC = np.deg2rad(beamCoordinates[:,1])
         LST = np.deg2rad(LSTDeg)
+
 
         altitude, azimuth = coord.convertEquatorialToHorizontal(
                 RA, DEC, LST, arrayRefereceLatitude)
@@ -183,16 +219,16 @@ class InterferometryObservation:
     def calculateImageLength(self, rotatedProjectedBaselines, waveLength,
             zoomIn, density, gridNum, fixRange = None):
 
-        halfGridNum = gridNum/2.
+        # halfGridNum = gridNum/2.
         # sidelength = density * zoomIn
         if fixRange is None:
             uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/waveLength
             vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/waveLength
-            uvMax = uMax if uMax > vMax else vMax
+            uvMax = (uMax if uMax > vMax else vMax) * 2
         else:
             uvMax = fixRange
-        step = halfGridNum/(uvMax/2.)
-        # imageLength = 1/(1/(halfGridNum/uvMax))
+        step = gridNum/uvMax
+        # imageLength = 1/(1/(gridNum/uvMax))
         imageLength = step
         # windowLength = imageLength/gridNum*sidelength
         # print step
@@ -228,6 +264,84 @@ class InterferometryObservation:
         image = np.fft.fftshift(np.abs(fringeSum))
 
         return image
+
+    def performFFT(self, rotatedProjectedBaselines, waveLength, imageLength, gridNum):
+
+        def Gaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma):
+            return np.exp(-((x-xMean)**2/(2*(xSigma**2)) + (y-yMean)**2/(2*(ySigma**2))))
+
+        def normal(x, mu, sigma):
+            return np.exp(-(x-mu)**2/(2*(sigma**2)))/(sigma*np.sqrt(2*np.pi))
+
+
+        def FIRFilter(gridIndex, gridPosition, halfWidth):
+            indexes = np.mgrid[gridIndex[1] - halfWidth:gridIndex[1] + halfWidth + 1:1,
+                               gridIndex[0] - halfWidth:gridIndex[0] + halfWidth + 1:1]
+
+            offsets = indexes - np.array([gridPosition[1], gridPosition[0]]).reshape(2,1,1)
+
+            # dists = np.sqrt(np.sum(np.square(offsets.transpose(1,2,0)), axis = 2))
+
+            values = np.exp(-1j*np.pi*offsets) * np.sinc(offsets)
+
+            # gaussianValues = Gaussian2DPDF(offsets[1], offsets[0], 0, 0, 10.60, 10.60)
+            # values = np.exp(-1j*np.pi*dists) * np.sinc(dists)
+
+            # values = np.sum(values, axis=0) * gaussianValues
+
+            # values = np.sum(values * normal(offsets, 0, 1), axis=0)
+            values = np.sum(values, axis=0)
+
+            return values
+
+        step = imageLength
+        # originalGridNum = gridNum
+        gridNum = int(round(gridNum * 1.0))
+        halfGridNum = gridNum/2.
+        uvSamples = []
+        uvGrids = np.zeros((gridNum, gridNum), dtype=np.complex)
+        # uvGrids2 = np.zeros((gridNum, gridNum), dtype=np.complex)
+        for baseline in rotatedProjectedBaselines:
+            # uSlot = int((baseline[0]/waveLength*step + halfGridNum - 1))
+            # vSlot = int((halfGridNum - baseline[1]/waveLength*step - 1))
+
+            # uvGrids[vSlot][uSlot] += 1
+            # uvGrids[-vSlot-1][-uSlot-1] += 1
+
+            uSlot = baseline[0]/waveLength*step + halfGridNum - 1
+            vSlot = halfGridNum - baseline[1]/waveLength*step - 1
+
+            uGrid = int(round(uSlot))
+            vGrid = int(round(vSlot))
+
+            halfWidth = 5/2
+
+            values = FIRFilter([uGrid, vGrid], [uSlot, vSlot], halfWidth)
+            # valuesConj = FIRFilter([-uGrid, -vGrid], [-uSlot, -vSlot], halfWidth)
+            valuesConj = np.rot90(values, 2)
+            uvGrids[vGrid-halfWidth:vGrid+halfWidth+1, uGrid-halfWidth:uGrid+halfWidth+1] += values
+            uvGrids[-(vGrid+halfWidth+1):-(vGrid-halfWidth), -(uGrid+halfWidth+1):-(uGrid-halfWidth)] += valuesConj
+
+
+
+        np.savetxt('uvValues', np.abs(uvGrids))
+        # psf = np.fft.ifft2(uvGrids, paddingToWidth)
+        psf = np.fft.ifft2(uvGrids)
+        # psf2 = np.fft.ifft2(uvGrids2, paddingToWidth)
+        # image = np.fft.fftshift(np.abs(psf) + np.abs(psf2))
+        image = np.fft.fftshift(np.abs(psf))
+        image = image / image[int(halfGridNum)][int(halfGridNum)]
+
+        # fullHalfWidth = paddingToWidth[0]/2
+        # halfGridNum = int(originalGridNum/2)
+        # trimmedImage = image[fullHalfWidth-1-halfGridNum:fullHalfWidth+halfGridNum-1, fullHalfWidth-1-halfGridNum:fullHalfWidth+halfGridNum-1]
+
+        # return trimmedImage
+        return image
+
+    def getWCS(self):
+
+        return self.WCS
 
     def calculateBeamScaleFromBaselines(self, rotatedProjectedBaselines, waveLength):
         baselineLengths = coord.distances(rotatedProjectedBaselines)
@@ -367,29 +481,33 @@ class InterferometryObservation:
         arrayRefereceECEF = coord.convertGodeticToECEF([self.arrayRefereceGEODET])[0]
         antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
 
-        arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[1])
-
-        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[0])
-        altitude, azimuth = self.getAltAziFromRADEC(np.array([self.boreSight]),
-                    LSTDeg, arrayRefereceLatitude)
 
         self.baselines = bs.createBaselines(antCoordinatesENU)
 
-        rotatedENU = coord.rotateENUToEquatorialPlane(self.baselines,
-                arrayRefereceLatitude, azimuth[0], altitude[0])
+        arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[0])
+        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
+
+        if self.inputType == self.equatorialInput:
+
+            altitude, azimuth = self.getAltAziFromRADEC(np.array([self.boreSight]),
+                        LSTDeg, arrayRefereceLatitude)
+            self.boreSightHorizontal = (azimuth[0], altitude[0])
+
+        elif self.inputType == self.horizontalInput:
+
+            azimuth, altitude  = self.boreSightHorizontal
+            RA, DEC = coord.convertHorizontalToEquatorial(azimuth, altitude, np.deg2rad(LSTDeg), arrayRefereceLatitude)
+            self.boreSight = np.rad2deg([RA, DEC])
 
 
-        # self.baselines = bs.createBaselines(rotatedENU)
-
-
-
-
-        self.boreSightHorizontal = (azimuth[0], altitude[0])
-
-        if abs(altitude[0]) < minAlt:
-            return
+        # if abs(altitude[0]) < minAlt:
+            # return
         # LHA = LST - RA
         LHA = np.deg2rad(LSTDeg) - np.deg2rad(self.boreSight[0])
+
+        rotatedENU = coord.rotateENUToEquatorialPlane(self.baselines,
+                arrayRefereceLatitude, self.boreSightHorizontal[0], self.boreSightHorizontal[1])
+
 
 
         # self.projectedBaselines = sv.projectedBaselinesDROP(
@@ -412,14 +530,14 @@ class InterferometryObservation:
         imageLength = self.calculateImageLength(rotatedProjectedBaselines,
                 self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
-        newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
-        # print "new factor", newBeamSizeFactor
+        # newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
+        newBeamSizeFactor = beamMinorAxisScale*4*1.3 / (imageLength/gridNum) / density
 
 
         if newBeamSizeFactor < 1:
             newBeamSizeFactor = 1
         else:
-            newBeamSizeFactor = int(newBeamSizeFactor)
+            newBeamSizeFactor = int(round(newBeamSizeFactor))
 
         baselineNum = len(self.baselines)
         if baselineNum > 2 and self.autoZoom == True and abs(newBeamSizeFactor - self.beamSizeFactor) > 0:
@@ -441,17 +559,17 @@ class InterferometryObservation:
         angle = 0
         if baselineNum > 2:
             interpolatedLength = 800
-            threshold = 0.5
+            threshold = 0.4
             border, closestToCenterIndex, overstep = self.trackBorder(
                     image, threshold, density, interpolatedLength)
-            # np.savetxt('border', border)
+            np.savetxt('border', border)
 
 
             if len(border) < 10:
-                majorAixs = np.rad2deg(beamMajorAxisScale)
-                minorAixs = np.rad2deg(beamMajorAxisScale)
+                majorAxis = np.rad2deg(beamMajorAxisScale)
+                minorAxis = np.rad2deg(beamMajorAxisScale)
                 angle = 0
-                self.beamAxis = [majorAixs, minorAixs, angle]
+                self.beamAxis = [majorAxis, minorAxis, angle]
                 return
 
             imageArray = np.array(border) - [0, closestToCenterIndex[1]]
@@ -469,19 +587,19 @@ class InterferometryObservation:
                 # angleVert = np.arctan2(maxDistVector[0], maxDistVector[1])
                 # angleHonr = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
 
-                minorAixs  = np.rad2deg(windowLength/interpolatedLength*minDist)
-                majorAixs  = np.rad2deg(windowLength/interpolatedLength*maxDist)
-                # print np.rad2deg(majorAixs1), np.rad2deg(minorAixs1)
+                minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+                majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
+                # print np.rad2deg(majorAxis1), np.rad2deg(minorAxis1)
             else:
                 angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
 
 
-                majorAixs = np.rad2deg(beamMajorAxisScale)
-                minorAixs  = np.rad2deg(windowLength/interpolatedLength*minDist)
-                # self.beamAxis = [majorAixs, minorAixs, angle]
-            self.beamAxis = [majorAixs, minorAixs, angle]
+                majorAxis = np.rad2deg(beamMajorAxisScale)
+                minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+                # self.beamAxis = [majorAxis, minorAxis, angle]
+            self.beamAxis = [majorAxis, minorAxis, angle]
 
-            # print majorAixs, minorAixs, np.rad2deg(angle)
+            # print majorAxis, minorAxis, np.rad2deg(angle)
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):
 
@@ -492,26 +610,31 @@ class InterferometryObservation:
         arrayRefereceECEF = coord.convertGodeticToECEF([self.arrayRefereceGEODET])[0]
         antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
 
-        arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[1])
-
-        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[0])
-        altitude, azimuth = self.getAltAziFromRADEC(np.array([self.boreSight]),
-                    LSTDeg, arrayRefereceLatitude)
-
         self.baselines = bs.createBaselines(antCoordinatesENU)
 
+        arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[0])
+        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
+
+        if self.inputType == self.equatorialInput:
+
+            altitude, azimuth = self.getAltAziFromRADEC(np.array([self.boreSight]),
+                        LSTDeg, arrayRefereceLatitude)
+            self.boreSightHorizontal = (azimuth[0], altitude[0])
+            # print("source in Azi, Alt is %f, %f" % (np.rad2deg(self.boreSightHorizontal[0]), np.rad2deg(self.boreSightHorizontal[1])))
+
+        elif self.inputType == self.horizontalInput:
+
+            azimuth, altitude  = self.boreSightHorizontal
+            RA, DEC = coord.convertHorizontalToEquatorial(azimuth, altitude, np.deg2rad(LSTDeg), arrayRefereceLatitude)
+            self.boreSight = np.rad2deg([RA, DEC])
+            print("source in RA, DEC is %f, %f" % (self.boreSight[0], self.boreSight[1]))
+
+
         rotatedENU = coord.rotateENUToEquatorialPlane(self.baselines,
-                arrayRefereceLatitude, azimuth[0], altitude[0])
+                arrayRefereceLatitude, self.boreSightHorizontal[0], self.boreSightHorizontal[1])
 
 
-        self.boreSightHorizontal = (azimuth[0], altitude[0])
 
-        baselineNum = len(self.baselines)
-        # self.projectedBaselines = sv.projectedBaselines(
-                # np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
-
-        # rotatedProjectedBaselines = sv.rotateCoordinate(self.projectedBaselines,
-                # np.pi/2.0 - altitude[0], azimuth[0])
 
         # LHA = LST - RA
         LHA = np.deg2rad(LSTDeg) - np.deg2rad(self.boreSight[0])
@@ -525,39 +648,42 @@ class InterferometryObservation:
         density = self.imageDensity
         gridNum = self.gridNumOfDFT
 
+        width = 1/self.resolution
+        imageLength = self.calculateImageLength(rotatedProjectedBaselines,
+                None, self.beamSizeFactor, density, gridNum, fixRange=width)
+
+        sidelength = density * self.beamSizeFactor
+        windowLength = imageLength/gridNum*sidelength
+
+
+        self.WCS['crpix'] = [density/2 -1, density/2 -1]
+        self.WCS['cdelt'] = np.rad2deg([imageLength/gridNum, imageLength/gridNum])
+        self.WCS['crval'] = [self.boreSight[0] - self.WCS['cdelt'][0],
+                             self.boreSight[1] - self.WCS['cdelt'][1]]
+        self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
+
         chanIdx = 0
+        images = []
         for waveLength in waveLengths:
 
-            beamMajorAxisScale, beamMinorAxisScale = self.calculateBeamScaleFromBaselines(
-                    rotatedProjectedBaselines, waveLength)
+            # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    # waveLength, imageLength, self.beamSizeFactor, density, gridNum)
 
-            width = 1/self.resolution
-            imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                    waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
+            # paddingToWidth = gridNum * width/(gridnum/imageLength)
+            # fullWidth = int(round(width * imageLength))
+            # paddingToWidth = [fullWidth, fullWidth]
 
-            newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
+            image = self.performFFT(rotatedProjectedBaselines, waveLength, imageLength, gridNum)
 
-            if newBeamSizeFactor < 1:
-                newBeamSizeFactor = 1
-            else:
-                newBeamSizeFactor = int(newBeamSizeFactor)
-
-            if baselineNum > 2 and self.autoZoom == True and abs(newBeamSizeFactor - self.beamSizeFactor) > 0:
-
-                print "new beam factor:", newBeamSizeFactor
-                self.setBeamSizeFactor(newBeamSizeFactor)
-
-            sidelength = density * self.beamSizeFactor
-            windowLength = imageLength/gridNum*sidelength
-
-            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                    waveLength, imageLength, self.beamSizeFactor, density, gridNum)
-
+            # flippedImage = np.fliplr(image)
             if plotting == True:
                 self.imageLength = windowLength
                 psfName = 'psf' + str(chanIdx) + '.png'
                 chanIdx += 1
-                bs.plotBeamContour3(np.fliplr(image), np.deg2rad(self.boreSight), windowLength,
+                bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
                         fileName = psfName, interpolation = self.interpolating)
-            writer(waveLength, image)
+            # writer(waveLength, image)
+            images.append(image)
+
+        return image
 
