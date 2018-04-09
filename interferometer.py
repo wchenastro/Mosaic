@@ -470,6 +470,37 @@ class InterferometryObservation:
 
         return border, trueCenterIndex, overstep
 
+    def calculateBeamSize(self, image, density, windowLength, interpolatedLength = 800, threshold = 0.4):
+        interpolatedLength = interpolatedLength
+        threshold = threshold
+        border, closestToCenterIndex, overstep = self.trackBorder(
+                image, threshold, density, interpolatedLength)
+
+        if overstep == True: print 'overstep'
+        np.savetxt('border', border)
+        if len(border) < 10:
+            print 'too little points'
+            return None
+
+        imageArray = np.array(border) - [0, closestToCenterIndex[1]]
+        imageArray[:, 0] = closestToCenterIndex[0] - imageArray[:, 0]
+        # np.savetxt('border', imageArray)
+        distancesSQ = np.sum(np.square(imageArray), axis=1)
+        minDistIndex = np.argmin(distancesSQ)
+        minDist = np.sqrt(distancesSQ[minDistIndex])
+        minDistVector = imageArray[minDistIndex]
+        if overstep == False:
+            maxDistIndex = np.argmax(distancesSQ)
+            maxDist = np.sqrt(distancesSQ[maxDistIndex])
+            maxDistVector = imageArray[maxDistIndex]
+            angle = np.arctan2(maxDistVector[0], maxDistVector[1])
+
+            minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+            majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
+            return majorAxis, minorAxis, angle
+        else:
+            return None
+
 
     def createContour(self, antennacoor, fileName='contour.png', minAlt=0):
 
@@ -523,6 +554,7 @@ class InterferometryObservation:
         beamMajorAxisScale, beamMinorAxisScale = self.calculateBeamScaleFromBaselines(
                 rotatedProjectedBaselines, self.waveLength)
 
+        baselineNum = len(self.baselines)
         density = self.imageDensity
         gridNum = self.gridNumOfDFT
 
@@ -531,23 +563,61 @@ class InterferometryObservation:
                 self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
         # newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
-        newBeamSizeFactor = beamMinorAxisScale*4*1.3 / (imageLength/gridNum) / density
+        # newBeamSizeFactor = beamMinorAxisScale*4*1.3 / (imageLength/gridNum) / density
 
 
-        if newBeamSizeFactor < 1:
-            newBeamSizeFactor = 1
-        else:
-            newBeamSizeFactor = int(round(newBeamSizeFactor))
+        # if newBeamSizeFactor < 1:
+            # newBeamSizeFactor = 1
+        # else:
+            # newBeamSizeFactor = int(round(newBeamSizeFactor))
 
-        baselineNum = len(self.baselines)
-        if baselineNum > 2 and self.autoZoom == True and abs(newBeamSizeFactor - self.beamSizeFactor) > 0:
+        # if baselineNum > 2 and self.autoZoom == True and abs(newBeamSizeFactor - self.beamSizeFactor) > 0:
 
             # self.beamSizeFactor = newBeamSizeFactor
-            print "new beam factor:", newBeamSizeFactor
+            # print "new beam factor:", newBeamSizeFactor
+            # self.setBeamSizeFactor(newBeamSizeFactor)
+
+
+        # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                # self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
+        if baselineNum > 2 and self.autoZoom == True:
+            # newBeamSizeFactor = beamMajorAxisScale*10*1.3 / (imageLength/gridNum) / density
+            newBeamSizeFactor = beamMajorAxisScale*5*1.3 / (imageLength/gridNum) / density
+            if newBeamSizeFactor < 1:
+                newBeamSizeFactor = 1
+            else:
+                newBeamSizeFactor = int(round(newBeamSizeFactor))
+
+            print newBeamSizeFactor
             self.setBeamSizeFactor(newBeamSizeFactor)
+
+            sidelength = density * self.beamSizeFactor
+            windowLength = imageLength/gridNum*sidelength
+
+            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    self.waveLength, imageLength, newBeamSizeFactor, density, gridNum)
+
+            sizeInfo = self.calculateBeamSize(image, density, windowLength)
+            print sizeInfo
+            self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+            majorAxis, minorAxis, angle = sizeInfo[0], sizeInfo[1], sizeInfo[2]
+            # print np.deg2rad(majorAxis), beamMajorAxisScale
+            newBeamSizeFactor = 2*np.deg2rad(majorAxis)*1.4 / (imageLength/gridNum) / density
+            if newBeamSizeFactor < 1:
+                    newBeamSizeFactor = 1
+            else:
+                newBeamSizeFactor = int(round(newBeamSizeFactor))
+            self.setBeamSizeFactor(newBeamSizeFactor)
+            imageLength = self.calculateImageLength(rotatedProjectedBaselines,
+                self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
+
+
+
+            # print self.beamSizeFactor
 
         sidelength = density * self.beamSizeFactor
         windowLength = imageLength/gridNum*sidelength
+
 
         image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                 self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
@@ -555,51 +625,6 @@ class InterferometryObservation:
         self.imageLength = windowLength
         bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
                 interpolation = self.interpolating)
-
-        angle = 0
-        if baselineNum > 2:
-            interpolatedLength = 800
-            threshold = 0.4
-            border, closestToCenterIndex, overstep = self.trackBorder(
-                    image, threshold, density, interpolatedLength)
-            np.savetxt('border', border)
-
-
-            if len(border) < 10:
-                majorAxis = np.rad2deg(beamMajorAxisScale)
-                minorAxis = np.rad2deg(beamMajorAxisScale)
-                angle = 0
-                self.beamAxis = [majorAxis, minorAxis, angle]
-                return
-
-            imageArray = np.array(border) - [0, closestToCenterIndex[1]]
-            imageArray[:, 0] = closestToCenterIndex[0] - imageArray[:, 0]
-            # np.savetxt('border', imageArray)
-            distancesSQ = np.sum(np.square(imageArray), axis=1)
-            minDistIndex = np.argmin(distancesSQ)
-            minDist = np.sqrt(distancesSQ[minDistIndex])
-            minDistVector = imageArray[minDistIndex]
-            if overstep == False:
-                maxDistIndex = np.argmax(distancesSQ)
-                maxDist = np.sqrt(distancesSQ[maxDistIndex])
-                maxDistVector = imageArray[maxDistIndex]
-                angle = np.arctan2(maxDistVector[0], maxDistVector[1])
-                # angleVert = np.arctan2(maxDistVector[0], maxDistVector[1])
-                # angleHonr = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
-
-                minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
-                majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
-                # print np.rad2deg(majorAxis1), np.rad2deg(minorAxis1)
-            else:
-                angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
-
-
-                majorAxis = np.rad2deg(beamMajorAxisScale)
-                minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
-                # self.beamAxis = [majorAxis, minorAxis, angle]
-            self.beamAxis = [majorAxis, minorAxis, angle]
-
-            # print majorAxis, minorAxis, np.rad2deg(angle)
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):
 
