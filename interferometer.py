@@ -466,7 +466,7 @@ class InterferometryObservation:
 
         return border, trueCenterIndex, overstep
 
-    def calculateBeamSize(self, image, density, windowLength, interpolatedLength = 800, threshold = 0.4):
+    def calculateBeamSize(self, image, density, windowLength, beamMajorAxisScale, interpolatedLength = 800, threshold = 0.4):
         interpolatedLength = interpolatedLength
         threshold = threshold
         border, closestToCenterIndex, overstep = self.trackBorder(
@@ -493,10 +493,14 @@ class InterferometryObservation:
 
             minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
             majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
-            return majorAxis, minorAxis, angle
         else:
-            return None
+            angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
 
+
+            majorAxis = np.rad2deg(beamMajorAxisScale)
+            minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+
+        return majorAxis, minorAxis, angle
 
     def createContour(self, antennacoor, fileName='contour.png', minAlt=0):
 
@@ -601,7 +605,7 @@ class InterferometryObservation:
             bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
                 interpolation = self.interpolating, fileName='contourTest.png')
 
-            sizeInfo = self.calculateBeamSize(image, density, windowLength)
+            sizeInfo = self.calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
             # self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
             majorAxis, minorAxis, angle = sizeInfo[0], sizeInfo[1], sizeInfo[2]
             # print np.deg2rad(majorAxis), beamMajorAxisScale
@@ -631,7 +635,7 @@ class InterferometryObservation:
                 interpolation = self.interpolating)
 
         if baselineNum > 2:
-            sizeInfo = self.calculateBeamSize(image, density, windowLength)
+            sizeInfo = self.calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
             self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):
