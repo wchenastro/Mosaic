@@ -219,19 +219,15 @@ class InterferometryObservation:
     def calculateImageLength(self, rotatedProjectedBaselines, waveLength,
             zoomIn, density, gridNum, fixRange = None):
 
-        # halfGridNum = gridNum/2.
-        # sidelength = density * zoomIn
         if fixRange is None:
             uMax = np.amax(np.abs(rotatedProjectedBaselines[:,0]))/waveLength
             vMax = np.amax(np.abs(rotatedProjectedBaselines[:,1]))/waveLength
             uvMax = (uMax if uMax > vMax else vMax) * 2
         else:
             uvMax = fixRange
-        step = gridNum/uvMax
+
         # imageLength = 1/(1/(gridNum/uvMax))
-        imageLength = step
-        # windowLength = imageLength/gridNum*sidelength
-        # print step
+        imageLength = gridNum/uvMax
 
         return imageLength
 
@@ -558,9 +554,10 @@ class InterferometryObservation:
         density = self.imageDensity
         gridNum = self.gridNumOfDFT
 
-        width = 1/self.resolution
-        imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
+        # width = 1/self.resolution
+        # imageLength = self.calculateImageLength(rotatedProjectedBaselines,
+                # self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
+        imageLength = gridNum * self.resolution
 
         # newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
         # newBeamSizeFactor = beamMinorAxisScale*4*1.3 / (imageLength/gridNum) / density
@@ -576,15 +573,19 @@ class InterferometryObservation:
             # self.beamSizeFactor = newBeamSizeFactor
             # print "new beam factor:", newBeamSizeFactor
             # self.setBeamSizeFactor(newBeamSizeFactor)
-
+        sidelength = density * self.beamSizeFactor
+        windowLength = self.resolution * sidelength
 
         # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                 # self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
         if baselineNum > 2 and self.autoZoom == True:
             # newBeamSizeFactor = beamMajorAxisScale*10*1.3 / (imageLength/gridNum) / density
-            newBeamSizeFactor = beamMajorAxisScale*5*1.3 / (imageLength/gridNum) / density
-            if newBeamSizeFactor < 1:
-                newBeamSizeFactor = 1
+            axisRatio = beamMajorAxisScale/beamMinorAxisScale
+            newBeamSizeFactor = axisRatio * 2 * beamMajorAxisScale*2*1.3 / (self.resolution * density)
+            if newBeamSizeFactor < 3:
+                newBeamSizeFactor = 3
+            elif newBeamSizeFactor > 12:
+                newBeamSizeFactor = 12
             else:
                 newBeamSizeFactor = int(round(newBeamSizeFactor))
 
@@ -592,39 +593,46 @@ class InterferometryObservation:
             self.setBeamSizeFactor(newBeamSizeFactor)
 
             sidelength = density * self.beamSizeFactor
-            windowLength = imageLength/gridNum*sidelength
+            windowLength = self.resolution * sidelength
 
             image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                     self.waveLength, imageLength, newBeamSizeFactor, density, gridNum)
 
+            bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
+                interpolation = self.interpolating, fileName='contourTest.png')
+
             sizeInfo = self.calculateBeamSize(image, density, windowLength)
-            print sizeInfo
-            self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+            # self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
             majorAxis, minorAxis, angle = sizeInfo[0], sizeInfo[1], sizeInfo[2]
             # print np.deg2rad(majorAxis), beamMajorAxisScale
-            newBeamSizeFactor = 2*np.deg2rad(majorAxis)*1.4 / (imageLength/gridNum) / density
+            newBeamSizeFactor = 2*np.deg2rad(majorAxis)*1.4 / (self.resolution *  density)
             if newBeamSizeFactor < 1:
                     newBeamSizeFactor = 1
             else:
                 newBeamSizeFactor = int(round(newBeamSizeFactor))
             self.setBeamSizeFactor(newBeamSizeFactor)
-            imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
+            # imageLength = self.calculateImageLength(rotatedProjectedBaselines,
+                # self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
 
+            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
 
-            # print self.beamSizeFactor
+        else:
+            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
+
 
         sidelength = density * self.beamSizeFactor
-        windowLength = imageLength/gridNum*sidelength
-
-
-        image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
+        windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
         bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
                 interpolation = self.interpolating)
+
+        if baselineNum > 2:
+            sizeInfo = self.calculateBeamSize(image, density, windowLength)
+            self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):
 
