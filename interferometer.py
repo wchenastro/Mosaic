@@ -160,32 +160,87 @@ class InterferometryObservation:
     def calculateBeamOverlaps(self, ellipseCenters, radius, majorAxis, minorAxis, rotation):
 
         def isInsideEllips(center, majorAxis, minorAxis, rotation, testPointX, testPointY):
-            result = 1/majorAxis**2 * ((testPointX - center[0])*np.cos(rotation) + (testPointY - center[1]*np.sin(rotation)))**2 + 1/minorAxis**2 * ((testPointX - center[0])*np.sin(rotation) + (testPointY - center[1]*np.cos(rotation)))**2
+
+            xOffset = testPointX - center[0]
+            yOffset = testPointY - center[1]
+            cosa = np.cos(rotation)
+            sina = np.sin(rotation)
+            # majorSquare = np.power(majorAxis,2)
+            # minorSquare = np.power(minorAxis,2)
+
+            result = np.power((cosa*xOffset + sina*yOffset)/majorAxis,2) +\
+                     np.power((sina*xOffset - cosa*yOffset)/minorAxis,2)
+
+
+            # result = 1/majorAxis**2 * ((testPointX - center[0])*np.cos(rotation) +\
+                    # (testPointY - center[1])*np.sin(rotation))**2 +\
+                    # 1/minorAxis**2 * ((testPointX - center[0])*np.sin(rotation) -\
+                    # (testPointY - center[1])*np.cos(rotation))**2
             return result
 
+        longAxis = majorAxis if majorAxis > minorAxis else minorAxis
         gridNum = 1000
+        # print 0.3*radius, longAxis
         halfSidelength = 0.3 * radius
         offsetCenter = [radius, radius]
+        # np.savetxt('tmp/oldcenter', ellipseCenters)
         ellipseCenters = ellipseCenters + offsetCenter
+        # np.savetxt('tmp/newcenter', ellipseCenters)
         innerEllipses = []
         for ellipseCenter in ellipseCenters:
-            if (ellipseCenter[0] > (offsetCenter[0]-halfSidelength) and ellipseCenter[0] < (offsetCenter[0]+halfSidelength)) and (ellipseCenter[1] > (offsetCenter[1]-halfSidelength) and ellipseCenter[1] < (offsetCenter[1]+halfSidelength)):
+            if (ellipseCenter[0] > (offsetCenter[0]-halfSidelength) and\
+                ellipseCenter[0] < (offsetCenter[0]+halfSidelength)) and\
+               (ellipseCenter[1] > (offsetCenter[1]-halfSidelength) and\
+                ellipseCenter[1] < (offsetCenter[1]+halfSidelength)):
                 innerEllipses.append(ellipseCenter)
 
+        halfSidelength += longAxis
+        # np.savetxt('tmp/innercenter', innerEllipses)
         step = 2*halfSidelength/gridNum
-        longAxis = majorAxis if majorAxis > minorAxis else minorAxis
         width = longAxis
-        grids = np.mgrid[offsetCenter[0] - halfSidelength:offsetCenter[0] + halfSidelength:step, offsetCenter[1]-halfSidelength: offsetCenter[1] + halfSidelength:step]
+        squareEdgeX = [offsetCenter[0] - halfSidelength, offsetCenter[0] + halfSidelength]
+        squareEdgeY = [offsetCenter[1] - halfSidelength, offsetCenter[1] + halfSidelength]
+        # print squareEdgeX, squareEdgeY
+
+        grids = np.mgrid[squareEdgeY[0]:squareEdgeY[1]:step, squareEdgeX[0]:squareEdgeX[1]:step]
+
+        # nopoint = []
+        gridLength = grids.shape[1]
+        overlapCounter = np.zeros((gridLength, gridLength))
         for ellipseCenter in innerEllipses:
             horizontalBoarder = [ellipseCenter[0]-width, ellipseCenter[0]+width]
             verticalBoarder = [ellipseCenter[1]-width, ellipseCenter[1]+width]
-            horizontalIndex = np.round([(horizontalBoarder[0]-ellipseCenter[0])/(2.0*halfSidelength)*1000, (horizontalBoarder[0]-ellipseCenter[0])/(2.0*halfSidelength)*1000]).astype(int)
-            verticalIndex = np.round([(verticalBoarder[0]-ellipseCenter[1])/(2.0*halfSidelength)*1000, (verticalBoarder[1]-ellipseCenter[1])/(2.0*halfSidelength)*1000]).astype(int)
-            print verticalIndex, horizontalBoarder
-            gridX = grids[1][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]].flatten()
-            gridY = grids[0][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]].flatten()
+
+            horizontalIndex = np.round([(horizontalBoarder[0]-squareEdgeX[0])/(2.0*halfSidelength)*gridNum,
+                    (horizontalBoarder[1]-squareEdgeX[0])/(2.0*halfSidelength)*gridNum]).astype(int)
+            verticalIndex = np.round([(verticalBoarder[0]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum,
+                    (verticalBoarder[1]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum]).astype(int)
+            # print verticalIndex, horizontalIndex
+            gridX = grids[1][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]]
+            gridY = grids[0][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]]
+            # print gridX
+            # print gridY
             result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
-            print result
+            mask = result<1
+            result[mask] = 1
+            result[~mask] = 0
+            # print result.shape
+            overlapCounter[verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]] += result
+            # print ellipseCenter, majorAxis, minorAxis, rotation
+            # np.save('tmp/grid', [gridX, gridY])
+            # np.savetxt('tmp/pointm', result)
+            # exit(0)
+            # if np.amin(result) > 1.:
+                # np.savetxt('tmp/grid', [gridX,gridY])
+                # print ellipseCenter
+                # exit()
+            # print len(gridX)
+            # print result[result<1]
+            # print len(gridY), np.amin(result), result[result<1]
+        # np.savetxt('tmp/nopoint', nopoint)
+        print np.count_nonzero(overlapCounter > 1), np.count_nonzero(overlapCounter == 1), np.count_nonzero(overlapCounter == 0)
+        np.save('overlapCounter', overlapCounter)
+
 
 
     def getAltAziFromRADEC(self, beamCoordinates, LSTDeg, arrayRefereceLatitude):
