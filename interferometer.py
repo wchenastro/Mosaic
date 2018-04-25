@@ -178,6 +178,8 @@ class InterferometryObservation:
                     # (testPointY - center[1])*np.cos(rotation))**2
             return result
 
+        rotated = 0/(3600*24.) * 2 * np.pi
+        rotation += rotated
         longAxis = majorAxis if majorAxis > minorAxis else minorAxis
         gridNum = 1000
         # print 0.3*radius, longAxis
@@ -193,8 +195,8 @@ class InterferometryObservation:
                (ellipseCenter[1] > (offsetCenter[1]-halfSidelength) and\
                 ellipseCenter[1] < (offsetCenter[1]+halfSidelength)):
                 innerEllipses.append(ellipseCenter)
-
-        halfSidelength += longAxis
+        paddingRatio = longAxis/halfSidelength
+        halfSidelength *= 1 + paddingRatio
         # np.savetxt('tmp/innercenter', innerEllipses)
         step = 2*halfSidelength/gridNum
         width = longAxis
@@ -202,10 +204,15 @@ class InterferometryObservation:
         squareEdgeY = [offsetCenter[1] - halfSidelength, offsetCenter[1] + halfSidelength]
         # print squareEdgeX, squareEdgeY
 
-        grids = np.mgrid[squareEdgeY[0]:squareEdgeY[1]:step, squareEdgeX[0]:squareEdgeX[1]:step]
+        # grids = np.mgrid[squareEdgeY[0]:squareEdgeY[1]:step, squareEdgeX[0]:squareEdgeX[1]:step]
+
+        grids = np.meshgrid(np.linspace(squareEdgeX[0], squareEdgeX[1], gridNum),
+                np.linspace(squareEdgeX[1], squareEdgeX[0], gridNum))
+
 
         # nopoint = []
-        gridLength = grids.shape[1]
+        # gridLength = grids.shape[1]
+        gridLength = gridNum
         overlapCounter = np.zeros((gridLength, gridLength))
         for ellipseCenter in innerEllipses:
             horizontalBoarder = [ellipseCenter[0]-width, ellipseCenter[0]+width]
@@ -213,19 +220,18 @@ class InterferometryObservation:
 
             horizontalIndex = np.round([(horizontalBoarder[0]-squareEdgeX[0])/(2.0*halfSidelength)*gridNum,
                     (horizontalBoarder[1]-squareEdgeX[0])/(2.0*halfSidelength)*gridNum]).astype(int)
-            verticalIndex = np.round([(verticalBoarder[0]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum,
+            verticalIndex = gridNum - np.round([(verticalBoarder[0]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum,
                     (verticalBoarder[1]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum]).astype(int)
             # print verticalIndex, horizontalIndex
-            gridX = grids[1][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]]
-            gridY = grids[0][verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]]
-            # print gridX
-            # print gridY
+            gridX = grids[0][verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]]
+            gridY = grids[1][verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]]
             result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
+            # if np.amin(result) > 1.: exit()
             mask = result<1
             result[mask] = 1
             result[~mask] = 0
             # print result.shape
-            overlapCounter[verticalIndex[0]: verticalIndex[1], horizontalIndex[0]: horizontalIndex[1]] += result
+            overlapCounter[verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]] += result
             # print ellipseCenter, majorAxis, minorAxis, rotation
             # np.save('tmp/grid', [gridX, gridY])
             # np.savetxt('tmp/pointm', result)
@@ -238,8 +244,14 @@ class InterferometryObservation:
             # print result[result<1]
             # print len(gridY), np.amin(result), result[result<1]
         # np.savetxt('tmp/nopoint', nopoint)
+        trimmedGridLength = int(np.round(gridLength / (1 + 2*paddingRatio)))
+        halfPaddingCount =  int(np.round((gridLength - trimmedGridLength) / 2.))
+        overlapCounter = overlapCounter[halfPaddingCount:-halfPaddingCount, halfPaddingCount:-halfPaddingCount]
         print np.count_nonzero(overlapCounter > 1), np.count_nonzero(overlapCounter == 1), np.count_nonzero(overlapCounter == 0)
-        np.save('overlapCounter', overlapCounter)
+        bs.plotOverlap(overlapCounter, fileName = 'overlap.png')
+
+        return overlapCounter
+        # np.save('overlapCounter', overlapCounter)
 
 
 
