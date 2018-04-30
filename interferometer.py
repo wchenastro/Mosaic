@@ -159,6 +159,14 @@ class InterferometryObservation:
 
     def calculateBeamOverlaps(self, ellipseCenters, radius, majorAxis, minorAxis, rotation):
 
+        def RotatedGaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma, angle):
+            angle = -(angle - np.pi)
+            a = np.power(np.cos(angle), 2)/(2*xSigma**2) + np.power(np.sin(angle), 2)/(2*ySigma**2)
+            b = - np.sin(2*angle)/(4*xSigma**2) + np.sin(2*angle)/(4*ySigma**2)
+            c = np.power(np.sin(angle), 2)/(2*xSigma**2) + np.power(np.cos(angle), 2)/(2*ySigma**2)
+
+            return np.exp(-(a*np.power(x-xMean, 2) + 2*b*(x-xMean)*(y-yMean) + c*np.power(y-yMean, 2)))
+
         def isInsideEllips(center, majorAxis, minorAxis, rotation, testPointX, testPointY):
 
             xOffset = testPointX - center[0]
@@ -178,8 +186,8 @@ class InterferometryObservation:
                     # (testPointY - center[1])*np.cos(rotation))**2
             return result
 
-        rotated = 0/(3600*24.) * 2 * np.pi
-        rotation += rotated
+        # rotated = 0/(3600*24.) * 2 * np.pi
+        # rotation += rotated
         longAxis = majorAxis if majorAxis > minorAxis else minorAxis
         gridNum = 1000
         # print 0.3*radius, longAxis
@@ -214,6 +222,7 @@ class InterferometryObservation:
         # gridLength = grids.shape[1]
         gridLength = gridNum
         overlapCounter = np.zeros((gridLength, gridLength))
+        # overlapCounter = np.full((gridLength, gridLength), np.inf)
         for ellipseCenter in innerEllipses:
             horizontalBoarder = [ellipseCenter[0]-width, ellipseCenter[0]+width]
             verticalBoarder = [ellipseCenter[1]-width, ellipseCenter[1]+width]
@@ -223,15 +232,19 @@ class InterferometryObservation:
             verticalIndex = gridNum - np.round([(verticalBoarder[0]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum,
                     (verticalBoarder[1]-squareEdgeY[0])/(2.0*halfSidelength)*gridNum]).astype(int)
             # print verticalIndex, horizontalIndex
-            gridX = grids[0][verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]]
-            gridY = grids[1][verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]]
-            result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
+            insideThisBorder = np.s_[verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]]
+            gridX = grids[0][insideThisBorder]
+            gridY = grids[1][insideThisBorder]
+            # result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
+            result = RotatedGaussian2DPDF(gridX, gridY, ellipseCenter[0], ellipseCenter[1], majorAxis/1., minorAxis/1., rotation)
             # if np.amin(result) > 1.: exit()
-            mask = result<1
-            result[mask] = 1
-            result[~mask] = 0
-            # print result.shape
-            overlapCounter[verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]] += result
+            # print np.amax(result)
+            # mask = result<1
+            # result[mask] = 1
+            # result[~mask] = 0
+            mask = overlapCounter[insideThisBorder] < result
+            # overlapCounter[insideThisBorder] += result
+            overlapCounter[insideThisBorder][mask] = result[mask]
             # print ellipseCenter, majorAxis, minorAxis, rotation
             # np.save('tmp/grid', [gridX, gridY])
             # np.savetxt('tmp/pointm', result)
@@ -247,7 +260,7 @@ class InterferometryObservation:
         trimmedGridLength = int(np.round(gridLength / (1 + 2*paddingRatio)))
         halfPaddingCount =  int(np.round((gridLength - trimmedGridLength) / 2.))
         overlapCounter = overlapCounter[halfPaddingCount:-halfPaddingCount, halfPaddingCount:-halfPaddingCount]
-        print np.count_nonzero(overlapCounter > 1), np.count_nonzero(overlapCounter == 1), np.count_nonzero(overlapCounter == 0)
+        # print np.count_nonzero(overlapCounter > 1), np.count_nonzero(overlapCounter == 1), np.count_nonzero(overlapCounter == 0)
         bs.plotOverlap(overlapCounter, fileName = 'overlap.png')
 
         return overlapCounter
