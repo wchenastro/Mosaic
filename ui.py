@@ -8,7 +8,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from interferometer import InterferometryObservation
-from beamShape import fitEllipseBeam, plotPackedBeam, plotBeamFit
+from beamShape import plotPackedBeam, plotBeamFit, plotSkyHeatMap
 from createBeam import ellipseGrid, ellipseCompact
 
 
@@ -63,7 +63,7 @@ class Cartesian(QWidget):
         '''horizon'''
         painter.drawEllipse(QPoint(self.halfWidth, self.halfHeight),
                 self.halfWidth, self.halfHeight)
-        '''altitude'''
+        '''latitude'''
         if self.elevation < 0:
             painter.setPen(dashPen)
         painter.drawEllipse(QPoint(self.halfWidth, self.halfHeight),
@@ -86,26 +86,26 @@ class Cartesian(QWidget):
         return QSize(301, 301)
 
     def mouseMoveEvent(self, event):
-        longitude, altitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
+        longitude, latitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
         longitudeCoord.setPlaceholderText('{:6.4f}'.format(longitude))
-        altitudeCoord.setPlaceholderText('{:6.4f}'.format(altitude))
+        latitudeCoord.setPlaceholderText('{:6.4f}'.format(latitude))
 
     def addDots(self, dots):
-        for longitude, altitude in dots:
-            dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
+        for latitude, longitude in dots:
+            dot = self.pixelCoordinateConv((longitude, latitude), 'toPixel')
             self.dots.append(dot)
         self.update()
 
     def addHighLightDots(self, dots):
-        for longitude, altitude in dots:
-            dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
+        for latitude, longitude in dots:
+            dot = self.pixelCoordinateConv((longitude, latitude), 'toPixel')
             self.highLightDots.append(dot)
         self.update()
 
     def mouseReleaseEvent(self, event):
         self.dots.append([event.x(), event.y()])
-        longitude, altitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
-        addRowToCoordinateList(longitude, altitude)
+        longitude, latitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
+        addRowToCoordinateList(latitude, longitude)
         self.update()
         updateCountour()
         # updateBaselineList(observation.getBaselines())
@@ -132,8 +132,8 @@ class Cartesian(QWidget):
         self.update()
 
     def removeDots(self, dotsToRemove):
-        for longitude, altitude in dotsToRemove:
-            dot = self.pixelCoordinateConv((longitude, altitude), 'toPixel')
+        for latitude, longitude in dotsToRemove:
+            dot = self.pixelCoordinateConv((longitude, latitude), 'toPixel')
             self.dots.remove(dot)
         self.update()
 
@@ -143,10 +143,10 @@ class Cartesian(QWidget):
         self.update()
 
     def setCenter(self, center, radius):
-        self.xStart = center[0] - radius
-        self.xEnd = center[0] + radius
-        self.yStart = center[1] - radius
-        self.yEnd = center[1] + radius
+        self.xStart = center[1] - radius
+        self.xEnd = center[1] + radius
+        self.yStart = center[0] - radius
+        self.yEnd = center[0] + radius
 
 class miniCartesian(Cartesian):
 
@@ -176,20 +176,57 @@ class miniCartesian(Cartesian):
     def mouseReleaseEvent(self, event):
         pass
 
+    def mouseMoveEvent(self, event):
+        pass
 
 def updateHorizontal(horizontalCoord):
     if horizontalCoord == []: return
     azimuth = np.rad2deg(horizontalCoord[0])
     elevation = np.rad2deg(horizontalCoord[1])
     axis.setAzAlt([azimuth, elevation])
+
+    azimuthCoord.blockSignals(True)
+    elevationCoord.blockSignals(True)
     azimuthCoord.setText('{:6.4f}'.format(azimuth))
     elevationCoord.setText('{:6.4f}'.format(elevation))
+    azimuthCoord.blockSignals(False)
+    elevationCoord.blockSignals(False)
+
+def updateBoreSight(boreSightCoord):
+    if boreSightCoord == []: return
+    RA = boreSightCoord[0]
+    DEC = boreSightCoord[1]
+    RACoord.blockSignals(True)
+    DECCoord.blockSignals(True)
+    RACoord.setText('{:6.5f}'.format(RA))
+    DECCoord.setText('{:6.5f}'.format(DEC))
+    RACoord.blockSignals(False)
+    DECCoord.blockSignals(False)
+
 
 def onBoreSightUpdated():
     beamBoreSight = (float(RACoord.text()), float(DECCoord.text()))
+    preBoresight = observation.getBoreSight()
+    if ((abs(beamBoreSight[0] - preBoresight[0]) < 1e-4) and (abs(beamBoreSight[1] - preBoresight[1]) < 1e-4)):
+        return
+    print 'boresight edited'
+    observation.setInputType(InterferometryObservation.equatorialInput)
     observation.setBoreSight(beamBoreSight)
     updateCountour()
     updateHorizontal(observation.getHorizontal())
+
+def onHorizontalUpdated():
+    horizontalCoord = (float(azimuthCoord.text()), float(elevationCoord.text()))
+    preHorizontal = np.rad2deg(observation.getHorizontal())
+    if ((abs(horizontalCoord[0] - preHorizontal[0]) < 1e-4) and (abs(horizontalCoord[1] - preHorizontal[1]) < 1e-4)):
+        return
+    print 'horizontal edited'
+    observation.setInputType(InterferometryObservation.horizontalInput)
+    observation.setHorizontal(horizontalCoord)
+    updateCountour()
+    axis.setAzAlt(horizontalCoord)
+    updateBoreSight(observation.getBoreSight())
+
 
 def onBeamSizeChanged():
     autoZoomCheckbox.setCheckState(Qt.Unchecked)
@@ -198,6 +235,10 @@ def onBeamSizeChanged():
         updateCountour()
     else:
         beamSizeEdit.setValue(observation.getBeamSizeFactor())
+
+def onRotationChanged():
+    resetPackState()
+
 
 def onBeamNumberChanged():
     isSet = observation.setBeamNumber(float(beamNumberEdit.text()))
@@ -221,15 +262,16 @@ def onAutoZoomOptionChanged(state):
     updateCountour()
 
 def onDateTimeChanged(dateTime):
+    observation.setInputType(InterferometryObservation.equatorialInput)
     observation.setObserveTime(dateTime.toPyDateTime())
     updateCountour()
     updateHorizontal(observation.getHorizontal())
 
-def addRowToCoordinateList(longitude, altitude):
+def addRowToCoordinateList(latitude, longitude):
     rowCount = coordinateList.rowCount()
     coordinateList.insertRow(rowCount)
-    coordinateList.setItem(rowCount, 0, QTableWidgetItem('{:6.4f}'.format(longitude)))
-    coordinateList.setItem(rowCount, 1, QTableWidgetItem('{:6.4f}'.format(altitude)))
+    coordinateList.setItem(rowCount, 0, QTableWidgetItem('{:6.4f}'.format(latitude)))
+    coordinateList.setItem(rowCount, 1, QTableWidgetItem('{:6.4f}'.format(longitude)))
     coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
 
 def resetPackState():
@@ -260,9 +302,9 @@ def updateCountour():
     for row in range(rowCount):
         item = coordinateList.item(row, 2)
         if item != None and item.text() == 'hidden': continue
-        longitude = float(str(coordinateList.item(row, 0).text()))
-        altitude = float(str(coordinateList.item(row, 1).text()))
-        coordinates.append([longitude, altitude, 1])
+        longitude = float(str(coordinateList.item(row, 1).text()))
+        latitude = float(str(coordinateList.item(row, 0).text()))
+        coordinates.append([latitude, longitude, 1035.])
 
     observation.createContour(coordinates)
     pixmap = QPixmap(os.getcwd() + '/contour.png')
@@ -278,15 +320,15 @@ def updateCountour():
 
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
-    altitude = altitudeCoord.text()
-    if longitude == '' or altitude == '':
+    latitude = latitudeCoord.text()
+    if longitude == '' or latitude == '':
         return
     rowCount = coordinateList.rowCount()
     coordinateList.insertRow(rowCount)
-    coordinateList.setItem(rowCount, 0, QTableWidgetItem(longitude))
-    coordinateList.setItem(rowCount, 1, QTableWidgetItem(altitude))
+    coordinateList.setItem(rowCount, 1, QTableWidgetItem(longitude))
+    coordinateList.setItem(rowCount, 0, QTableWidgetItem(latitude))
     coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
-    axis.addDots([[float(longitude), float(altitude)],])
+    axis.addDots([float(latitude)],[float(longitude),])
     updateCountour()
 
 
@@ -314,17 +356,21 @@ def onClickedImportButton():
 
     onClickedDelAllButton()
     dateTimeEdit.blockSignals(True)
+    azimuthCoord.blockSignals(True)
+    elevationCoord.blockSignals(True)
+    RACoord.blockSignals(True)
+    DECCoord.blockSignals(True)
 
     rowCount = 0
     dots = []
-    for longitude, altitude, height in antennaCoords:
+    for latitude, longitude, height in antennaCoords:
         coordinateList.insertRow(rowCount)
-        coordinateList.setItem(rowCount, 0, QTableWidgetItem(str(longitude)))
-        coordinateList.setItem(rowCount, 1, QTableWidgetItem(str(altitude)))
+        coordinateList.setItem(rowCount, 0, QTableWidgetItem(str(latitude)))
+        coordinateList.setItem(rowCount, 1, QTableWidgetItem(str(longitude)))
         coordinateList.setItem(rowCount, 3, QTableWidgetItem(''))
         coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
         rowCount += 1
-        dots.append([float(longitude), float(altitude)])
+        dots.append([float(latitude), float(longitude),])
 
     axis.addDots(dots)
 
@@ -341,12 +387,18 @@ def onClickedImportButton():
             observeTime.second, observeTime.microsecond/1000)
     dateTimeEdit.setDateTime(newDateTime)
     observation.setObserveTime(observeTime)
+    observation.setInputType(InterferometryObservation.equatorialInput)
 
 
     updateCountour()
     updateHorizontal(observation.getHorizontal())
 
     dateTimeEdit.blockSignals(False)
+    dateTimeEdit.blockSignals(False)
+    azimuthCoord.blockSignals(False)
+    RACoord.blockSignals(False)
+    DECCoord.blockSignals(False)
+
 
 def onClickedDelAllButton():
     coordinateList.setRowCount(0)
@@ -354,28 +406,6 @@ def onClickedDelAllButton():
     label.setPixmap(blankImage)
     axis.clearDots()
     UVPlane.clearDots()
-
-def onClickedPackButton():
-    if not hasattr(onClickedPackButton, "state"):
-        onClickedPackButton.state = 0
-
-
-    if onClickedPackButton.state == 1:
-        onClickedPackButton.state = 0
-        pixmap = QPixmap(os.getcwd() + '/contour.png')
-        label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
-        return
-
-    onClickedPackButton.state = 1
-    number = observation.getBaselinesNumber()
-    angle, axisH, axisV = fitEllipseBeam(number*0.4)
-    divider = float(packSizeEdit.value())
-    beamRadius = np.rad2deg(1.22*waveLength/13.5)/2/divider
-    coordinates = ellipseGrid(beamRadius, axisH, axisV, angle, write=False)
-    # plotPackedBeam('ellipsePack', np.rad2deg(angle), axisH, axisV, beamRadius, 'png')
-    plotPackedBeam(coordinates, np.rad2deg(angle), axisH, axisV, beamRadius, 'png')
-    pixmap = QPixmap(os.getcwd() + '/pack.png')
-    label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
 
 def onClickedPackButton2():
     if not hasattr(onClickedPackButton2, "state"):
@@ -406,9 +436,15 @@ def onClickedPackButton2():
     # amplitude = observation.getAmplitude()
     # coordinates = observation.getBeamCoordinates()
     # center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
-    center = np.rad2deg(observation.getHorizontal())
+    # center = np.rad2deg(observation.getHorizontal())
+    center = observation.getBoreSight()
     imageLength = np.rad2deg(observation.getImageLength())
-    axisH2, axisV2, angle2, = observation.getBeamAxis()
+    sizeInfo = observation.getBeamAxis()
+    if sizeInfo == None:
+        return
+    else:
+        axisH2, axisV2, angle2, = sizeInfo[0], sizeInfo[1], sizeInfo[2]
+    print sizeInfo
     if center == []: return
     # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
     # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
@@ -422,17 +458,95 @@ def onClickedPackButton2():
     onClickedPackButton2.fittedImage = fittedImage
     label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
     coordinates, beamRadius = ellipseCompact(400, axisH2, axisV2, angle2, 10)
-    # beamNumber = coordinates.shape[0]
+    # ======================
+    beamNumberTidal = coordinates.shape[0]
+    # factor = float(packSizeEdit.text())
+    factor = 1
+    primaryBeamRadius = np.rad2deg(1.22*waveLength/13.5)/2. * factor
+    coordinatesPrimary = ellipseGrid(primaryBeamRadius, beamRadius, beamRadius, 0)
+    beamNumberPrimary = len(coordinatesPrimary)
+    plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, primaryBeamRadius, fileName='primaryPack.png')
+    # print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius))
+    print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius)),
+    print(", angle: %f" % np.rad2deg(angle2))
+    # print("primary: num:%d" % beamNumberPrimary)
     # beamArea = np.pi*axisH*axisV
     # primaryBeamArea = np.pi*(beamRadius**2)
     # ratio = beamNumber*beamArea/primaryBeamArea
     # print(beamRadius)
     # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
+    # ======================
     plotPackedBeam(coordinates, np.rad2deg(angle2), axisH2, axisV2, beamRadius)
     pixmap = QPixmap(os.getcwd() + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     onClickedPackButton2.state = 1
     onClickedPackButton2.newData = False
+
+    #========parallactic
+    # try:
+        # parallacticData = np.load('parallactic.npy')
+    # except:
+        # parallacticData = np.array([])
+    # parallacticData = np.append(parallacticData, [coordinates, np.rad2deg(angle2), axisH2, axisV2, beamRadius], axis=0)
+    # np.save('parallactic.npy', parallacticData)
+
+    #=========== overlaps
+    rotationOffset = float(packSizeEdit.text())
+    angleOffset = rotationOffset*60/(3600.*24) * 2 * np.pi
+    overlapCounter = observation.calculateBeamOverlaps(
+            coordinates, beamRadius, axisH2, axisV2, angle2 + angleOffset)
+
+    #=========== heapMap
+    # tidalOffset = coordinates
+    # mapGrid = []
+
+    # np.savetxt('setcenter', coordinatesPrimary)
+    # for beamSetCenter in coordinatesPrimary:
+        # mapGrid.append(tidalOffset + beamSetCenter)
+
+    # mapGrid = np.array(mapGrid)
+    # shapes = mapGrid.shape
+    # mapSum = np.zeros((shapes[0], shapes[1]))
+    # for beamSetCenter in coordinatesPrimary:
+        # mapSum += Gaussian2DPDF(mapGrid[:,:,0], mapGrid[:,:,1], beamSetCenter[0], beamSetCenter[1], primaryBeamRadius, primaryBeamRadius)
+    # plotSkyHeatMap(mapGrid[:,:,0], mapGrid[:,:,1], mapSum)
+    #=========== heapMap
+    # heats = generateSkyHeatMap(primaryBeamRadius*1.5, coordinatesPrimary, beamRadius, primaryBeamRadius)
+    # gridX = np.arange(1000)
+    # gridY = np.arange(1000)
+    # plotSkyHeatMap(heats)
+
+def generateSkyHeatMap(mapRadius, beamSetCenters, beamSetRadius, primaryBeamRadius):
+    gridNum = 1000.
+    step = mapRadius/(gridNum/2)
+    # grids = np.mgrid[0:2*mapRadius:step, 0:2*mapRadius:step]
+    grids = np.mgrid[0:gridNum:1, 0:gridNum:1]
+    beamSetGridLen = int(round(beamSetRadius/step))
+    heapMap = np.zeros((1000, 1000))
+    diameter = beamSetGridLen*2 + 1
+    for beamSetCenter in beamSetCenters:
+        xCenterIdx = int(round((beamSetCenter[0] + mapRadius)/(2*mapRadius)*gridNum))
+        yCenterIdx = int(round((mapRadius - beamSetCenter[1])/(2*mapRadius)*gridNum))
+        xStart = xCenterIdx - beamSetGridLen
+        yStart = yCenterIdx - beamSetGridLen
+        xEnd = xCenterIdx + beamSetGridLen
+        yEnd = yCenterIdx + beamSetGridLen
+        xGrid = grids[1][yStart:yEnd+1, xStart:xEnd+1].reshape(diameter*diameter)
+        yGrid = grids[0][yStart:yEnd+1, xStart:xEnd+1].reshape(diameter*diameter)
+        heat = Gaussian2DPDF(xGrid, yGrid, xCenterIdx, yCenterIdx, beamSetGridLen, beamSetGridLen)
+        block = heapMap[yStart:yEnd+1, xStart:xEnd+1].reshape(diameter*diameter)
+        blockLength = len(block)
+        for i in range(blockLength):
+            block[i] = heat[i] if heat[i] > block[i] else block[i]
+        heapMap[yStart:yEnd+1, xStart:xEnd+1] = block.reshape(diameter,diameter)
+        # np.savetxt("heapMap", heapMap)
+
+    return heapMap
+
+
+def Gaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma):
+    return np.exp(-((x-xMean)**2/(2*(xSigma**2)) + (y-yMean)**2/(2*(ySigma**2))))
+
 
 def overlayImage(bottom, top):
     painter = QPainter()
@@ -472,6 +586,9 @@ def onClickedAtCoordinateList(row, column):
 
     axis.addHighLightDots(dots)
     return
+
+def onPackSizeChanged():
+    resetPackState()
 
 def onCoordinateListSelectionChanged():
     items = coordinateList.selectedItems()
@@ -518,7 +635,8 @@ np.set_printoptions(precision=3)
 
 '''MeerKAT coordinates'''
 # the values provided by http://public.ska.ac.za/meerkat
-arrayRefereceGEODET = (21.44389,-30.71317, 0)
+# Longitude, Latitude, Height
+arrayRefereceGEODET = (-30.71106, 21.44389, 1035)
 '''observation time in UTC'''
 observationTime = QDateTime.currentDateTime().toPyDateTime()
 '''observation waveLength in meter'''
@@ -526,7 +644,7 @@ waveLength = 0.21
 
 defaultBeamSizeFactor = 1
 defaultBeamNumber = 400
-defaultBoreSight = (21.44389, -30.71317)
+defaultBoreSight = (21.44389, -30.71106)
 
 observation = InterferometryObservation(arrayRefereceGEODET,
         observationTime, waveLength)
@@ -553,17 +671,17 @@ label.move(10, 10)
 
 longitudeCoordLabel = QLabel(w)
 longitudeCoordLabel.setText('Longitude')
-longitudeCoordLabel.move(10, 380)
-altitudeCoordLabel = QLabel(w)
-altitudeCoordLabel.setText('Altitude')
-altitudeCoordLabel.move(100, 380)
+longitudeCoordLabel.move(100, 380)
+latitudeCoordLabel = QLabel(w)
+latitudeCoordLabel.setText('Latitude')
+latitudeCoordLabel.move(10, 380)
 
 longitudeCoord = QLineEdit(w)
-altitudeCoord = QLineEdit(w)
+latitudeCoord = QLineEdit(w)
 longitudeCoord.resize(80,30)
-altitudeCoord.resize(80,30)
-longitudeCoord.move(10, 400)
-altitudeCoord.move(100, 400)
+latitudeCoord.resize(80,30)
+longitudeCoord.move(100, 400)
+latitudeCoord.move(10, 400)
 
 addGeoButton = QPushButton('Add', w)
 addGeoButton.clicked.connect(onClickedAddGeoButton)
@@ -585,14 +703,15 @@ PackButton.clicked.connect(onClickedPackButton2)
 PackButton.resize(50, 30)
 PackButton.move(400, 400)
 
-packSizeLabel = QLabel(w)
-packSizeLabel.setText('Div')
-packSizeLabel.move(450, 380)
+# packSizeLabel = QLabel(w)
+# packSizeLabel.setText('Div')
+# packSizeLabel.move(450, 380)
 packSizeEdit = QSpinBox(w)
 packSizeEdit.move(450, 400)
-packSizeEdit.setValue(1)
-packSizeEdit.setMinimum(1)
-# packSizeEdit.valueChanged.connect(onPackSizeChanged)
+packSizeEdit.setValue(0)
+packSizeEdit.setMinimum(0)
+packSizeEdit.setMaximum(999)
+packSizeEdit.valueChanged.connect(onRotationChanged)
 
 
 
@@ -683,9 +802,11 @@ elevationCoordLabel.move(770, 380)
 azimuthCoord = QLineEdit(w)
 azimuthCoord.move(680, 400)
 azimuthCoord.resize(80,30)
+azimuthCoord.editingFinished.connect(onHorizontalUpdated)
 elevationCoord = QLineEdit(w)
 elevationCoord.resize(80,30)
 elevationCoord.move(770, 400)
+elevationCoord.editingFinished.connect(onHorizontalUpdated)
 
 coordinateListLabel = QLabel(w)
 coordinateListLabel.setText('Antennas')
@@ -695,8 +816,8 @@ coordinateList = QTableWidget(w)
 coordinateList.setColumnCount(4)
 coordinateList.resize(480, 300)
 coordinateList.move(10, 460)
-coordinateList.setHorizontalHeaderItem(0, QTableWidgetItem('longitude'))
-coordinateList.setHorizontalHeaderItem(1, QTableWidgetItem('latitude'))
+coordinateList.setHorizontalHeaderItem(0, QTableWidgetItem('latitude'))
+coordinateList.setHorizontalHeaderItem(1, QTableWidgetItem('longitude'))
 coordinateList.setHorizontalHeaderItem(2, QTableWidgetItem('hide'))
 coordinateList.setHorizontalHeaderItem(3, QTableWidgetItem('delete'))
 coordinateList.cellClicked.connect(onClickedAtCoordinateList)
