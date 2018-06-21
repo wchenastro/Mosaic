@@ -30,7 +30,16 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
 def convertHorizontalToEquatorial(azimuth, altitude, LST, latitude):
 
     DEC = np.arcsin(np.sin(altitude)*np.sin(latitude) + np.cos(altitude)*np.cos(latitude)*np.cos(azimuth))
-    LHA = np.arccos((np.sin(altitude)-np.sin(DEC)*np.sin(latitude))/(np.cos(DEC)*np.cos(latitude)))
+    # print altitude, DEC, latitude
+    cosLHA = (np.sin(altitude)-np.sin(DEC)*np.sin(latitude))/(np.cos(DEC)*np.cos(latitude))
+    if cosLHA > 1 and (cosLHA - 1) < 0.0000000000000003:
+        print("cos(LHA) corrected form %.20f to 1.0" % cosLHA)
+        cosLHA = 1.
+    # LHA = np.arccos((np.sin(altitude)-np.sin(DEC)*np.sin(latitude))/(np.cos(DEC)*np.cos(latitude)))
+    LHA = np.arccos(cosLHA)
+
+    if np.sin(azimuth) > 0:
+        LHA = np.pi*2 - LHA
 
     RAorig = LST - LHA
     RA = RAorig if RAorig > 0 else RAorig + 2*np.pi
@@ -135,6 +144,8 @@ def calculateLocalSiderealTime(TimeInUTC, longitude, displayHour=False):
         return timeDiffInDays
 
 
+    if type(TimeInUTC) != datetime.datetime:
+        TimeInUTC = epochToDatetime(TimeInUTC)
     daysSinceJ2000 = calculateDaysSinceJ2000(TimeInUTC)
     # print daysSinceJ2000
     '''http://www.stargazing.net/kepler/altaz.html'''
@@ -154,6 +165,30 @@ def calculateLocalSiderealTime(TimeInUTC, longitude, displayHour=False):
 
     return LocalSiderealTime
 
+def datetimeToEpoch(datetimeObjs):
+    observeSeconds = []
+    epoch = datetime.datetime.utcfromtimestamp(0)
+    if type(datetimeObjs) == list:
+        for datetimeObj in datetimeObjs:
+            observeSeconds.append((datetimeObj - epoch).total_seconds())
+    else:
+        observeSeconds = (datetimeObjs - epoch).total_seconds()
+
+    return observeSeconds
+
+def epochToDatetime(epoches):
+    epochDatetime = datetime.datetime.utcfromtimestamp(0)
+    observeDatetime = []
+    if type(epoches) == list:
+        for epoch in epoches:
+            timeDelter = datetime.timedelta(second = epoch)
+            observeDatetime.append(epochDatetime + timeDelta)
+    else:
+        timeDelta = datetime.timedelta(seconds = epoches)
+        observeDatetime = epochDatetime + timeDelta
+
+    return observeDatetime
+
 
 def convertGodeticToECEF(geodetics):
 
@@ -161,7 +196,7 @@ def convertGodeticToECEF(geodetics):
     '''http://itrf.ensg.ign.fr/faq.php?type=answer#question2'''
     grs80 = nv.FrameE(name='GRS80')
     ecefPoints = np.empty((0,3))
-    for lon, lat, height in geodetics:
+    for lat, lon, height in geodetics:
         geoPoint = grs80.GeoPoint(latitude=lat,
                 longitude=lon, z=-height, degrees=True)
         ecefPoint = geoPoint.to_ecef_vector().pvector.ravel()
@@ -172,8 +207,8 @@ def convertGodeticToECEF(geodetics):
 
 def convertECEFToENU(ECEF, ECEFReference, GeodeticReference):
     offset = ECEF - ECEFReference
-    lon = np.deg2rad(GeodeticReference[0])
-    lat = np.deg2rad(GeodeticReference[1])
+    lon = np.deg2rad(GeodeticReference[1])
+    lat = np.deg2rad(GeodeticReference[0])
     rotationMatrix = np.array([
             [-np.sin(lon),              np.cos(lon),                  0     ],
             [-np.sin(lat)*np.cos(lon), -np.sin(lat)*np.sin(lon), np.cos(lat)],
@@ -189,6 +224,37 @@ def distances(vector):
         elementWiseSum = np.sum(squares)
     squareRoots = np.sqrt(elementWiseSum)
     return squareRoots
+
+def angleToHour(angle, strfmt=True):
+    hour = angle/360.*24.
+    minute = (hour - int(hour))*60
+    second = (minute - int(minute))*60
+
+    hour = int(hour)
+    minute = int(minute)
+
+    if strfmt == True:
+        return ":".join([str(hour), str(minute), str(second)])
+    else:
+        return hour, minute, second
+
+def angleToDEC(angle, strfmt=True):
+    if angle < 0:
+        sign = -1
+        angle = abs(angle)
+    else:
+        sign = 1
+    # degree = int(angle)
+    minute = (angle - int(angle))*60
+    second = (minute - int(minute))*60
+
+    degree = sign * int(angle)
+    minute = int(minute)
+
+    if strfmt == True:
+        return ":".join([str(degree), str(minute), str(second)])
+    else:
+        return degree, minute, second
 
 def projectedRotate(altitude, azimuth, baseline, angle):
     # rotate vector on a surface

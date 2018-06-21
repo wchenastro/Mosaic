@@ -5,8 +5,8 @@ import datetime
 import argparse
 import h5py
 
-# from astropy import wcs
-# from astropy.io import fits
+from astropy import wcs
+from astropy.io import fits
 
 import coordinate as coord
 from interferometer import InterferometryObservation
@@ -33,25 +33,25 @@ class h5Writer:
     def close(self):
         self.fileObj.close()
 
-def writeToFits(crpix, cdelt, crval):
+def writeToFits(WCS, data):
     w = wcs.WCS(naxis=2)
 
     # "Airy's zenithal" projection
-    w.wcs.crpix = [-234.75, 8.3393]
-    w.wcs.cdelt = numpy.array([-0.066667, 0.066667])
-    w.wcs.crval = [0, -90]
-    w.wcs.ctype = ["RA---AIR", "DEC--AIR"]
-    w.wcs.set_pv([(2, 1, 45.0)])
+    w.wcs.crpix = WCS['crpix']
+    w.wcs.cdelt = WCS['cdelt']
+    w.wcs.crval = WCS['crval']
+    w.wcs.ctype = WCS['ctype']
+    # w.wcs.set_pv([(2, 1, 45.0)])
 
     header = w.to_header()
 
-    hdu = fits.PrimaryHDU(header=header)
+    hdu = fits.PrimaryHDU(header=header, data=data)
     # Save to FITS file
-    # hdu.writeto('test.fits')
+    hdu.writeto('psfsim.fits', overwrite=True)
 
 def creatBeamMatrix(paras, freqencies, plotting = False, interpolation=True):
 
-    antennaCoords, sourceCoord, observeTime, resolution, size, zoom = paras
+    antennaCoords, sourceCoord, frame, observeTime, resolution, size, zoom = paras
 
     # the values provided by http://public.ska.ac.za/meerkat
     arrayRefereceGEODET = (21.44389, -30.71317, 0)
@@ -67,19 +67,28 @@ def creatBeamMatrix(paras, freqencies, plotting = False, interpolation=True):
             None, waveLengths)
     observation.setBoreSight(defaultBoreSight)
     observation.setBeamSizeFactor(zoom)
+    observation.setGridNumber(size)
     observation.setBeamNumber(size*size)
     observation.setResolution(resolution)
     observation.setInterpolating(interpolation)
     observation.setAutoZoom(False)
 
-    observation.setBoreSight(sourceCoord)
+    if frame == "RADEC":
+        observation.setBoreSight(sourceCoord)
+        observation.setInputType(InterferometryObservation.equatorialInput)
+    elif frame == "AZIALT":
+        observation.setHorizontal(sourceCoord)
+        observation.setInputType(InterferometryObservation.horizontalInput)
+
     observation.setObserveTime(observeTime)
 
     saveParas(paras)
 
-    writer = h5Writer('beams.hdf5')
-    observation.createPSF(antennaCoords, waveLengths, writer.writeBeams, plotting)
-    writer.close()
+    # writer = h5Writer('beams.hdf5')
+    images = observation.createPSF(antennaCoords, waveLengths, None, plotting)
+    # writer.close()
+    wcs = observation.getWCS()
+    writeToFits(wcs, images)
 
 def parseOptions(parser):
     # enable interpolation when ploting
@@ -88,11 +97,12 @@ def parseOptions(parser):
     parser.add_argument('--plot', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--last', action='store_true', help='use last parameters')
     parser.add_argument('--ants', nargs=1, metavar="file", help='antenna coodinates files')
-    parser.add_argument('--resolution', nargs=1, metavar="num", help='resolution in arcsecond')
+    parser.add_argument('--resolution', nargs=1, metavar="asec", help='resolution in arcsecond')
     parser.add_argument('--size', nargs=1, metavar="num", help='width in pixels')
-    parser.add_argument('--zoom', nargs=1, metavar="num", help='zoom out factor')
+    parser.add_argument('--zoom', nargs=1, metavar="num", help=argparse.SUPPRESS)
     parser.add_argument('--freq', nargs=3, metavar=('s', 't', 'i'), required=True, help='freqencies range as start stop interval')
-    parser.add_argument('--source', nargs=2, metavar=('RA', 'DEC'), help='source position in RA and DEC')
+    parser.add_argument('--frame', nargs=1, metavar="RADEC/AziAlt", help='source coordinate frame')
+    parser.add_argument('--source', nargs=2, metavar=('RA/Azi', 'DEC/Alt'), help='source position in RADEC or AziAlt')
     parser.add_argument('--datetime', nargs=2, metavar=('date', 'time'), help='observation time in format: 03/10/2015 15:23:10.000001')
 
     args = parser.parse_args()
@@ -103,6 +113,7 @@ def parseOptions(parser):
     resolution = 10 #in arcsecond
     size = 20
     zoom = 1
+    frame = 'RADEC'
     if args.plot == True:
         plotting = True
         if args.inte == True:
@@ -125,14 +136,22 @@ def parseOptions(parser):
         else:
             parser.error("no source specifed, try --source RA DEC")
 
+        if args.frame is not None:
+            frame = args.frame[0].upper()
+            if frame != 'RADEC' and frame != 'AZIALT':
+                parser.error("frame not recongnized, should be RADEC or AziAlt")
+        else:
+            print("frame not specified, default to RADEC")
+            frame = 'RADEC'
+
         if args.resolution is not None:
-            resolution = int(args.resolution[0])
+            resolution = float(args.resolution[0])
         if args.size is not None:
             size = int(args.size[0])
         if args.zoom is not None:
             zoom = int(args.zoom[0])
 
-        paras = antennaCoords, sourceCoord, observeTime, resolution, size, zoom
+        paras = antennaCoords, sourceCoord, frame, observeTime, resolution, size, zoom
 
     freqencies = np.arange(float(args.freq[0]), float(args.freq[1]), float(args.freq[2]))
     creatBeamMatrix(paras, freqencies, plotting, interpolation)

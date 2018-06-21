@@ -3,12 +3,11 @@
 
 import numpy as np
 
-# import steervec as sv
 import coordinate as coord
-import beamShape as bs
-# import createBeam as cb
+from plot import plotBeamContour, plotOverlap
+from utilities import normSigma, normInverse
 
-import inspect
+import inspect, pickle, datetime
 from scipy import interpolate
 
 
@@ -51,6 +50,8 @@ class InterferometryObservation:
         self.inputType = inputType
 
     def setObserveTime(self, dateTime):
+        if type(dateTime) != datetime.datetime:
+            dateTime = coord.epochToDatetime(dateTime)
         self.observeTime = dateTime
 
     def getObserveTime(self):
@@ -111,6 +112,15 @@ class InterferometryObservation:
     def getBaselinesNumber(self):
         return len(self.baselines)
 
+
+    def saveParas(self, fileName):
+        coordinates = self.getAntCoordinates()
+        observeTime = self.getObserveTime()
+        source = self.getBoreSight()
+
+        with open(fileName, 'wb') as paraFile:
+            pickle.dump([coordinates, source, observeTime], paraFile)
+
     def getsynthesizedBeam(self):
         return self.beamSynthesized
 
@@ -146,6 +156,17 @@ class InterferometryObservation:
     def getAntCoordinates(self):
         return self.antCoordinatesGEODET.tolist()
 
+    def createBaselines(self, antCoordinatesENU):
+        baselines = []
+        index = 1
+        for antenna1 in antCoordinatesENU:
+            for antenna2 in antCoordinatesENU[index:]:
+                baselines.append([antenna1[0]-antenna2[0],
+                        antenna1[1]-antenna2[1],antenna1[2]-antenna2[2]])
+            index += 1
+
+        return baselines
+
     def updateBeamCoordinates(self):
         interval = self.beamSizeFactor
         # halfLength = self.beamSizeFactor * 10
@@ -157,7 +178,8 @@ class InterferometryObservation:
             self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, halfLength, interval)
             return True
 
-    def calculateBeamOverlaps(self, ellipseCenters, radius, majorAxis, minorAxis, rotation):
+    @staticmethod
+    def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, fileName = 'overlap.png'):
 
         def RotatedGaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma, angle):
             angle = -(angle - np.pi)
@@ -191,7 +213,7 @@ class InterferometryObservation:
         longAxis = majorAxis if majorAxis > minorAxis else minorAxis
         gridNum = 1000
         # print 0.3*radius, longAxis
-        halfSidelength = 0.3 * radius
+        halfSidelength = 0.15 * radius
         offsetCenter = [radius, radius]
         # np.savetxt('tmp/oldcenter', ellipseCenters)
         ellipseCenters = ellipseCenters + offsetCenter
@@ -203,11 +225,11 @@ class InterferometryObservation:
                (ellipseCenter[1] > (offsetCenter[1]-halfSidelength) and\
                 ellipseCenter[1] < (offsetCenter[1]+halfSidelength)):
                 innerEllipses.append(ellipseCenter)
-        paddingRatio = longAxis/halfSidelength
+        paddingRatio = 2*longAxis/halfSidelength
         halfSidelength *= 1 + paddingRatio
         # np.savetxt('tmp/innercenter', innerEllipses)
         step = 2*halfSidelength/gridNum
-        width = longAxis
+        width = longAxis*2
         squareEdgeX = [offsetCenter[0] - halfSidelength, offsetCenter[0] + halfSidelength]
         squareEdgeY = [offsetCenter[1] - halfSidelength, offsetCenter[1] + halfSidelength]
         # print squareEdgeX, squareEdgeY
@@ -223,6 +245,7 @@ class InterferometryObservation:
         gridLength = gridNum
         overlapCounter = np.zeros((gridLength, gridLength))
         # overlapCounter = np.full((gridLength, gridLength), np.inf)
+        sigmaH, sigmaV = majorAxis * (2./2.3556),  minorAxis  * (2./2.3556)
         for ellipseCenter in innerEllipses:
             horizontalBoarder = [ellipseCenter[0]-width, ellipseCenter[0]+width]
             verticalBoarder = [ellipseCenter[1]-width, ellipseCenter[1]+width]
@@ -236,7 +259,8 @@ class InterferometryObservation:
             gridX = grids[0][insideThisBorder]
             gridY = grids[1][insideThisBorder]
             # result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
-            result = RotatedGaussian2DPDF(gridX, gridY, ellipseCenter[0], ellipseCenter[1], majorAxis/1., minorAxis/1., rotation)
+            result = RotatedGaussian2DPDF(gridX, gridY,ellipseCenter[0],
+                    ellipseCenter[1], sigmaH, sigmaV, rotation)
             # if np.amin(result) > 1.: exit()
             # print np.amax(result)
             # mask = result<1
@@ -261,7 +285,7 @@ class InterferometryObservation:
         halfPaddingCount =  int(np.round((gridLength - trimmedGridLength) / 2.))
         overlapCounter = overlapCounter[halfPaddingCount:-halfPaddingCount, halfPaddingCount:-halfPaddingCount]
         # print np.count_nonzero(overlapCounter > 1), np.count_nonzero(overlapCounter == 1), np.count_nonzero(overlapCounter == 0)
-        bs.plotOverlap(overlapCounter, fileName = 'overlap.png')
+        plotOverlap(overlapCounter, fileName = fileName)
 
         return overlapCounter
         # np.save('overlapCounter', overlapCounter)
@@ -546,9 +570,8 @@ class InterferometryObservation:
 
         return border, trueCenterIndex, overstep
 
-    def calculateBeamSize(self, image, density, windowLength, beamMajorAxisScale, interpolatedLength = 800, threshold = 0.4):
-        interpolatedLength = interpolatedLength
-        threshold = threshold
+    def calculateBeamSize(self, image, density, windowLength,
+            beamMajorAxisScale, interpolatedLength = 800, threshold = 0.5):
         border, closestToCenterIndex, overstep = self.trackBorder(
                 image, threshold, density, interpolatedLength)
 
@@ -565,22 +588,40 @@ class InterferometryObservation:
         minDistIndex = np.argmin(distancesSQ)
         minDist = np.sqrt(distancesSQ[minDistIndex])
         minDistVector = imageArray[minDistIndex]
-        if overstep == False:
-            maxDistIndex = np.argmax(distancesSQ)
-            maxDist = np.sqrt(distancesSQ[maxDistIndex])
-            maxDistVector = imageArray[maxDistIndex]
-            angle = np.arctan2(maxDistVector[0], maxDistVector[1])
 
-            minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
-            majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
-        else:
-            angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
+        maxDistIndex = np.argmax(distancesSQ)
+        maxDist = np.sqrt(distancesSQ[maxDistIndex])
+        maxDistVector = imageArray[maxDistIndex]
+        angle = np.arctan2(maxDistVector[0], maxDistVector[1])
+
+        minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+        majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
 
 
-            majorAxis = np.rad2deg(beamMajorAxisScale)
-            minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+        # if overstep == False:
+            # maxDistIndex = np.argmax(distancesSQ)
+            # maxDist = np.sqrt(distancesSQ[maxDistIndex])
+            # maxDistVector = imageArray[maxDistIndex]
+            # angle = np.arctan2(maxDistVector[0], maxDistVector[1])
 
-        return majorAxis, minorAxis, angle
+            # minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+            # majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
+        # else:
+            # angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
+
+
+            # majorAxis = np.rad2deg(beamMajorAxisScale)
+            # minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
+
+        # print majorAxis, minorAxis, threshold
+        # majorSigma = normSigma(majorAxis, 0, threshold)
+        # minorSigma = normSigma(minorAxis, 0, threshold)
+
+        # majorAxis = normInverse(0.5, 0, majorSigma)
+        # minorAxis = normInverse(0.5, 0, minorSigma)
+
+        print majorAxis, minorAxis
+        return majorAxis, minorAxis, angle, overstep
 
     def createContour(self, antennacoor, fileName='contour.png', minAlt=0):
 
@@ -593,7 +634,7 @@ class InterferometryObservation:
         antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
 
 
-        self.baselines = bs.createBaselines(antCoordinatesENU)
+        self.baselines = self.createBaselines(antCoordinatesENU)
 
         arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[0])
         LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
@@ -609,7 +650,10 @@ class InterferometryObservation:
             azimuth, altitude  = self.boreSightHorizontal
             RA, DEC = coord.convertHorizontalToEquatorial(azimuth, altitude, np.deg2rad(LSTDeg), arrayRefereceLatitude)
             self.boreSight = np.rad2deg([RA, DEC])
+            print np.rad2deg([RA, DEC])
 
+
+        self.saveParas('paras')
 
         # if abs(altitude[0]) < minAlt:
             # return
@@ -633,6 +677,8 @@ class InterferometryObservation:
 
         beamMajorAxisScale, beamMinorAxisScale = self.calculateBeamScaleFromBaselines(
                 rotatedProjectedBaselines, self.waveLength)
+        print self.waveLength, beamMinorAxisScale
+        baselineMax = 1.22*self.waveLength/(beamMinorAxisScale*2)
 
         baselineNum = len(self.baselines)
         density = self.imageDensity
@@ -666,14 +712,22 @@ class InterferometryObservation:
             # newBeamSizeFactor = beamMajorAxisScale*10*1.3 / (imageLength/gridNum) / density
             axisRatio = beamMajorAxisScale/beamMinorAxisScale
             newBeamSizeFactor = axisRatio * 2 * beamMajorAxisScale*2*1.3 / (self.resolution * density)
-            if newBeamSizeFactor < 3:
-                newBeamSizeFactor = 3
-            elif newBeamSizeFactor > 12:
-                newBeamSizeFactor = 12
+            # print newBeamSizeFactor,
+            if baselineMax > 2e3:
+                # print 'larger'
+                newBeamSizeFactor = 6 if newBeamSizeFactor < 6 else int(round(newBeamSizeFactor))
             else:
-                newBeamSizeFactor = int(round(newBeamSizeFactor))
+                # print 'smaller'
+                newBeamSizeFactor = 6 if newBeamSizeFactor > 6  else int(round(newBeamSizeFactor))
 
-            print newBeamSizeFactor
+            # if newBeamSizeFactor < 3:
+                # newBeamSizeFactor = 3 if baselineMax < 1e3 else 6
+            # elif newBeamSizeFactor > 12:
+                # newBeamSizeFactor = 10 if baselineMax < 1e3 else 20
+            # else:
+                # newBeamSizeFactor = int(round(newBeamSizeFactor))
+
+            # print newBeamSizeFactor,
             self.setBeamSizeFactor(newBeamSizeFactor)
 
             sidelength = density * self.beamSizeFactor
@@ -682,16 +736,22 @@ class InterferometryObservation:
             image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                     self.waveLength, imageLength, newBeamSizeFactor, density, gridNum)
 
-            bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
-                interpolation = self.interpolating, fileName='contourTest.png')
+            if fileName != None:
+                plotBeamContour(image, np.deg2rad(self.boreSight), windowLength,
+                    interpolation = self.interpolating, fileName='contourTest.png')
 
             sizeInfo = self.calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
             # self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
             majorAxis, minorAxis, angle = sizeInfo[0], sizeInfo[1], sizeInfo[2]
             # print np.deg2rad(majorAxis), beamMajorAxisScale
-            newBeamSizeFactor = 2*np.deg2rad(majorAxis)*1.4 / (self.resolution *  density)
-            if newBeamSizeFactor < 1:
-                    newBeamSizeFactor = 1
+            newBeamSizeFactor = 2*np.deg2rad(majorAxis)*1.7 / (self.resolution *  density)
+            overstep = sizeInfo[3]
+            if overstep == True:
+                newBeamSizeFactor += 3.5
+            # print newBeamSizeFactor
+            # print majorAxis, minorAxis, angle
+            if newBeamSizeFactor < 2.:
+                newBeamSizeFactor = 2
             else:
                 newBeamSizeFactor = int(round(newBeamSizeFactor))
             self.setBeamSizeFactor(newBeamSizeFactor)
@@ -711,8 +771,9 @@ class InterferometryObservation:
         windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
-        bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
-                interpolation = self.interpolating)
+        if fileName != None:
+            plotBeamContour(image, np.deg2rad(self.boreSight), windowLength,
+                    interpolation = self.interpolating)
 
         if baselineNum > 2:
             sizeInfo = self.calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
@@ -727,7 +788,7 @@ class InterferometryObservation:
         arrayRefereceECEF = coord.convertGodeticToECEF([self.arrayRefereceGEODET])[0]
         antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
 
-        self.baselines = bs.createBaselines(antCoordinatesENU)
+        self.baselines = self.createBaselines(antCoordinatesENU)
 
         arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[0])
         LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
@@ -797,7 +858,7 @@ class InterferometryObservation:
                 self.imageLength = windowLength
                 psfName = 'psf' + str(chanIdx) + '.png'
                 chanIdx += 1
-                bs.plotBeamContour3(image, np.deg2rad(self.boreSight), windowLength,
+                plotBeamContour(image, np.deg2rad(self.boreSight), windowLength,
                         fileName = psfName, interpolation = self.interpolating)
             # writer(waveLength, image)
             images.append(image)

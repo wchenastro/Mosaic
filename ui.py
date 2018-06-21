@@ -8,8 +8,8 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from interferometer import InterferometryObservation
-from beamShape import plotPackedBeam, plotBeamFit, plotSkyHeatMap
-from createBeam import ellipseGrid, ellipseCompact
+from plot import plotPackedBeam, plotBeamFit
+from tile import ellipseGrid, ellipseCompact
 
 
 class Cartesian(QWidget):
@@ -103,11 +103,12 @@ class Cartesian(QWidget):
         self.update()
 
     def mouseReleaseEvent(self, event):
+        height = 1035
         self.dots.append([event.x(), event.y()])
         longitude, latitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
-        addRowToCoordinateList(latitude, longitude)
+        addRowToCoordinateList(latitude, longitude, height)
         self.update()
-        updateCountour()
+        updateContour()
         # updateBaselineList(observation.getBaselines())
 
     def angleToCartesian(self, angleDeg, radius):
@@ -212,7 +213,7 @@ def onBoreSightUpdated():
     print 'boresight edited'
     observation.setInputType(InterferometryObservation.equatorialInput)
     observation.setBoreSight(beamBoreSight)
-    updateCountour()
+    updateContour()
     updateHorizontal(observation.getHorizontal())
 
 def onHorizontalUpdated():
@@ -223,7 +224,7 @@ def onHorizontalUpdated():
     print 'horizontal edited'
     observation.setInputType(InterferometryObservation.horizontalInput)
     observation.setHorizontal(horizontalCoord)
-    updateCountour()
+    updateContour()
     axis.setAzAlt(horizontalCoord)
     updateBoreSight(observation.getBoreSight())
 
@@ -232,7 +233,7 @@ def onBeamSizeChanged():
     autoZoomCheckbox.setCheckState(Qt.Unchecked)
     isSet = observation.setBeamSizeFactor(beamSizeEdit.value())
     if isSet:
-        updateCountour()
+        updateContour()
     else:
         beamSizeEdit.setValue(observation.getBeamSizeFactor())
 
@@ -243,7 +244,7 @@ def onRotationChanged():
 def onBeamNumberChanged():
     isSet = observation.setBeamNumber(float(beamNumberEdit.text()))
     if isSet:
-        updateCountour()
+        updateContour()
     else:
         beamNumberEdit.setText(str(int(observation.getBeamNumber())))
 
@@ -252,43 +253,44 @@ def onInterpolateOptionChanged(state):
         observation.setInterpolating(True)
     else:
         observation.setInterpolating(False)
-    updateCountour()
+    updateContour()
 
 def onAutoZoomOptionChanged(state):
     if state == Qt.Checked:
         observation.setAutoZoom(True)
     else:
         observation.setAutoZoom(False)
-    updateCountour()
+    updateContour()
 
 def onDateTimeChanged(dateTime):
     observation.setInputType(InterferometryObservation.equatorialInput)
     observation.setObserveTime(dateTime.toPyDateTime())
-    updateCountour()
+    updateContour()
     updateHorizontal(observation.getHorizontal())
 
-def addRowToCoordinateList(latitude, longitude):
+def addRowToCoordinateList(latitude, longitude, height):
     rowCount = coordinateList.rowCount()
     coordinateList.insertRow(rowCount)
     coordinateList.setItem(rowCount, 0, QTableWidgetItem('{:6.4f}'.format(latitude)))
     coordinateList.setItem(rowCount, 1, QTableWidgetItem('{:6.4f}'.format(longitude)))
-    coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
+    coordinateList.setItem(rowCount, 2, QTableWidgetItem('{:6.4f}'.format(height)))
+    coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
 
 def resetPackState():
     onClickedPackButton2.newData = True
     onClickedPackButton2.state = 0
     onClickedPackButton2.fittedImage = None
 
-def updateCountour():
-    # print('updateCountour')
+def updateContour():
+    # print('updateContour')
 
-    # if not hasattr(updateCountour, "lastObservetime"):
-        # updateCountour.lastObservetime = None
+    # if not hasattr(updateContour, "lastObservetime"):
+        # updateContour.lastObservetime = None
 
     # observeTime = dateTimeEdit.dateTime().toPyDateTime()
-    # if(updateCountour.lastObservetime != observeTime):
+    # if(updateContour.lastObservetime != observeTime):
         # observation.setObserveTime(observeTime)
-        # updateCountour.lastObservetime = observeTime
+        # updateContour.lastObservetime = observeTime
 
     modifiers = QApplication.keyboardModifiers()
     if modifiers == Qt.ShiftModifier:
@@ -300,11 +302,12 @@ def updateCountour():
         return
     coordinates = []
     for row in range(rowCount):
-        item = coordinateList.item(row, 2)
+        item = coordinateList.item(row, 3)
         if item != None and item.text() == 'hidden': continue
         longitude = float(str(coordinateList.item(row, 1).text()))
         latitude = float(str(coordinateList.item(row, 0).text()))
-        coordinates.append([latitude, longitude, 1035.])
+        height = float(str(coordinateList.item(row, 2).text()))
+        coordinates.append([latitude, longitude, height])
 
     observation.createContour(coordinates)
     pixmap = QPixmap(os.getcwd() + '/contour.png')
@@ -321,15 +324,17 @@ def updateCountour():
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
     latitude = latitudeCoord.text()
+    height = 1035
     if longitude == '' or latitude == '':
         return
     rowCount = coordinateList.rowCount()
     coordinateList.insertRow(rowCount)
     coordinateList.setItem(rowCount, 1, QTableWidgetItem(longitude))
     coordinateList.setItem(rowCount, 0, QTableWidgetItem(latitude))
-    coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
+    coordinateList.setItem(rowCount, 2, QTableWidgetItem(height))
+    coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
     axis.addDots([float(latitude)],[float(longitude),])
-    updateCountour()
+    updateContour()
 
 
 def onClickedImportButton():
@@ -367,8 +372,9 @@ def onClickedImportButton():
         coordinateList.insertRow(rowCount)
         coordinateList.setItem(rowCount, 0, QTableWidgetItem(str(latitude)))
         coordinateList.setItem(rowCount, 1, QTableWidgetItem(str(longitude)))
+        coordinateList.setItem(rowCount, 2, QTableWidgetItem(str(height)))
         coordinateList.setItem(rowCount, 3, QTableWidgetItem(''))
-        coordinateList.setItem(rowCount, 3, QTableWidgetItem('-'))
+        coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
         rowCount += 1
         dots.append([float(latitude), float(longitude),])
 
@@ -390,7 +396,7 @@ def onClickedImportButton():
     observation.setInputType(InterferometryObservation.equatorialInput)
 
 
-    updateCountour()
+    updateContour()
     updateHorizontal(observation.getHorizontal())
 
     dateTimeEdit.blockSignals(False)
@@ -444,7 +450,7 @@ def onClickedPackButton2():
         return
     else:
         axisH2, axisV2, angle2, = sizeInfo[0], sizeInfo[1], sizeInfo[2]
-    print sizeInfo
+    # print sizeInfo
     if center == []: return
     # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
     # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
@@ -561,12 +567,12 @@ def onClickedAtCoordinateList(row, column):
     x = float(str(coordinateList.item(row, 0).text()))
     y = float(str(coordinateList.item(row, 1).text()))
 
-    if column == 3:
+    if column == 4:
         coordinateList.removeRow(row)
         axis.removeDots([[x,y],])
-        updateCountour()
+        updateContour()
         return
-    elif column == 2:
+    elif column == 3:
         item = coordinateList.item(row, column)
         if item != None and str(item.text()) == 'hidden':
             coordinateList.setItem(row, column, QTableWidgetItem(''))
@@ -574,7 +580,7 @@ def onClickedAtCoordinateList(row, column):
         else:
             coordinateList.setItem(row, column, QTableWidgetItem('hidden'))
             axis.removeDots([[x,y],])
-        updateCountour()
+        updateContour()
         return
 
     items = coordinateList.selectedItems()
@@ -813,13 +819,14 @@ coordinateListLabel.setText('Antennas')
 coordinateListLabel.move(10, 440)
 
 coordinateList = QTableWidget(w)
-coordinateList.setColumnCount(4)
+coordinateList.setColumnCount(5)
 coordinateList.resize(480, 300)
 coordinateList.move(10, 460)
 coordinateList.setHorizontalHeaderItem(0, QTableWidgetItem('latitude'))
 coordinateList.setHorizontalHeaderItem(1, QTableWidgetItem('longitude'))
-coordinateList.setHorizontalHeaderItem(2, QTableWidgetItem('hide'))
-coordinateList.setHorizontalHeaderItem(3, QTableWidgetItem('delete'))
+coordinateList.setHorizontalHeaderItem(2, QTableWidgetItem('height'))
+coordinateList.setHorizontalHeaderItem(3, QTableWidgetItem('hide'))
+coordinateList.setHorizontalHeaderItem(4, QTableWidgetItem('delete'))
 coordinateList.cellClicked.connect(onClickedAtCoordinateList)
 coordinateList.itemSelectionChanged.connect(onCoordinateListSelectionChanged)
 # coordinateList.itemChanged.connect(onItemChangedAtCoordinateList)

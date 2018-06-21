@@ -59,6 +59,17 @@ def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     return inCircleCoordinates, subBeamRadius
 
+# def GaussianQuntileFunc(mean, sigma, probability, inverfFunc=None):
+
+    # if inverfFunc == None:
+        # try:
+            # from scipy.special import erfinv
+        # except ImportError:
+            # print("no erfinv function available")
+            # raise
+        # inverfFunc = erfinv
+
+    # return mean + sigma*np.sqrt(2)*inverfFunc(2*probability - 1)
 
 def ellipseCompact(beamNumber, axisH, axisV, angle, error, write=False):
 
@@ -142,6 +153,7 @@ def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
             lineType = abs(lineType - 1)
 
 
+
     # with open('coord', 'w') as coordFile:
         # for x, y in coordinates:
             # coordFile.write(' '.join([str(x), str(y)]) + '\n')
@@ -172,9 +184,14 @@ def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
         # print(x,y)
         # print(counter)
 
+    # print len(coordinates), len(inCircleCoordinates)
 
-    rotationMatrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
-    inCircleCoordinatesRotated = np.dot(np.array(rotationMatrix), np.array(inCircleCoordinates).T)
+    if angle == 0:
+        inCircleCoordinatesRotated = inCircleCoordinates
+    else:
+        rotationMatrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        inCircleCoordinatesRotated = np.dot(np.array(rotationMatrix), np.array(inCircleCoordinates).T)
+
     if write == True:
         with open('ellipsePack', 'w') as coordFile:
             for x, y in inCircleCoordinatesRotated.T:
