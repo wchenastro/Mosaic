@@ -10,6 +10,10 @@ from PyQt4.QtCore import *
 from interferometer import InterferometryObservation
 from plot import plotPackedBeam, plotBeamFit
 from tile import ellipseGrid, ellipseCompact
+from beamshape import calculateBeamOverlaps
+
+import argparse
+import logging
 
 
 class Cartesian(QWidget):
@@ -444,7 +448,7 @@ def onClickedPackButton2():
     # center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
     # center = np.rad2deg(observation.getHorizontal())
     center = observation.getBoreSight()
-    imageLength = np.rad2deg(observation.getImageLength())
+    imageLength = observation.getImageLength()
     sizeInfo = observation.getBeamAxis()
     if sizeInfo == None:
         return
@@ -497,10 +501,10 @@ def onClickedPackButton2():
     # np.save('parallactic.npy', parallacticData)
 
     #=========== overlaps
-    rotationOffset = float(packSizeEdit.text())
-    angleOffset = rotationOffset*60/(3600.*24) * 2 * np.pi
-    overlapCounter = observation.calculateBeamOverlaps(
-            coordinates, beamRadius, axisH2, axisV2, angle2 + angleOffset)
+    # rotationOffset = float(packSizeEdit.text())
+    # angleOffset = rotationOffset*60/(3600.*24) * 2 * np.pi
+    # overlapCounter = calculateBeamOverlaps(
+            # coordinates, beamRadius, axisH2, axisV2, angle2 + angleOffset)
 
     #=========== heapMap
     # tidalOffset = coordinates
@@ -659,6 +663,15 @@ observation.setBeamSizeFactor(defaultBeamSizeFactor)
 observation.setBeamNumber(defaultBeamNumber)
 observation.setInterpolating(True)
 observation.setAutoZoom(True)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-v", "--verbose", help="increase output verbosity",
+        action="store_true")
+
+args = parser.parse_args()
+if args.verbose:
+    logging.basicConfig(level=logging.DEBUG)
 
 a = QApplication(sys.argv)
 

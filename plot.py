@@ -8,10 +8,10 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     matplotlib.rcParams.update({'font.size': 8})
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
     halfSideLength = sideLength/2.0
-    xStart = np.rad2deg(center[0] - halfSideLength)
-    xEnd = np.rad2deg(center[0] + halfSideLength)
-    yStart = np.rad2deg(center[1] - halfSideLength)
-    yEnd = np.rad2deg(center[1] + halfSideLength)
+    xStart = (center[0] - halfSideLength)
+    xEnd = (center[0] + halfSideLength)
+    yStart = (center[1] - halfSideLength)
+    yEnd = (center[1] + halfSideLength)
     plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
     plt.imshow(array,cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
