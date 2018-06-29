@@ -3,7 +3,7 @@ from scipy import interpolate
 from plot import plotOverlap
 
 
-def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, fileName = 'overlap.png'):
+def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, mode, fileName = None):
 
     def RotatedGaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma, angle):
         angle = -(angle - np.pi)
@@ -32,6 +32,13 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
                 # (testPointY - center[1])*np.cos(rotation))**2
         return result
 
+    if mode == "counter":
+        mode = 1
+    elif mode == "heater":
+        mode = 2
+    elif mode == "both":
+        mode = 3
+
     # rotated = 0/(3600*24.) * 2 * np.pi
     # rotation += rotated
     longAxis = majorAxis if majorAxis > minorAxis else minorAxis
@@ -52,7 +59,7 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     paddingRatio = 2*longAxis/halfSidelength
     halfSidelength *= 1 + paddingRatio
     # np.savetxt('tmp/innercenter', innerEllipses)
-    step = 2*halfSidelength/gridNum
+    # step = 2*halfSidelength/gridNum
     width = longAxis*2
     squareEdgeX = [offsetCenter[0] - halfSidelength, offsetCenter[0] + halfSidelength]
     squareEdgeY = [offsetCenter[1] - halfSidelength, offsetCenter[1] + halfSidelength]
@@ -68,6 +75,7 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     # gridLength = grids.shape[1]
     gridLength = gridNum
     overlapCounter = np.zeros((gridLength, gridLength))
+    overlapHeater = np.zeros((gridLength, gridLength))
     # overlapCounter = np.full((gridLength, gridLength), np.inf)
     sigmaH, sigmaV = majorAxis * (2./2.3556),  minorAxis  * (2./2.3556)
     for ellipseCenter in innerEllipses:
@@ -82,17 +90,23 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
         insideThisBorder = np.s_[verticalIndex[1]: verticalIndex[0], horizontalIndex[0]: horizontalIndex[1]]
         gridX = grids[0][insideThisBorder]
         gridY = grids[1][insideThisBorder]
-        # result = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
-        result = RotatedGaussian2DPDF(gridX, gridY,ellipseCenter[0],
-                ellipseCenter[1], sigmaH, sigmaV, rotation)
-        # if np.amin(result) > 1.: exit()
-        # print np.amax(result)
-        # mask = result<1
-        # result[mask] = 1
-        # result[~mask] = 0
-        mask = overlapCounter[insideThisBorder] < result
-        # overlapCounter[insideThisBorder] += result
-        overlapCounter[insideThisBorder][mask] = result[mask]
+
+        #heat
+        if mode == 2 or mode == 3:
+            probability = RotatedGaussian2DPDF(gridX, gridY,ellipseCenter[0],
+                    ellipseCenter[1], sigmaH, sigmaV, rotation)
+
+            probabilityMask = (overlapHeater[insideThisBorder] < probability)
+            overlapHeater[insideThisBorder][probabilityMask] = probability[probabilityMask]
+
+        #counter
+        if mode == 1 or mode == 3:
+            counts = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
+            countMask = counts<1
+            counts[countMask] = 1
+            counts[~countMask] = 0
+            overlapCounter[insideThisBorder] += counts
+
         # print ellipseCenter, majorAxis, minorAxis, rotation
         # np.save('tmp/grid', [gridX, gridY])
         # np.savetxt('tmp/pointm', result)
@@ -108,10 +122,25 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     trimmedGridLength = int(np.round(gridLength / (1 + 2*paddingRatio)))
     halfPaddingCount =  int(np.round((gridLength - trimmedGridLength) / 2.))
     overlapCounter = overlapCounter[halfPaddingCount:-halfPaddingCount, halfPaddingCount:-halfPaddingCount]
+    overlapHeater = overlapHeater[halfPaddingCount:-halfPaddingCount, halfPaddingCount:-halfPaddingCount]
     # print np.count_nonzero(overlapCounter > 1), np.count_nonzero(overlapCounter == 1), np.count_nonzero(overlapCounter == 0)
-    plotOverlap(overlapCounter, fileName = fileName)
 
-    return overlapCounter
+    # unique, counts = np.unique(overlapCounter, return_counts=True)
+    # print dict(zip(unique, counts))
+
+    if fileName != None:
+        prefix, suffix= fileName.split('.')
+        if mode == 1 or mode == 3:
+            plotOverlap(overlapCounter, fileName = prefix+"Counter."+suffix)
+        if mode == 2 or mode == 3:
+            plotOverlap(overlapHeater, fileName = prefix+"Heater."+suffix)
+
+    if mode == 1:
+        return overlapCounter
+    elif mode == 2:
+        return overlapHeater
+    elif mode == 3:
+        return overlapCounter, overlapHeater
     # np.save('overlapCounter', overlapCounter)
 
 

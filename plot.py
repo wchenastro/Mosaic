@@ -34,7 +34,7 @@ def plotOverlap(overlapTable, fileName='overlap.png'):
     axis = fig.gca()
     axis.set_aspect('equal', 'datalim')
     plt.colorbar()
-    axis.axis('off')
+    # axis.axis('off')
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 

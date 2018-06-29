@@ -4,9 +4,9 @@
 import numpy as np
 
 import coordinate as coord
-from plot import plotBeamContour, plotOverlap
+from plot import plotBeamContour
 from utilities import normSigma, normInverse
-from beamshape import calculateBeamSize, calculateBeamOverlaps, trackBorder
+from beamshape import calculateBeamSize, trackBorder
 
 import inspect, pickle, datetime, logging
 
@@ -446,10 +446,10 @@ class InterferometryObservation:
             # print newBeamSizeFactor,
             if baselineMax > 2e3:
                 logging.debug('larger')
-                print 'larger'
+                # print 'larger'
                 newBeamSizeFactor = 6 if newBeamSizeFactor < 6 else int(round(newBeamSizeFactor))
             else:
-                print 'smaller', newBeamSizeFactor
+                # print 'smaller', newBeamSizeFactor
                 logging.debug('smaller')
                 if newBeamSizeFactor > 6:
                     newBeamSizeFactor = 6
@@ -466,7 +466,7 @@ class InterferometryObservation:
                 # newBeamSizeFactor = int(round(newBeamSizeFactor))
 
             # print newBeamSizeFactor,
-            print newBeamSizeFactor
+            # print newBeamSizeFactor
             self.setBeamSizeFactor(newBeamSizeFactor)
 
             sidelength = density * self.beamSizeFactor
@@ -482,7 +482,7 @@ class InterferometryObservation:
 
             sizeInfo = calculateBeamSize(image, density, windowLength, np.rad2deg(beamMajorAxisScale))
             # self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
-            print sizeInfo[3]
+            # print sizeInfo[3]
             if sizeInfo[3] != 0:
                 sigmaTest = normSigma(windowLength/2., 0, sizeInfo[3])
                 majorAxis = normInverse(0.4, 0, sigmaTest)
@@ -491,7 +491,7 @@ class InterferometryObservation:
                 majorAxis, minorAxis, angle = sizeInfo[0], sizeInfo[1], sizeInfo[2]
             # print np.deg2rad(majorAxis), beamMajorAxisScale
             newBeamSizeFactor = 2*majorAxis*1.7 / (self.resolution *  density)
-            print newBeamSizeFactor
+            # print newBeamSizeFactor
             overstep = sizeInfo[3]
             if overstep != 0:
                 newBeamSizeFactor += 3.5
