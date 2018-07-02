@@ -32,7 +32,6 @@ class psfsim:
         constructor of the psfsim class.
 
         """
-
         self.pixels = 400
         self.boreSight = (21.44389, -30.71106)
         self.observation = None
@@ -112,7 +111,7 @@ class psfsim:
 
         """
 
-        self.antenn = antennas
+        self.antennas = antennas
 
     def getBeamShape(self):
         """
@@ -125,8 +124,6 @@ class psfsim:
         axisV, semi-minor axis of the ellipse
         angle, orientation of the ellipse
         """
-
-
         self.observation.createContour(self.antennas, 'contour.png')
         shape = self.observation.getBeamAxis()
         # print shape
@@ -148,8 +145,36 @@ class psfsim:
         return self.observation.getHorizontal()
 
 
+class EllipticalBeam(object):
+    def __init__(self, axisH, axisV, angle):
+        self.axisH = axisH
+        self.axisV = axisV
+        self.angle = angle
 
-class tilesim:
+class TilingGenerator(object):
+    def __init__(self, beam_shape):
+        self.axisH, self.axisV, self.angle = beam_shape
+
+    def get_nbeam_tiling(self, nbeams, overlap): #=getTiling
+        #Do all things needed to tile nbeams
+        #make a Tiling object
+        #return Tiling
+        pass
+
+    def get_radius_tiling(self, radius, overlap): #=getTilingWithinRadius
+        #Do all things needed to tile radius
+        #make a Tiling object
+        #return Tiling
+        pass
+
+class Tiling(object):
+    def __init__(self, coordinate, beam_shape, radius):
+        self.coordiantes = coordinates #=self.tiling
+        self.beam_shape = beam_shape #=EllipticalBeam
+        self.radius = radius
+
+
+class tilesim(object):
     """
     Class for generation of  tiling
 
