@@ -112,7 +112,7 @@ class psfsim:
 
         """
 
-        self.antenn = antennas
+        self.antennas = antennas
 
     def getBeamShape(self):
         """
@@ -466,5 +466,3 @@ class DelayPolynomial:
         # freq, beam, antenna [,pol], time, (phase, rate)
 
         return freqArray
-
-
