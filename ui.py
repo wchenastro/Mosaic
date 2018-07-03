@@ -461,7 +461,7 @@ def onClickedPackButton2():
     imageDensity = observation.getImageDensity()
     step=imageLength*1.0/imageDensity
     ellipseCenter = [center[0] + step/2., center[1] - step/2.]
-    plotBeamFit(imageLength, center, ellipseCenter, np.rad2deg(angle2), axisH2, axisV2)
+    plotBeamFit(imageLength, center, ellipseCenter, angle2, axisH2, axisV2)
     bottomImage = QImage(os.getcwd() + '/contour.png')
     topImage = QImage(os.getcwd() + '/fit.png')
     fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
@@ -478,7 +478,7 @@ def onClickedPackButton2():
     plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, primaryBeamRadius, fileName='primaryPack.png')
     # print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius))
     print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius)),
-    print(", angle: %f" % np.rad2deg(angle2))
+    print(", angle: %f" % angle2)
     # print("primary: num:%d" % beamNumberPrimary)
     # beamArea = np.pi*axisH*axisV
     # primaryBeamArea = np.pi*(beamRadius**2)
@@ -486,7 +486,7 @@ def onClickedPackButton2():
     # print(beamRadius)
     # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
     # ======================
-    plotPackedBeam(coordinates, np.rad2deg(angle2), axisH2, axisV2, beamRadius)
+    plotPackedBeam(coordinates, angle2, axisH2, axisV2, beamRadius)
     pixmap = QPixmap(os.getcwd() + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     onClickedPackButton2.state = 1

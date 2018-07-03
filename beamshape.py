@@ -1,9 +1,10 @@
 import numpy as np
 from scipy import interpolate
 from plot import plotOverlap
+from utilities import normInverse
 
 
-def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, mode, fileName = None):
+def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, overlap, mode, fileName = None):
 
     def RotatedGaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma, angle):
         angle = -(angle - np.pi)
@@ -39,6 +40,7 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     elif mode == "both":
         mode = 3
 
+    rotation = np.deg2rad(rotation)
     # rotated = 0/(3600*24.) * 2 * np.pi
     # rotation += rotated
     longAxis = majorAxis if majorAxis > minorAxis else minorAxis
@@ -78,6 +80,10 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     overlapHeater = np.zeros((gridLength, gridLength))
     # overlapCounter = np.full((gridLength, gridLength), np.inf)
     sigmaH, sigmaV = majorAxis * (2./2.3556),  minorAxis  * (2./2.3556)
+    widthH = normInverse(overlap, 0, sigmaH)
+    widthV = normInverse(overlap, 0, sigmaV)
+
+
     for ellipseCenter in innerEllipses:
         horizontalBoarder = [ellipseCenter[0]-width, ellipseCenter[0]+width]
         verticalBoarder = [ellipseCenter[1]-width, ellipseCenter[1]+width]
@@ -101,7 +107,7 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
 
         #counter
         if mode == 1 or mode == 3:
-            counts = isInsideEllips(ellipseCenter, majorAxis, minorAxis, rotation, gridX, gridY)
+            counts = isInsideEllips(ellipseCenter, widthH, widthV, rotation, gridX, gridY)
             countMask = counts<1
             counts[countMask] = 1
             counts[~countMask] = 0
@@ -281,7 +287,7 @@ def calculateBeamSize(image, density, windowLength,
     maxDistIndex = np.argmax(distancesSQ)
     maxDist = np.sqrt(distancesSQ[maxDistIndex])
     maxDistVector = imageArray[maxDistIndex]
-    angle = np.arctan2(maxDistVector[0], maxDistVector[1])
+    angle = np.rad2deg(np.arctan2(maxDistVector[0], maxDistVector[1]))
 
     minorAxis  = (windowLength/interpolatedLength*minDist)
     majorAxis  = (windowLength/interpolatedLength*maxDist)

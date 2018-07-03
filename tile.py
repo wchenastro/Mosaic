@@ -186,6 +186,8 @@ def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
 
     # print len(coordinates), len(inCircleCoordinates)
 
+    angle = np.deg2rad(angle)
+
     if angle == 0:
         inCircleCoordinatesRotated = inCircleCoordinates
     else:

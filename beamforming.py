@@ -7,6 +7,8 @@ from interferometer import InterferometryObservation
 from tile import ellipseCompact, ellipseGrid
 from plot import plotPackedBeam
 from beamshape import calculateBeamOverlaps
+from utilities import normInverse
+
 
 class psfsim:
     """
@@ -18,7 +20,7 @@ class psfsim:
     source -- the boresight location or telescope pointing
         in the order of RA(deg), DEC(deg)
     time -- the observation time in datatime object or epoch seconds
-    freqencies -- the central frequency of the observation
+    freqencies -- the central frequency of the observation in Hz
 
     """
 
@@ -84,7 +86,7 @@ class psfsim:
         set the central frequency of the observation
 
         Keyword arguments:
-        freqencies -- the central frequency of the observation
+        freqencies -- the central frequency of the observation in Hz
 
         """
 
@@ -128,10 +130,10 @@ class psfsim:
 
 
         self.observation.createContour(self.antennas, 'contour.png')
-        shape = self.observation.getBeamAxis()
-        # print shape
+        axisH, axisV, angle = self.observation.getBeamAxis()
+        beamShapeObj = beamShape(axisH, axisV, angle)
 
-        return shape
+        return beamShapeObj
 
     def getHorizontal(self):
         """
@@ -147,146 +149,21 @@ class psfsim:
 
         return self.observation.getHorizontal()
 
-
-
-class tilesim:
-    """
-    Class for generation of  tiling
-
-    Keyword arguments:
-    axisH -- semi-major axis of the beam of a ellipse shape in degree
-    axisV -- semi-minor axis of the beam of a ellipse shape in degree
-    angle -- orientation of the beam of a ellipse shape in radian
-    overlap -- how much overlap between two beams, range in (0, 1)
-    beamNum -- how many beams are there in the tiling
-
-    """
-
-
-    def __init__(self, axisH, axisV, angle, beamNum, overlap):
-        self.beamNum = beamNum
+class beamShape(object):
+    def __init__(self, axisH, axisV, angle):
         self.axisH = axisH
         self.axisV = axisV
         self.angle = angle
-        self.overlapPoint = overlap
-        self.tilingRadius = 0
-        self.tiling = []
-        self.widthH = 0
-        self.widthV = 0
 
+class tiling(object):
 
-    def setBeamNumber(self, num):
-        """
-        set the beam number of the tiling
+    def __init__(self, coordinates, beamShape, radius, overlap):
 
-        Keyword arguments:
-        num -- beam number of the tiling
-
-        """
-
-        self.beamNum = num
-
-    def setBeamShape(self, axisH, axisV, angle):
-        """
-        set the shape of the beam
-
-        Keyword arguments:
-        axisH -- semi-major axis of the beam of a ellipse shape in degree
-        axisV -- semi-minor axis of the beam of a ellipse shape in degree
-        angle -- orientation of the beam of a ellipse shape in radian
-
-        """
-
-        self.axisH, self.axisV, self.angle = axisH, axisV, angle
-
-    def getTilingRadius(self):
-        """
-        return the radius of the generated tiling.
-        This method SHOULD be called after calling getTiling()
-
-        return:
-        radius -- the radius of the generated tiling in Degree
-
-        """
-
-        return self.tilingRadius
-
-    def inverseGaussian(self, p, mu, sigma):
-        """
-        return the offset to the Gaussian center given the Gaussian informaton
-
-        Keyword arguments:
-        p -- the Gaussian probabilty
-        mu -- the center of the Gaussian
-        sigma -- the deviation  of the Gaussian
-
-        return:
-        offset -- the offset to the Gaussian center given the parameters
-
-        """
-        x = np.sqrt(-2.*sigma**2.*np.log(p))+mu
-        return x
-
-    def getTiling(self):
-        """
-        return the tiling.
-
-        return:
-        tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
-
-        """
-
-        self.sigmaH = self.axisH * (2./2.3556)
-        self.sigmaV = self.axisV * (2./2.3556)
-
-        self.widthH = self.inverseGaussian(self.overlapPoint, 0, self.sigmaH)
-        self.widthV = self.inverseGaussian(self.overlapPoint, 0, self.sigmaV)
-
-
-        self.tiling, self.tilingRadius = ellipseCompact(
-                self.beamNum, self.widthH, self.widthV, self.angle, 10)
-
-        return self.tiling
-
-    def getTilingWithinRadius(self):
-        """
-        return the tiling inside a specified region. this method will ignore
-        the beamNum parameter.
-        the tiling region MUST be specified first using setTilingRadius method
-
-        return:
-        tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
-
-        """
-
-        self.sigmaH = self.axisH * (2./2.3556)
-        self.sigmaV = self.axisV * (2./2.3556)
-
-        widthH = self.inverseGaussian(self.overlapPoint, 0, self.sigmaH)
-        widthV = self.inverseGaussian(self.overlapPoint, 0, self.sigmaV)
-        self.widthH = widthH
-        self.widthV = widthV
-
-
-        tilingWithinRadius = ellipseGrid(
-                self.tilingRadius, widthH, widthV, self.angle)
-        self.tiling = tilingWithinRadius
-
-        return tilingWithinRadius
-
-
-    def plotSkyBrightness(self, fileName):
-        """
-        plot the tiling pattern as sky temperature with specified file name
-        This method SHOULD be called after calling getTiling()
-        The format and directory can be specified in the file name such as
-        "plot/pattern.png" or "pattern.pdf"
-
-        """
-
-        overlapCounter = calculateBeamOverlaps(
-                self.coordinates, self.tilingRadius,
-                self.axisH, self.axisV, self.angle, "heater", fileName)
+        self.coordinates = coordinates
+        self.beamShape = beamShape
+        self.tilingRadius = radius
+        self.beamNum = len(coordinates)
+        self.overlap = overlap
 
     def plotTiling(self, fileName):
         """
@@ -299,10 +176,13 @@ class tilesim:
 
         """
 
-        plotPackedBeam(self.tiling.T, self.angle, self.widthH,self.widthV,
+        plotPackedBeam(self.coordinates,
+                self.beamShape.angle,
+                self.beamShape.widthH,
+                self.beamShape.widthV,
                 self.tilingRadius, fileName=fileName)
 
-    def calculateOverlap(self, mode, fileName):
+    def calculateOverlap(self, mode, fileName, newBeamShape = None):
         """
         calculate overlap of the tiling pattern.
 
@@ -323,35 +203,96 @@ class tilesim:
 
 
         """
+        if newBeamShape == None:
+            beamShape = self.beamShape
+        else:
+            beamShape = newBeamShape
+
         overlapCounter = calculateBeamOverlaps(
-                self.tiling, self.tilingRadius,
-                self.axisH, self.axisV, self.angle, mode, fileName)
+                self.coordinates, self.tilingRadius,
+                beamShape.axisH, beamShape.axisV,
+                beamShape.angle, self.overlap, mode, fileName)
 
         return overlapCounter
 
 
-    def setTilingRadius(self, radius):
-        """
-        set the radius of the tiling before calling getTilingWithinRadius
 
-        Keyword arguments:
-        radius -- radius of the tiling
+class tilegen:
+    """
+    Class for generation of  tiling
 
-        """
+    Keyword arguments:
+    axisH -- semi-major axis of the beam of a ellipse shape in degree
+    axisV -- semi-minor axis of the beam of a ellipse shape in degree
+    angle -- orientation of the beam of a ellipse shape in radian
+    overlap -- how much overlap between two beams, range in (0, 1)
+    beamNum -- how many beams are there in the tiling
 
-        self.tilingRadius = radius
+    """
 
 
-    def setOverlapPoint(self, overlap):
-        """
-        set how much overlap between two beams.
-
-        Keyword arguments:
-        radius -- float number range in (0, 1)
+    def __init__(self):
 
         """
+        constructor of the tilesim class.
 
-        self.overlapPoint = overlap
+        """
+
+    def calculateBeamWidth(self, beamShape, overlap):
+        sigmaH = beamShape.axisH * (2./2.3556)
+        sigmaV = beamShape.axisV * (2./2.3556)
+
+        widthH = normInverse(overlap, 0, sigmaH)
+        widthV = normInverse(overlap, 0, sigmaV)
+
+        return widthH, widthV
+
+
+    def getTiling(self, beamShape, beamNum, overlap = 0.5):
+        """
+        return the tiling.
+
+        return:
+        tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
+
+        """
+
+        widthH, widthV = self.calculateBeamWidth(beamShape, overlap)
+
+        tilingCoordinates, tilingRadius = ellipseCompact(
+                beamNum, widthH, widthV, beamShape.angle, 10)
+
+        beamShape.widthH = widthH
+        beamShape.widthV = widthV
+
+        tilingObj = tiling(tilingCoordinates, beamShape, tilingRadius, overlap)
+
+        return tilingObj
+
+    def getTilingWithinRadius(self, beamShape, tilingRadius, overlap = 0.5):
+        """
+        return the tiling inside a specified region. this method will ignore
+        the beamNum parameter.
+        the tiling region MUST be specified first using setTilingRadius method
+
+        return:
+        tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
+
+        """
+
+        widthH, widthV = self.calculateBeamWidth(beamShape, overlap)
+
+        tilingCoordinates = ellipseGrid(
+                tilingRadius, widthH, widthV, beamShape.angle)
+
+        beamShape.widthH = widthH
+        beamShape.widthV = widthV
+
+        tilingObj = tiling(tilingCoordinates.T, beamShape, tilingRadius, overlap)
+
+        return tilingObj
+
+
 
 class DelayPolynomial:
 
@@ -361,8 +302,9 @@ class DelayPolynomial:
     Keyword arguments:
     antennas -- a list of antenna objects or coordinate in csv format
     timestamp -- the observation time in datatime object or epoch seconds
+    targets -- a list of beam location in equatorial coordinates
     duration -- the duration in which the polynomial is calcuated
-    frequencies -- a list of frequencies on which the polynomail is calculated
+    frequencies -- a list of frequencies on which the polynomail is calculated in Hz
     reference -- the reference antenna for delay calculation
 
     """
@@ -370,6 +312,11 @@ class DelayPolynomial:
 
     def __init__(self, antennas, targets,
             timestamp, duration, freqencies, reference):
+
+        """
+        constructor of the Delay Polynomial class.
+
+        """
 
         self.antennas = antennas
         self.timestamp = self.checkTime(timestamp)
@@ -379,30 +326,107 @@ class DelayPolynomial:
         self.duration = duration
 
     def checkTargets(self, targets):
+        """
+        check the target data type, the arguments will be converted to katpoint
+            object if they are not.
+
+        Keyword arguments:
+        targets -- a list of target objets in the format of
+            katpoint target object or set of [longitude, latitude, altitude]
+
+        return:
+            targets in katpoint object
+
+        """
+
         if isinstance(targets[0], katpoint.Target):
             return targets
         else:
             return makeKapointTarget(targets)
 
     def setFreqencies(self, freqencies):
+        """
+        set the frequencies on which the polynomail is calculated
+
+        Keyword arguments:
+        targets -- a list of frequencies in Hz
+
+
+        """
+
         self.freqencies = freqencies
 
     def setAntennas(self, antennas):
+        """
+        set the antennas geographical localtion
+
+        Keyword arguments:
+        antennas -- a list of antenna objects or coordinate in csv format
+
+
+        """
         self.antennas = antennas
 
     def setTimestamp(self, timestamp):
+        """
+        set the timestamp for the observation, it will be as the starting
+            point of the duration for the polynomial
+
+        Keyword arguments:
+        timestamp -- the time in datatime object or epoch seconds
+
+
+        """
+
         self.timestamp = self.checkTime(timestamp)
 
     def setTimeDuration(self, duration):
+        """
+        set the duration in which the polynomial is calcuated
+
+        Keyword arguments:
+        duration -- the amount of time in seconds
+
+
+        """
+
         self.duration = duration
 
     def setTargets(self, targets):
+        """
+        set the beam location in equatorial coordinates
+
+        Keyword arguments:
+        targets -- a list of beam location in katpoint targets
+
+        """
+
         self.targets = targets
 
     def setReference(self, reference):
+        """
+        set the reference for the delay calculation
+
+        Keyword arguments:
+        reference -- reference in katpoint antenna object
+
+        """
+
         self.reference = reference
 
     def checkTime(self, time):
+        """
+        check the the data type of the time value. If the values are datetime
+            objects, they will be converted to seconds
+
+        Keyword arguments:
+        time -- epoch seconds or datetime objects
+
+        return:
+        time in epoch seconds
+
+        """
+
         if type(time) != int and type(time) != float:
             return coord.datetimeToEpoch(time)
         else:
@@ -443,6 +467,16 @@ class DelayPolynomial:
 
 
     def getPolynomial(self):
+
+        """
+        calculate and return the polynomials
+
+
+        return:
+        polynomials in the order of freq, beam, antenna [,pol], (delay, rate)
+
+        """
+
         antennaObjectList = self.antennas
         targets = self.targets
         ref = self.reference
