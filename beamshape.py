@@ -135,11 +135,14 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     # print dict(zip(unique, counts))
 
     if fileName != None:
-        prefix, suffix= fileName.split('.')
-        if mode == 1 or mode == 3:
-            plotOverlap(overlapCounter, fileName = prefix+"Counter."+suffix)
-        if mode == 2 or mode == 3:
+        if mode == 1:
+            plotOverlap(overlapCounter, fileName = fileName)
+        elif mode == 2:
+            plotOverlap(overlapHeater, fileName = fileName)
+        elif mode == 3:
+            prefix, suffix= fileName.split('.')
             plotOverlap(overlapHeater, fileName = prefix+"Heater."+suffix)
+            plotOverlap(overlapCounter, fileName = prefix+"Counter."+suffix)
 
     if mode == 1:
         return overlapCounter

@@ -10,7 +10,7 @@ from beamshape import calculateBeamOverlaps
 from utilities import normInverse
 
 
-class psfsim:
+class psfsim(object):
     """
     Class for simulation of beam shape.
 
@@ -20,16 +20,16 @@ class psfsim:
     source -- the boresight location or telescope pointing
         in the order of RA(deg), DEC(deg)
     time -- the observation time in datatime object or epoch seconds
-    freqencies -- the central frequency of the observation in Hz
+    frequencies -- the central frequency of the observation in Hz
 
     """
 
     arrayRefereceGEODET = (-30.71106, 21.44389, 1035)
     '''speed Of Light'''
     sol = 299792458
-    # self.waveLengths = sol/freqencies
+    # self.waveLengths = sol/frequencies
 
-    def __init__(self, antennas, source, time, freqencies):
+    def __init__(self, antennas, source, time, frequencies):
         """
         constructor of the psfsim class.
 
@@ -40,7 +40,7 @@ class psfsim:
         self.observation = None
         self.antennas = []
 
-        waveLengths = float(self.sol)/np.array(freqencies)
+        waveLengths = float(self.sol)/np.array(frequencies)
         if waveLengths.shape == (1,): waveLengths = waveLengths[0]
 
         observation = InterferometryObservation(self.arrayRefereceGEODET,
@@ -81,16 +81,16 @@ class psfsim:
 
         self.observation.setObserveTime(observeTime)
 
-    def setFreqencies(self, freqencies):
+    def setfrequencies(self, freqencies):
         """
         set the central frequency of the observation
 
         Keyword arguments:
-        freqencies -- the central frequency of the observation in Hz
+        frequencies -- the central frequency of the observation in Hz
 
         """
 
-        self.waveLengths = sol/np.array(freqencies)
+        self.waveLengths = sol/np.array(frequencies)
 
     def setBeamPixelNum(self, num):
         """
@@ -123,9 +123,8 @@ class psfsim:
 
 
         return:
-        axisH, semi-major axis of the ellipse
-        axisV, semi-minor axis of the ellipse
-        angle, orientation of the ellipse
+        a beamshape object contain properties of semi-major axis,
+            semi-mino axis and orientation all in degree
         """
 
 
@@ -150,14 +149,64 @@ class psfsim:
         return self.observation.getHorizontal()
 
 class beamShape(object):
+    """
+    Class of  the beamShape object contain properties of the beamshape
+
+    Keyword arguments:
+    axisH -- length of the semi-major axis in degree
+    axisV -- length of the semi-minor axis in degree
+    angle -- orientation of the angle in degree
+
+    """
+
+
     def __init__(self, axisH, axisV, angle):
+        """
+        constructor of the beamShape class.
+
+        """
         self.axisH = axisH
         self.axisV = axisV
         self.angle = angle
 
+    def widthAtOverlap(self, overlap):
+        """
+        return the half widths of the ellipse in major axis and
+        minor axis direction given a overlap level.
+
+        the relationship between one sigma and the full width maximal can be
+        found in this link
+
+        https://en.wikipedia.org/wiki/Full_width_at_half_maximum
+        2.*np.sqrt(2.*np.log(2)) = 2.3548200450309493
+        """
+        sigmaH = self.axisH * (2./2.3548200450309493)
+        sigmaV = self.axisV * (2./2.3548200450309493)
+
+        widthH = normInverse(overlap, 0, sigmaH)
+        widthV = normInverse(overlap, 0, sigmaV)
+
+        return widthH, widthV
+
+
 class tiling(object):
+    """
+    Class of tiling object contain a tiling result
+
+    Keyword arguments:
+    coordinates -- tiling coordinates as a list of [RA, DEC] in degree
+    beamShape -- beamShape object
+    raidus -- the raidus of the entire tiling
+    overlap -- how much overlap between two beams, range in (0, 1)
+
+    """
+
 
     def __init__(self, coordinates, beamShape, radius, overlap):
+        """
+        constructor of the tiling class.
+
+        """
 
         self.coordinates = coordinates
         self.beamShape = beamShape
@@ -168,7 +217,6 @@ class tiling(object):
     def plotTiling(self, fileName):
         """
         plot the tiling pattern with specified file name.
-        This method SHOULD be called after calling getTiling()
 
         Keyword arguments:
         filename --  filename of the plot, the format and directory can be
@@ -176,10 +224,9 @@ class tiling(object):
 
         """
 
+        widthH, widthV = beamShape.widthAtOverlap(self.overlap)
         plotPackedBeam(self.coordinates,
-                self.beamShape.angle,
-                self.beamShape.widthH,
-                self.beamShape.widthV,
+                self.beamShape.angle, widthH, widthV,
                 self.tilingRadius, fileName=fileName)
 
     def calculateOverlap(self, mode, fileName, newBeamShape = None):
@@ -217,53 +264,42 @@ class tiling(object):
 
 
 
-class tilegen:
+class tilegen(object):
     """
-    Class for generation of  tiling
-
-    Keyword arguments:
-    axisH -- semi-major axis of the beam of a ellipse shape in degree
-    axisV -- semi-minor axis of the beam of a ellipse shape in degree
-    angle -- orientation of the beam of a ellipse shape in radian
-    overlap -- how much overlap between two beams, range in (0, 1)
-    beamNum -- how many beams are there in the tiling
+    Class for generation of tiling
 
     """
 
 
     def __init__(self):
+        pass
 
         """
         constructor of the tilesim class.
 
         """
 
-    def calculateBeamWidth(self, beamShape, overlap):
-        sigmaH = beamShape.axisH * (2./2.3556)
-        sigmaV = beamShape.axisV * (2./2.3556)
-
-        widthH = normInverse(overlap, 0, sigmaH)
-        widthV = normInverse(overlap, 0, sigmaV)
-
-        return widthH, widthV
-
 
     def getTiling(self, beamShape, beamNum, overlap = 0.5):
         """
-        return the tiling.
+        generated and return the tiling.
+
+        Keyword arguments:
+        beamShape -- beamShape object
+        beamNum -- number of beams to tile
+        overlap -- how much overlap between two beams, range in (0, 1)
+
 
         return:
         tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
 
         """
 
-        widthH, widthV = self.calculateBeamWidth(beamShape, overlap)
+        widthH, widthV = beamShape.widthAtOverlap(overlap)
 
         tilingCoordinates, tilingRadius = ellipseCompact(
                 beamNum, widthH, widthV, beamShape.angle, 10)
 
-        beamShape.widthH = widthH
-        beamShape.widthV = widthV
 
         tilingObj = tiling(tilingCoordinates, beamShape, tilingRadius, overlap)
 
@@ -271,22 +307,22 @@ class tilegen:
 
     def getTilingWithinRadius(self, beamShape, tilingRadius, overlap = 0.5):
         """
-        return the tiling inside a specified region. this method will ignore
-        the beamNum parameter.
-        the tiling region MUST be specified first using setTilingRadius method
+        return the tiling inside a specified region
+
+        Keyword arguments:
+        beamShape -- beamShape object
+        tilingRadius -- the radius of the region to tile
+        overlap -- how much overlap between two beams, range in (0, 1)
 
         return:
         tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
 
         """
 
-        widthH, widthV = self.calculateBeamWidth(beamShape, overlap)
+        widthH, widthV = beamShape.widthAtOverlap(overlap)
 
         tilingCoordinates = ellipseGrid(
                 tilingRadius, widthH, widthV, beamShape.angle)
-
-        beamShape.widthH = widthH
-        beamShape.widthV = widthV
 
         tilingObj = tiling(tilingCoordinates.T, beamShape, tilingRadius, overlap)
 
@@ -294,7 +330,7 @@ class tilegen:
 
 
 
-class DelayPolynomial:
+class DelayPolynomial(object):
 
     """
     Class for generation of  delay polynomial
@@ -311,7 +347,7 @@ class DelayPolynomial:
 
 
     def __init__(self, antennas, targets,
-            timestamp, duration, freqencies, reference):
+            timestamp, duration, reference):
 
         """
         constructor of the Delay Polynomial class.
@@ -321,7 +357,7 @@ class DelayPolynomial:
         self.antennas = antennas
         self.timestamp = self.checkTime(timestamp)
         self.targets = targets
-        self.freqencies = freqencies
+        self.frequency = 1.4e9
         self.reference = reference
         self.duration = duration
 
@@ -344,17 +380,6 @@ class DelayPolynomial:
         else:
             return makeKapointTarget(targets)
 
-    def setFreqencies(self, freqencies):
-        """
-        set the frequencies on which the polynomail is calculated
-
-        Keyword arguments:
-        targets -- a list of frequencies in Hz
-
-
-        """
-
-        self.freqencies = freqencies
 
     def setAntennas(self, antennas):
         """
@@ -473,7 +498,7 @@ class DelayPolynomial:
 
 
         return:
-        polynomials in the order of freq, beam, antenna [,pol], (delay, rate)
+        polynomials in the order of beam, antenna, (delay, rate)
 
         """
 
@@ -481,22 +506,26 @@ class DelayPolynomial:
         targets = self.targets
         ref = self.reference
         timestamp = (self.timestamp, self.timestamp + self.duration)
-        sky_centre_freq = self.freqencies
+        freq = self.frequency
 
-        freqArray = []
-        for freq in sky_centre_freq:
-            targetArray = []
-            for target in targets:
-                dc = katpoint.DelayCorrection(antennaObjectList , ref, freq)
-                delay, phase = dc.corrections(target, timestamp)
-                phaseArray = np.array(self.dictToOrderList(phase))
-                targetArray.append(phaseArray[::2][:,0,:])
-            targetArray = np.array(targetArray)
-            targetArray = targetArray - targetArray[0, :, :]
-            freqArray.append(targetArray)
+        targetArray = []
+        for target in targets:
+            dc = katpoint.DelayCorrection(antennaObjectList , ref, freq)
+            delay, phase = dc.corrections(target, timestamp)
+            # phaseArray = np.array(self.dictToOrderList(phase))
+            delayArray = np.array(self.dictToOrderList(delay))
+            """
+            [::2]: only take the one polarization
+            [:, 0, :]: only take first rate output
+            """
+            targetArray.append(delayArray[::2][:,0,:])
+        targetArray = np.array(targetArray)
+        """
+        subtract the boresight beam form the offset beams
+        """
+        targetArray = targetArray - targetArray[0, :, :]
 
-        freqArray = np.array(freqArray)
 
-        # freq, beam, antenna [,pol], time, (phase, rate)
+        # beam, antenna, (delay, rate)
 
-        return freqArray
+        return targetArray
