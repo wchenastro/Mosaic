@@ -5,7 +5,7 @@ import katpoint
 import coordinate as coord
 from interferometer import InterferometryObservation
 from tile import ellipseCompact, ellipseGrid
-from plot import plotPackedBeam
+from plot import plotPackedBeam, plotBeamContour, plot_beam_shape, plot_interferometry
 from beamshape import calculateBeamOverlaps
 from utilities import normInverse
 
@@ -14,12 +14,9 @@ class psfsim(object):
     """
     Class for simulation of beam shape.
 
-    Keyword arguments:
+    arguments:
     antenna -- a list of antenna coordinates whose element is
         in the order of latitude(deg), longitude(deg), altitude(meter)
-    source -- the boresight location or telescope pointing
-        in the order of RA(deg), DEC(deg)
-    time -- the observation time in datatime object or epoch seconds
     frequencies -- the central frequency of the observation in Hz
 
     """
@@ -29,7 +26,7 @@ class psfsim(object):
     sol = 299792458
     # self.waveLengths = sol/frequencies
 
-    def __init__(self, antennas, source, time, frequencies):
+    def __init__(self, antennas, frequencies):
         """
         constructor of the psfsim class.
 
@@ -52,74 +49,81 @@ class psfsim(object):
         observation.setAutoZoom(True)
         observation.setInputType(InterferometryObservation.equatorialInput)
 
-        observation.setObserveTime(time)
-        observation.setBoreSight(source)
 
         self.observation = observation
-        self.antennas = antennas
-
-    def setSource(self, source):
-        """
-        set the boreSight location or the pointing of the observation
-
-        Keyword arguments:
-        source -- -- the boresight location or telescope pointing
-            in the order of RA(deg), DEC(deg)
-
-        """
-
-        self.observation.setBoreSight(source)
-
-    def setTime(self, observeTime):
-        """
-        set the observation time
-
-        Keyword arguments:
-        time -- the observation time in datatime object or epoch seconds
-
-        """
-
-        self.observation.setObserveTime(observeTime)
-
-    def setfrequencies(self, freqencies):
-        """
-        set the central frequency of the observation
-
-        Keyword arguments:
-        frequencies -- the central frequency of the observation in Hz
-
-        """
-
-        self.waveLengths = sol/np.array(frequencies)
+        self.antennas = self.checkAntenna(antennas)
 
     def setBeamPixelNum(self, num):
         """
         set the number of pixels of the image, default is 400,
         that will generate a image with a dimension of 20x20
 
-        Keyword arguments:
+        arguments:
         num -- the number of pixels of the image
 
         """
 
         self.observation.setBeamNumber(num)
 
-    def setAntennas(self, antennas):
+    def checkAntenna(self, antennas):
         """
-        set a list of antenna.
+        check the type of the inputs. if they are katpoint objects,
+        then extract the latitude, longitude, elevation information
 
-        Keyword arguments:
-        antennas -- a list of coordinates whose element is
-            in the order of latitude(deg), longitude(deg), altitude(meter)
+        arguments:
+        antennas -- either can be a list of katpoint antenna objects or
+                    a list of [latitude, longitude, elevation]
+
+
+        return:
+        a list of antenna geographic coordinates in the order of
+        [latitude, longitude, elevation]
 
         """
 
-        self.antennas = antennas
+        antennas = np.array(antennas)
+        if isinstance(antennas[0], np.ndarray):
+            return antennas
+        elif isinstance(antennas[0], katpoint.Antenna):
+            antennaList = []
+            for antenna in antennas:
+                antennaList.append([np.rad2deg(antenna.observer.lat),
+                                    np.rad2deg(antenna.observer.lon),
+                                    antenna.observer.elev])
 
-    def getBeamShape(self):
+            return np.array(antennaList)
+
+    def checkSource(self, source):
+        """
+        check the type of the inputs. if it is a katpoint object,
+        then extract the RA, DEC information
+
+        arguments:
+        source -- either can be a katpoint target object or [RA, DEC]
+
+
+        return:
+        a coordinate as [RA, DEC]
+
+        """
+
+        if isinstance(source, list):
+            return source
+        elif isinstance(source, katpoint.Target):
+            ra = source.body._ra
+            dec = source.body._dec
+
+            return np.rad2deg([ra, dec])
+
+    def getBeamShape(self, source, time):
         """
         return the beamshape of current oservation parameters
         assuming the beam is roughly a ellipse.
+
+        arguments:
+        source -- the boresight location or telescope pointing
+            in the order of RA(deg), DEC(deg)
+        time -- the observation time in datatime object or epoch seconds
 
 
         return:
@@ -127,32 +131,25 @@ class psfsim(object):
             semi-mino axis and orientation all in degree
         """
 
+        self.observation.setBoreSight(self.checkSource(source))
+        self.observation.setObserveTime(time)
 
-        self.observation.createContour(self.antennas, 'contour.png')
+        self.observation.createContour(self.antennas)
         axisH, axisV, angle = self.observation.getBeamAxis()
         beamShapeObj = beamShape(axisH, axisV, angle)
+        beamShapeObj.setHorizon(np.rad2deg(self.observation.getHorizontal()))
+        beamShapeObj.setAntennas(self.antennas, self.arrayRefereceGEODET)
+        beamShapeObj.setPointSourceFunction(
+                self.observation.getPointSourceFunction())
 
         return beamShapeObj
 
-    def getHorizontal(self):
-        """
-        return the horizontal coordinate of the pointing.
-        this method  MUST be run after calling getBeamShape method
-
-
-        return:
-        azimuth, in degree
-        elevation, in degree
-        """
-
-
-        return self.observation.getHorizontal()
 
 class beamShape(object):
     """
     Class of  the beamShape object contain properties of the beamshape
 
-    Keyword arguments:
+    arguments:
     axisH -- length of the semi-major axis in degree
     axisV -- length of the semi-minor axis in degree
     angle -- orientation of the angle in degree
@@ -168,6 +165,16 @@ class beamShape(object):
         self.axisH = axisH
         self.axisV = axisV
         self.angle = angle
+
+    def setHorizon(self, horizon):
+        self.horizon = horizon
+
+    def setPointSourceFunction(self, psf):
+        self.psf = psf
+
+    def setAntennas(self, antennas, reference=None):
+        self.antennas = antennas
+        self.reference = reference
 
     def widthAtOverlap(self, overlap):
         """
@@ -188,12 +195,46 @@ class beamShape(object):
 
         return widthH, widthV
 
+    def plotPSF(self, fileName, shapeOverlay = False):
+        """
+        plot the point source function
+
+        arguments:
+        fileName --  name and directory of the plot
+        shapeOverlay -- whether to add the shape overlay on the psf
+
+        """
+
+        if shapeOverlay == False:
+            plotBeamContour(self.psf.image, self.psf.bore_sight, self.psf.width,
+                    fileName, interpolation = True)
+        else:
+            imageWidth = self.psf.image.shape[0]
+            step=self.psf.width*1.0/imageWidth
+            ellipseCenter = [self.psf.bore_sight[0] + step/2.,
+                             self.psf.bore_sight[1] - step/2.]
+
+            plot_beam_shape(self.psf.image, self.psf.bore_sight, self.psf.width,
+                ellipseCenter, self.axisH, self.axisV, self.angle, fileName,
+                interpolation = True)
+
+
+    def plot_interferometry(self, fileName):
+        """
+        plot the interferometry overview, including the antennas, the source
+
+        arguments:
+        fileName --  name and directory of the plot
+
+        """
+
+        plot_interferometry(self.antennas, self.reference, self.horizon, fileName)
 
 class tiling(object):
     """
     Class of tiling object contain a tiling result
 
-    Keyword arguments:
+    arguments:
     coordinates -- tiling coordinates as a list of [RA, DEC] in degree
     beamShape -- beamShape object
     raidus -- the raidus of the entire tiling
@@ -218,7 +259,7 @@ class tiling(object):
         """
         plot the tiling pattern with specified file name.
 
-        Keyword arguments:
+        arguments:
         filename --  filename of the plot, the format and directory can be
         specified in the file name such as  "plot/pattern.png" or "pattern.pdf"
 
@@ -229,11 +270,11 @@ class tiling(object):
                 self.beamShape.angle, widthH, widthV,
                 self.tilingRadius, fileName=fileName)
 
-    def calculateOverlap(self, mode, fileName, newBeamShape = None):
+    def calculateOverlap(self, mode, newBeamShape = None):
         """
         calculate overlap of the tiling pattern.
 
-        Keyword arguments:
+        arguments:
         mode -- mode of the calculation,
                 "heater" will calculate the tiling pattern as sky temperature,
                 "counter" will calculate the counts of the overlap regions,
@@ -258,7 +299,7 @@ class tiling(object):
         overlapCounter = calculateBeamOverlaps(
                 self.coordinates, self.tilingRadius,
                 beamShape.axisH, beamShape.axisV,
-                beamShape.angle, self.overlap, mode, fileName)
+                beamShape.angle, self.overlap, mode)
 
         return overlapCounter
 
@@ -282,9 +323,9 @@ class tilegen(object):
 
     def getTiling(self, beamShape, beamNum, overlap = 0.5):
         """
-        generated and return the tiling.
+        generate and return the tiling.
 
-        Keyword arguments:
+        arguments:
         beamShape -- beamShape object
         beamNum -- number of beams to tile
         overlap -- how much overlap between two beams, range in (0, 1)
@@ -309,7 +350,7 @@ class tilegen(object):
         """
         return the tiling inside a specified region
 
-        Keyword arguments:
+        arguments:
         beamShape -- beamShape object
         tilingRadius -- the radius of the region to tile
         overlap -- how much overlap between two beams, range in (0, 1)
@@ -335,7 +376,7 @@ class DelayPolynomial(object):
     """
     Class for generation of  delay polynomial
 
-    Keyword arguments:
+    arguments:
     antennas -- a list of antenna objects or coordinate in csv format
     timestamp -- the observation time in datatime object or epoch seconds
     targets -- a list of beam location in equatorial coordinates
@@ -366,7 +407,7 @@ class DelayPolynomial(object):
         check the target data type, the arguments will be converted to katpoint
             object if they are not.
 
-        Keyword arguments:
+        arguments:
         targets -- a list of target objets in the format of
             katpoint target object or set of [longitude, latitude, altitude]
 
@@ -385,7 +426,7 @@ class DelayPolynomial(object):
         """
         set the antennas geographical localtion
 
-        Keyword arguments:
+        arguments:
         antennas -- a list of antenna objects or coordinate in csv format
 
 
@@ -397,7 +438,7 @@ class DelayPolynomial(object):
         set the timestamp for the observation, it will be as the starting
             point of the duration for the polynomial
 
-        Keyword arguments:
+        arguments:
         timestamp -- the time in datatime object or epoch seconds
 
 
@@ -409,7 +450,7 @@ class DelayPolynomial(object):
         """
         set the duration in which the polynomial is calcuated
 
-        Keyword arguments:
+        arguments:
         duration -- the amount of time in seconds
 
 
@@ -421,7 +462,7 @@ class DelayPolynomial(object):
         """
         set the beam location in equatorial coordinates
 
-        Keyword arguments:
+        arguments:
         targets -- a list of beam location in katpoint targets
 
         """
@@ -432,7 +473,7 @@ class DelayPolynomial(object):
         """
         set the reference for the delay calculation
 
-        Keyword arguments:
+        arguments:
         reference -- reference in katpoint antenna object
 
         """
@@ -444,7 +485,7 @@ class DelayPolynomial(object):
         check the the data type of the time value. If the values are datetime
             objects, they will be converted to seconds
 
-        Keyword arguments:
+        arguments:
         time -- epoch seconds or datetime objects
 
         return:
@@ -477,17 +518,13 @@ class DelayPolynomial(object):
 
     @staticmethod
     def makeAntenna(antennaString):
-        antennaGeo = []
         antennaKat = []
 
         for antenna in antennaString:
             antkat = katpoint.Antenna(antenna)
-            geo = antkat.position_wgs84
             antennaKat.append(antkat)
-            antennaGeo.append(
-                    [np.rad2deg(geo[0]), np.rad2deg(geo[1]), geo[2]])
 
-        return antennaKat, antennaGeo
+        return antennaKat
 
 
 

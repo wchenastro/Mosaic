@@ -10,6 +10,16 @@ from beamshape import calculateBeamSize, trackBorder
 
 import inspect, pickle, datetime, logging
 
+class PointSourceFunction(object):
+    """
+    class for point source function
+    """
+
+    def __init__(self, image, bore_sight, width):
+        self.image = image
+        self.bore_sight = bore_sight
+        self.width = width
+
 class InterferometryObservation:
 
     equatorialInput = 0
@@ -58,6 +68,9 @@ class InterferometryObservation:
 
     def getObserveTime(self):
         return self.observeTime
+
+    def getPointSourceFunction(self):
+        return self.psf
 
     def setBeamSizeFactor(self, size, autoZoom = True):
         if size != self.beamSizeFactor:
@@ -354,7 +367,7 @@ class InterferometryObservation:
         return majorAxis, minorAxis
 
 
-    def createContour(self, antennacoor, fileName='contour.png', minAlt=0):
+    def createContour(self, antennacoor, fileName=None, minAlt=0):
 
 
         self.antCoordinatesGEODET = np.array(antennacoor)
@@ -525,12 +538,18 @@ class InterferometryObservation:
         windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
+        self.psf = PointSourceFunction(image, self.boreSight, windowLength)
         if fileName != None:
             plotBeamContour(image, self.boreSight, windowLength,
                     interpolation = self.interpolating)
 
         if baselineNum > 2:
             sizeInfo = calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
+            if sizeInfo[3] != 0:
+                elevation = np.rad2deg(self.boreSightHorizontal[1])
+                if elevation < 20.:
+                    print("Elevation is low %f" % elevation)
+                print("Beam shape probably is not correct.")
             self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):

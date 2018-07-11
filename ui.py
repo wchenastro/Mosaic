@@ -313,7 +313,7 @@ def updateContour():
         height = float(str(coordinateList.item(row, 2).text()))
         coordinates.append([latitude, longitude, height])
 
-    observation.createContour(coordinates)
+    observation.createContour(coordinates, 'contour,png')
     pixmap = QPixmap(os.getcwd() + '/contour.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     updateHorizontal(observation.getHorizontal())
@@ -767,7 +767,7 @@ autoZoomCheckbox.stateChanged.connect(onAutoZoomOptionChanged)
 
 
 beamNumberLabel = QLabel(w)
-beamNumberLabel.setText('Beams')
+beamNumberLabel.setText('Pixels')
 beamNumberLabel.move(780, 320)
 beamNumberEdit = QLineEdit(w)
 beamNumberEdit.move(785, 340)

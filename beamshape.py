@@ -1,10 +1,9 @@
 import numpy as np
 from scipy import interpolate
-from plot import plotOverlap
 from utilities import normInverse
 
 
-def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, overlap, mode, fileName = None):
+def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, overlap, mode):
 
     def RotatedGaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma, angle):
         angle = -(angle - np.pi)
@@ -46,7 +45,8 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     longAxis = majorAxis if majorAxis > minorAxis else minorAxis
     gridNum = 1000
     # print 0.3*radius, longAxis
-    halfSidelength = 0.15 * radius
+    # halfSidelength = 0.15 * radius
+    halfSidelength = longAxis*3.
     offsetCenter = [radius, radius]
     # np.savetxt('tmp/oldcenter', ellipseCenters)
     ellipseCenters = ellipseCenters + offsetCenter
@@ -133,16 +133,6 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
 
     # unique, counts = np.unique(overlapCounter, return_counts=True)
     # print dict(zip(unique, counts))
-
-    if fileName != None:
-        if mode == 1:
-            plotOverlap(overlapCounter, fileName = fileName)
-        elif mode == 2:
-            plotOverlap(overlapHeater, fileName = fileName)
-        elif mode == 3:
-            prefix, suffix= fileName.split('.')
-            plotOverlap(overlapHeater, fileName = prefix+"Heater."+suffix)
-            plotOverlap(overlapCounter, fileName = prefix+"Counter."+suffix)
 
     if mode == 1:
         return overlapCounter
@@ -273,7 +263,7 @@ def calculateBeamSize(image, density, windowLength,
     border, closestToCenterIndex, overstep = trackBorder(
             image, threshold, density, interpolatedLength)
 
-    if overstep != 0: print 'overstep'
+    # if overstep != 0: print 'overstep'
     # np.savetxt('border', border)
     if len(border) < 10:
         print 'too little points:', len(border)
