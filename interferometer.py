@@ -10,6 +10,9 @@ from beamshape import calculateBeamSize, trackBorder
 
 import inspect, pickle, datetime, logging
 
+logging.basicConfig(level=logging.WARNING)
+
+
 class PointSourceFunction(object):
     """
     class for point source function
@@ -548,8 +551,8 @@ class InterferometryObservation:
             if sizeInfo[3] != 0:
                 elevation = np.rad2deg(self.boreSightHorizontal[1])
                 if elevation < 20.:
-                    print("Elevation is low %f" % elevation)
-                print("Beam shape probably is not correct.")
+                    logging.warning("Elevation is low %f" % elevation)
+                logging.warning("Beam shape probably is not correct.")
             self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):

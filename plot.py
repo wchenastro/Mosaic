@@ -72,7 +72,7 @@ def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName
     plt.savefig(fileName, transparent=True, dpi=thisDpi)
     plt.close()
 
-def plot_overlap(overlapTables, fileName):
+def plot_overlap(overlapTables, mode, fileName):
     overlapTables = np.array(overlapTables)
     if isinstance(overlapTables[0][0], np.ndarray):
         animate = True
@@ -88,7 +88,10 @@ def plot_overlap(overlapTables, fileName):
         overlapTable0 = overlapTables[0]
     else:
         overlapTable0 = overlapTables
-    image = plt.imshow(overlapTable0, cmap=plt.cm.jet, vmin=0, vmax=2)
+    if mode == "counter":
+        image = plt.imshow(overlapTable0, cmap=plt.cm.jet, vmin=0, vmax=2)
+    else:
+        image = plt.imshow(overlapTable0, cmap=plt.cm.jet, vmin=0)
     axis = fig.gca()
     axis.set_aspect('equal', 'datalim')
     plt.colorbar()

@@ -5,7 +5,7 @@ import katpoint
 import coordinate as coord
 from interferometer import InterferometryObservation
 from tile import ellipseCompact, ellipseGrid
-from plot import plotPackedBeam, plotBeamContour, plot_beam_shape, plot_interferometry
+from plot import plotPackedBeam, plotBeamContour, plot_beam_shape, plot_interferometry, plot_overlap
 from beamshape import calculateBeamOverlaps
 from utilities import normInverse
 
@@ -107,7 +107,8 @@ class psfsim(object):
 
         """
 
-        if isinstance(source, list):
+        source = np.array(source)
+        if isinstance(source, np.ndarray):
             return source
         elif isinstance(source, katpoint.Target):
             ra = source.body._ra
@@ -230,6 +231,33 @@ class beamShape(object):
 
         plot_interferometry(self.antennas, self.reference, self.horizon, fileName)
 
+class Overlap(object):
+    """
+    """
+    def __init__(self, metrics, mode):
+        self.metrics  = metrics
+        self.mode = mode
+
+
+    def plot(self, fileName):
+        plot_overlap(self.metrics, self.mode, fileName)
+
+    def calculateFractions(self):
+
+        if self.mode == "heater":
+            return (0, 0, 0)
+
+        overlapCounter = self.metrics
+        overlapGrid = np.count_nonzero(overlapCounter > 1)
+        nonOverlapGrid = np.count_nonzero(overlapCounter == 1)
+        emptyGrid = np.count_nonzero(overlapCounter == 0)
+        pointNum = overlapGrid+nonOverlapGrid+emptyGrid
+        normalizedCounts = np.array([overlapGrid, nonOverlapGrid,
+                emptyGrid])/float(pointNum)
+
+        return normalizedCounts
+
+
 class tiling(object):
     """
     Class of tiling object contain a tiling result
@@ -270,6 +298,12 @@ class tiling(object):
                 self.beamShape.angle, widthH, widthV,
                 self.tilingRadius, fileName=fileName)
 
+
+    def plotSkyPattern(self, fileName):
+
+        heats = self.calculateOverlap("heater", newBeamShape = None)
+        plot_overlap(heats.metrics, "heater", fileName)
+
     def calculateOverlap(self, mode, newBeamShape = None):
         """
         calculate overlap of the tiling pattern.
@@ -301,7 +335,9 @@ class tiling(object):
                 beamShape.axisH, beamShape.axisV,
                 beamShape.angle, self.overlap, mode)
 
-        return overlapCounter
+        overlap = Overlap(overlapCounter, mode)
+
+        return overlap
 
 
 
