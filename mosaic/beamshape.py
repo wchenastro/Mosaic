@@ -271,7 +271,7 @@ def calculateBeamSize(image, density, windowLength,
     # if overstep != 0: print 'overstep'
     # np.savetxt('border', border)
     if len(border) < 10:
-        logger.INFO('less then 10 points in the border tracking:')
+        logger.info('less then 10 points in the border tracking:')
         return 0, 0, 0, overstep
 
     imageArray = np.array(border) - [0, closestToCenterIndex[1]]
