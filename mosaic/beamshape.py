@@ -1,6 +1,11 @@
 import numpy as np
 from scipy import interpolate
 from utilities import normInverse
+import logging
+
+loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
+logging.basicConfig(format = loggerFormat, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, overlap, mode):
@@ -266,7 +271,7 @@ def calculateBeamSize(image, density, windowLength,
     # if overstep != 0: print 'overstep'
     # np.savetxt('border', border)
     if len(border) < 10:
-        print 'too little points:', len(border)
+        logger.INFO('less then 10 points in the border tracking:')
         return 0, 0, 0, overstep
 
     imageArray = np.array(border) - [0, closestToCenterIndex[1]]

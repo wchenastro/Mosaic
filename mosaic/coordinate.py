@@ -2,6 +2,7 @@
 
 import datetime
 import numpy as np
+from astropy import wcs
 
 def readCoordinates(coordinateFileName, delimiter=None):
     coordinateMatrix = None
@@ -277,3 +278,20 @@ def projectedRotate(altitude, azimuth, baseline, angle):
     projectedRotated = np.cos(angle)*baseline + (1-np.cos(angle))*np.cross(sourcePosition, baseline)
 
     return projectedRotated
+
+def convert_pixel_coordinate_to_equatorial(pixel_coordinats, crval, crpix, cdelt, ctype):
+    """
+    https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
+    CRVAL: coordinate system value at reference pixel
+    CRPIX: coordinate system reference pixel
+    CDELT: coordinate increment along axis
+    CTYPE: name of the coordinate axis
+    """
+    wcs_properties = wcs.WCS(naxis=2)
+    wcs_properties.wcs.crpix = crpix
+    wcs_properties.wcs.cdelt = cdelt
+    wcs_properties.wcs.crval = crval
+    wcs_properties.wcs.ctype = ctype
+    equatorial_coodinates = wcs_properties.wcs_pix2world(pixel_coordinats, 0)
+    return equatorial_coodinates
+

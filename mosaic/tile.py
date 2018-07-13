@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 from math import sqrt, pi, ceil
 import sys
-import random
+import random, logging
 import numpy as np
 
+loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
+logging.basicConfig(format = loggerFormat, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
     sideLength = beamRadius*2
@@ -92,8 +95,8 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, write=False):
         inCircleCount = inCircleCoordinates.shape[1]
         trialCount += 1
         if trialCount > 150:
-            print('maximum trials')
-            break
+            logger.critical('maximum trials reached in the tiling process')
+            raise 'maximum trials reached in the tiling process'
         # print(inCircleCount, subBeamRadius)
 
 

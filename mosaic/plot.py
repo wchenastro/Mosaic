@@ -25,22 +25,24 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotPackedBeam(coordinates, angle, axis1, axis2, beamRadius, fileName='pack.png', scope=1.):
+def plotPackedBeam(coordinates, angle, axis1, axis2, center, beamRadius, fileName='pack.png', scope=1.):
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
     # plt.axes().set_aspect('equal', 'datalim')
     ax = fig.add_subplot(111, aspect='equal')
+    # center = coordinates[0]
     for coord in coordinates:
         ellipse = Ellipse(xy=coord, width=2*axis1, height=2*axis2, angle=angle)
         ellipse.fill = False
         ax.add_artist(ellipse)
-    circle = Ellipse(xy=(0,0), width=2*beamRadius, height=2*beamRadius, angle=0)
+    circle = Ellipse(xy=center, width=2*beamRadius, height=2*beamRadius, angle=0)
     circle.fill = False
     ax.add_artist(circle)
-    ax.set_xlim(-beamRadius*1.3*scope, beamRadius*1.3*scope)
-    ax.set_ylim(-beamRadius*1.3*scope, beamRadius*1.3*scope)
+    margin = beamRadius*1.3*scope
+    ax.set_xlim(center[0]-margin, center[0]+margin)
+    ax.set_ylim(center[1]-margin, center[1]+margin)
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 

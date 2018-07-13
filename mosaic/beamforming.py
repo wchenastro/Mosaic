@@ -86,12 +86,12 @@ class PsfSim(object):
         a coordinate as [RA, DEC]
 
         """
-        if isinstance(source, katpoint.Target):
+        if isinstance(source, np.ndarray) or isinstance(source, list):
+            return source
+        elif isinstance(source, katpoint.Target):
             ra = source.body._ra
             dec = source.body._dec
             return np.rad2deg([ra, dec])
-        else:
-            return source
 
     def get_beam_shape(self, source, time):
         """
@@ -108,13 +108,17 @@ class PsfSim(object):
         a beamshape object contain properties of semi-major axis,
             semi-mino axis and orientation all in degree
         """
-        self.observation.setBoreSight(PsfSim.check_source(source))
+
+        if len(self.antennas) < 3:
+            raise "the number of antennas should be not less then 3"
+        bore_sight = PsfSim.check_source(source)
+        self.observation.setBoreSight(bore_sight)
         self.observation.setObserveTime(time)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle = self.observation.getBeamAxis()
         horizon = np.rad2deg(self.observation.getHorizontal())
-        psf = self.observation.getPointSourceFunction()
-        return BeamShape(axisH, axisV, angle, psf, self.antennas, self.reference_antenna, horizon)
+        psf = self.observation.getPointSpreadFunction()
+        return BeamShape(axisH, axisV, angle, psf, self.antennas, bore_sight, self.reference_antenna, horizon)
 
 
 class BeamShape(object):
@@ -127,7 +131,7 @@ class BeamShape(object):
     angle -- orientation of the angle in degree
 
     """
-    def __init__(self, axisH, axisV, angle, psf, antennas, reference_antenna, horizon):
+    def __init__(self, axisH, axisV, angle, psf, antennas, bore_sight, reference_antenna, horizon):
         """
         constructor of the BeamShape class.
 
@@ -137,6 +141,7 @@ class BeamShape(object):
         self.angle = angle
         self.psf = psf
         self.antennas = antennas
+        self.bore_sight = bore_sight
         self.reference_antenna = reference_antenna
         self.horizon = horizon
 
@@ -161,7 +166,7 @@ class BeamShape(object):
 
     def plot_psf(self, filename, shape_overlay = False):
         """
-        plot the point source function
+        plot the point spread function
 
         arguments:
         filename --  name and directory of the plot
@@ -203,8 +208,8 @@ class Overlap(object):
         plot_overlap(self.metrics, self.mode, filename)
 
     def calculate_fractions(self):
-        if self.mode == "heater":
-            return (0, 0, 0)
+        if self.mode != "counter":
+            raise "the fraction calculation is only supportted in counter mode"
         overlap_counter = self.metrics
         overlap_grid = np.count_nonzero(overlap_counter > 1)
         non_overlap_grid = np.count_nonzero(overlap_counter == 1)
@@ -246,9 +251,8 @@ class Tiling(object):
         specified in the file name such as  "plot/pattern.png" or "pattern.pdf"
         """
         widthH, widthV = self.beam_shape.width_at_overlap(self.overlap)
-        plotPackedBeam(self.coordinates,
-                self.beam_shape.angle, widthH, widthV,
-                self.tiling_radius, fileName=filename)
+        plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
+                self.beam_shape.bore_sight, self.tiling_radius, fileName=filename)
 
 
     def plot_sky_pattern(self, filename):
@@ -264,15 +268,12 @@ class Tiling(object):
                 "heater" will calculate the tiling pattern as sky temperature,
                 "counter" will calculate the counts of the overlap regions,
                           non-overlap regions and empty regions.
-                "both" will calculate both sky temperature and counter
         filename --  filename of the plot, the format and directory can be
                 specified in the file name such as  "plot/pattern.png"
 
         return:
         overlap_counter -- counter when choose "counter" mode
         overlapHeater -- heater when choose "heater" mode
-        overlap_counter, overlap heater -- both result will returenwhen choose
-                       "both" mode
         """
         if new_beam_shape == None:
             beam_shape = self.beam_shape
@@ -299,7 +300,30 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5):
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates, tiling_radius = ellipseCompact(
             beam_num, widthH, widthV, beam_shape.angle, 10)
-    tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
+
+    """
+    https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
+    CRVAL: coordinate system value at reference pixel
+    CRPIX: coordinate system reference pixel
+    CDELT: coordinate increment along axis
+    CTYPE: name of the coordinate axis
+    """
+    step = 1/1000000.
+    crpix = [0, 0]
+    cdelt = [step, step]
+    crval = beam_shape.bore_sight
+    ctype = ["RA---TAN", "DEC--TAN"]
+    coordinates = np.array(tiling_coordinates)/step
+
+    tiling_coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
+           coordinates, crval, crpix, cdelt, ctype)
+
+    farest_coordinate = tiling_coordinates_equatorial[-1]
+    tiled_bore_sight = tiling_coordinates_equatorial[0]
+    tiling_radius = np.sqrt((farest_coordinate[0] - tiled_bore_sight[0])**2 + (farest_coordinate[1] - tiled_bore_sight[1])**2)
+
+    tiling_obj = Tiling(tiling_coordinates_equatorial, beam_shape, tiling_radius, overlap)
+
     return tiling_obj
 
 def generate_radius_tiling(self, beam_shape, tilingRadius, overlap = 0.5):

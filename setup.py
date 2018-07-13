@@ -14,6 +14,7 @@ setup(name='mosaic',
           'matplotlib',
           'katpoint',
           'h5py',
+          'nvector',
           'astropy'
       ],
       zip_safe=False)

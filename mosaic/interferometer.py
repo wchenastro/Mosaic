@@ -10,12 +10,14 @@ from beamshape import calculateBeamSize, trackBorder
 
 import inspect, pickle, datetime, logging
 
-logging.basicConfig(level=logging.WARNING)
+loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
+logging.basicConfig(format = loggerFormat, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-class PointSourceFunction(object):
+class PointSpreadFunction(object):
     """
-    class for point source function
+    class for point spread function
     """
 
     def __init__(self, image, bore_sight, width):
@@ -52,7 +54,6 @@ class InterferometryObservation:
         self.inputType = self.equatorialInput
         self.WCS = {}
 
-        logging.basicConfig()
 
 
     def setInterpolating(self, state):
@@ -72,7 +73,7 @@ class InterferometryObservation:
     def getObserveTime(self):
         return self.observeTime
 
-    def getPointSourceFunction(self):
+    def getPointSpreadFunction(self):
         return self.psf
 
     def setBeamSizeFactor(self, size, autoZoom = True):
@@ -461,12 +462,12 @@ class InterferometryObservation:
             newBeamSizeFactor = axisRatio * beamMajorAxisScale*2*1.3 / (self.resolution * density)
             # print newBeamSizeFactor,
             if baselineMax > 2e3:
-                logging.debug('larger')
+                logger.debug('larger')
                 # print 'larger'
                 newBeamSizeFactor = 6 if newBeamSizeFactor < 6 else int(round(newBeamSizeFactor))
             else:
                 # print 'smaller', newBeamSizeFactor
-                logging.debug('smaller')
+                logger.debug('smaller')
                 if newBeamSizeFactor > 6:
                     newBeamSizeFactor = 6
                 elif newBeamSizeFactor > 1.:
@@ -516,7 +517,6 @@ class InterferometryObservation:
             if newBeamSizeFactor < 1.:
                 sidelength = density * newBeamSizeFactor
                 windowLength = self.resolution * sidelength
-                print "call", newBeamSizeFactor, windowLength, majorAxis
                 if windowLength / (2.*majorAxis*1.4) < 1.1:
                     newBeamSizeFactor = 2
                 else:
@@ -541,7 +541,7 @@ class InterferometryObservation:
         windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
-        self.psf = PointSourceFunction(image, self.boreSight, windowLength)
+        self.psf = PointSpreadFunction(image, self.boreSight, windowLength)
         if fileName != None:
             plotBeamContour(image, self.boreSight, windowLength,
                     interpolation = self.interpolating)
@@ -551,8 +551,8 @@ class InterferometryObservation:
             if sizeInfo[3] != 0:
                 elevation = np.rad2deg(self.boreSightHorizontal[1])
                 if elevation < 20.:
-                    logging.warning("Elevation is low %f" % elevation)
-                logging.warning("Beam shape probably is not correct.")
+                    logger.warning("Elevation is low %f" % elevation)
+                logger.warning("Beam shape probably is not correct.")
             self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):
@@ -610,6 +610,13 @@ class InterferometryObservation:
         windowLength = imageLength/gridNum*sidelength
 
 
+        """
+        https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
+        CRVAL: coordinate system value at reference pixel
+        CRPIX: coordinate system reference pixel
+        CDELT: coordinate increment along axis
+        CTYPE: name of the coordinate axis
+        """
         self.WCS['crpix'] = [density/2 -1, density/2 -1]
         self.WCS['cdelt'] = np.rad2deg([imageLength/gridNum, imageLength/gridNum])
         self.WCS['crval'] = [self.boreSight[0] - self.WCS['cdelt'][0],
