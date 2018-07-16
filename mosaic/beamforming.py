@@ -315,18 +315,14 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5):
     ctype = ["RA---TAN", "DEC--TAN"]
     coordinates = np.array(tiling_coordinates)/step
 
-    tiling_coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
-           coordinates, crval, crpix, cdelt, ctype)
-
-    farest_coordinate = tiling_coordinates_equatorial[-1]
-    tiled_bore_sight = tiling_coordinates_equatorial[0]
-    tiling_radius = np.sqrt((farest_coordinate[0] - tiled_bore_sight[0])**2 + (farest_coordinate[1] - tiled_bore_sight[1])**2)
+    tiling_coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+           tiling_coordinates, beam_shape.bore_sight)
 
     tiling_obj = Tiling(tiling_coordinates_equatorial, beam_shape, tiling_radius, overlap)
 
     return tiling_obj
 
-def generate_radius_tiling(self, beam_shape, tilingRadius, overlap = 0.5):
+def generate_radius_tiling(self, beam_shape, tiling_radius, overlap = 0.5):
     """
     return the tiling inside a specified region
     arguments:
@@ -339,7 +335,13 @@ def generate_radius_tiling(self, beam_shape, tilingRadius, overlap = 0.5):
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates = ellipseGrid(
             tiling_radius, widthH, widthV, beam_shape.angle)
-    tiling_obj = Tiling(tiling_coordinates.T, beam_shape, tiling_radius, overlap)
+
+    tiling_coordinates_equatorial, tiling_radius_equatorial = coord.convert_pixel_coordinate_to_equatorial(
+           tiling_coordinates.T, beam_shape.bore_sight)
+
+    tiling_obj = Tiling(tiling_coordinates_equatorial,
+            beam_shape, tiling_radius_equatorial, overlap)
+
     return tiling_obj
 
 def dict_to_ordered_list(dict_obj):

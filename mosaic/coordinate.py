@@ -279,7 +279,8 @@ def projectedRotate(altitude, azimuth, baseline, angle):
 
     return projectedRotated
 
-def convert_pixel_coordinate_to_equatorial(pixel_coordinats, crval, crpix, cdelt, ctype):
+def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
+
     """
     https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
     CRVAL: coordinate system value at reference pixel
@@ -287,11 +288,22 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinats, crval, crpix, cdelt
     CDELT: coordinate increment along axis
     CTYPE: name of the coordinate axis
     """
+    step = 1/1000000.
+
     wcs_properties = wcs.WCS(naxis=2)
-    wcs_properties.wcs.crpix = crpix
-    wcs_properties.wcs.cdelt = cdelt
-    wcs_properties.wcs.crval = crval
-    wcs_properties.wcs.ctype = ctype
-    equatorial_coodinates = wcs_properties.wcs_pix2world(pixel_coordinats, 0)
-    return equatorial_coodinates
+    wcs_properties.wcs.crpix = [0, 0]
+    wcs_properties.wcs.cdelt = [step, step]
+    wcs_properties.wcs.crval = bore_sight
+    wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    scaled_pixel_coordinats = np.array(pixel_coordinates)/step
+
+    equatorial_coodinates = wcs_properties.wcs_pix2world(scaled_pixel_coordinats, 0)
+
+    farest_coordinate = equatorial_coodinates[-1]
+    tiled_bore_sight = equatorial_coodinates[0]
+    tiling_radius = (np.sqrt((farest_coordinate[0] - tiled_bore_sight[0])**2 +
+                (farest_coordinate[1] - tiled_bore_sight[1])**2))
+
+
+    return equatorial_coodinates, tiling_radius
 
