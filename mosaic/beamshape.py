@@ -243,8 +243,8 @@ def trackBorder(image, threshold = 0.3, density = 20, interpolatedLength = 800):
                     border.append([rowIdx, colIdx])
                     state = State.move
             except IndexError:
-                print rowIdx, colIdx
-                raise
+                print(rowIdx, colIdx)
+                raise "unknown IndexError"
 
         if state == State.upsideDown:
             if bottom == True:
@@ -255,8 +255,8 @@ def trackBorder(image, threshold = 0.3, density = 20, interpolatedLength = 800):
                 colStep = -1
                 colBorder = 0
                 rowBorder = interpolatedLength - 1
-                rowIdx = imageCenter[0]
-                colIdx = imageCenter[1]
+                rowIdx = int(imageCenter[0])
+                colIdx = int(imageCenter[1])
                 state = State.move
 
 

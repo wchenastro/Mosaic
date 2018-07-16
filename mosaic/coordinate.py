@@ -161,7 +161,7 @@ def calculateLocalSiderealTime(TimeInUTC, longitude, displayHour=False):
         minute = (hour - int(hour))*60
         second = (minute - int(minute))*60
 
-        print int(hour), ":", int(minute), ":", second
+        print(int(hour), ":", int(minute), ":", second)
 
 
     return LocalSiderealTime

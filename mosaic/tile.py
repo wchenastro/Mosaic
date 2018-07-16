@@ -133,10 +133,10 @@ def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
     # print 'horizon number', horizontalNumber
 
     oddLine.append([0,0])
-    for i in range((horizontalNumber - 1)/2):
+    for i in range(int((horizontalNumber - 1)/2)):
         oddLine.append([+(i+1)*2*axisH , 0])
         oddLine.append([-(i+1)*2*axisH , 0])
-    for i in range((horizontalNumber - 1)/2):
+    for i in range(int((horizontalNumber - 1)/2)):
         evenLine.append([+axisH + i*2*axisH , 0])
         evenLine.append([-axisH - i*2*axisH , 0])
 
@@ -146,11 +146,11 @@ def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
     # verticalOffset = subBeamRadius * sqrt(3) * 0.5
     maxAxis = axisH if axisH > axisV else axisV
     if maxAxis > beamRadius * 0.7:
-        for i in range((verticalNumber - 1)/2):
+        for i in range(int((verticalNumber - 1)/2)):
             coordinates += [[x, y+(i+1)*2*verticalOffset] for x, y in oddLine]
             coordinates += [[x, y-(i+1)*2*verticalOffset] for x, y in oddLine]
     else:
-        for i in range((verticalNumber - 1)/2):
+        for i in range(int((verticalNumber - 1)/2)):
             coordinates += [[x, y+(i+1)*2*verticalOffset] for x, y in twoLines[lineType]]
             coordinates += [[x, y-(i+1)*2*verticalOffset] for x, y in twoLines[lineType]]
             lineType = abs(lineType - 1)
@@ -318,7 +318,7 @@ def optimizeGrid(beamNumber, beamRadius, beamPattern, error, boreSight = [0,0]):
 def main():
     parameterLength = len(sys.argv)
     if parameterLength < 1+2:
-        print 'not enough parameters'
+        print('not enough parameters')
         exit()
 
     beamNumber = int(sys.argv[1])
@@ -328,7 +328,7 @@ def main():
     if len(sys.argv) == 1+4:
         beamBoreSight = [float(sys.argv[3]), float(sys.argv[4])]
     elif parameterLength == 1+3:
-        print 'boreSight coordinates is not valid'
+        print('boreSight coordinates is not valid')
         exit()
 
     coordinates, subBeamRadius = optimizeGrid(beamNumber, beamRadius, hexagonGrid, 5, beamBoreSight)

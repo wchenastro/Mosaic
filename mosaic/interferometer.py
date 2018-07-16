@@ -398,7 +398,7 @@ class InterferometryObservation:
             azimuth, altitude  = self.boreSightHorizontal
             RA, DEC = coord.convertHorizontalToEquatorial(azimuth, altitude, np.deg2rad(LSTDeg), arrayRefereceLatitude)
             self.boreSight = np.rad2deg([RA, DEC])
-            print np.rad2deg([RA, DEC])
+            print(np.rad2deg([RA, DEC]))
 
 
         self.saveParas('paras')
