@@ -4,7 +4,7 @@ from utilities import normInverse
 import logging
 
 loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
-logging.basicConfig(format = loggerFormat, level=logging.INFO)
+logging.basicConfig(format = loggerFormat, level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 

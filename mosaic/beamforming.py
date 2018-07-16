@@ -86,7 +86,8 @@ class PsfSim(object):
         a coordinate as [RA, DEC]
 
         """
-        if isinstance(source, np.ndarray) or isinstance(source, list):
+        if (isinstance(source, np.ndarray) or isinstance(source, list) or
+                isinstance(source, tuple)):
             return source
         elif isinstance(source, katpoint.Target):
             ra = source.body._ra
@@ -257,7 +258,7 @@ class Tiling(object):
 
     def plot_sky_pattern(self, filename):
         heats = self.calculate_overlap("heater", new_beam_shape = None)
-        plot_overlap(heats.metrics, "heater", filename)
+        heats.plot(filename)
 
     def calculate_overlap(self, mode, new_beam_shape = None):
         """
@@ -280,9 +281,9 @@ class Tiling(object):
         else:
             beam_shape = new_beam_shape
         overlap_counter = calculateBeamOverlaps(
-                self.coordinates, self.tiling_radius,
-                beam_shape.axisH, beam_shape.axisV,
-                beam_shape.angle, self.overlap, mode)
+                self.coordinates - self.coordinates[0], self.tiling_radius,
+                beam_shape.axisH, beam_shape.axisV, beam_shape.angle,
+                self.overlap, mode)
         overlap = Overlap(overlap_counter, mode)
         return overlap
 
@@ -322,7 +323,7 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5):
 
     return tiling_obj
 
-def generate_radius_tiling(self, beam_shape, tiling_radius, overlap = 0.5):
+def generate_radius_tiling(beam_shape, tiling_radius, overlap = 0.5):
     """
     return the tiling inside a specified region
     arguments:
