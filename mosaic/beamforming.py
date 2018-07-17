@@ -200,15 +200,43 @@ class BeamShape(object):
 
 class Overlap(object):
     """
+    Class of overlap object contain a overlap calculation result
+
+    arguments:
+    metrics -- a measurement of overlap in a gridded area
+    mode -- the mode used in the overlap calculation
+
     """
     def __init__(self, metrics, mode):
+        """
+        constructor of the Tiling class.
+
+        """
+
         self.metrics  = metrics
         self.mode = mode
 
     def plot(self, filename):
+        """
+        plot the overlap result in specified filename
+
+        """
+
         plot_overlap(self.metrics, self.mode, filename)
 
     def calculate_fractions(self):
+        """
+        calculation the occupancy of different overlap situation in a region.
+        This method only works if the overlap is calculated in "counter" mode.
+        overlap situation include: overlap, non-overlap, empty
+
+        return
+        overlapped: faction of the region where beams are overlapped
+        non_overlapped: faction of the region inside a single beam
+        empty: fraction of region where is not covered by any beam
+
+        """
+
         if self.mode != "counter":
             raise "the fraction calculation is only supportted in counter mode"
         overlap_counter = self.metrics
@@ -253,10 +281,25 @@ class Tiling(object):
         """
         widthH, widthV = self.beam_shape.width_at_overlap(self.overlap)
         plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
-                self.beam_shape.bore_sight, self.tiling_radius, fileName=filename)
+                (0,0), self.tiling_radius, fileName=filename)
 
+    def get_equatorial_coordinates(self):
+        """
+        convert pixel coordinates to equatorial coordinates
+
+        return:
+        coordinates_equatorial --  tiling coordinates in equatorial frame
+        """
+        coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+               self.coordinates, self.beam_shape.bore_sight)
+        return coordinates_equatorial
 
     def plot_sky_pattern(self, filename):
+        """
+        plot the ksy pattern with specified filename
+
+        """
+
         heats = self.calculate_overlap("heater", new_beam_shape = None)
         heats.plot(filename)
 
@@ -280,11 +323,10 @@ class Tiling(object):
             beam_shape = self.beam_shape
         else:
             beam_shape = new_beam_shape
-        overlap_counter = calculateBeamOverlaps(
-                self.coordinates - self.coordinates[0], self.tiling_radius,
-                beam_shape.axisH, beam_shape.axisV, beam_shape.angle,
-                self.overlap, mode)
-        overlap = Overlap(overlap_counter, mode)
+        overlap_metrics = calculateBeamOverlaps(
+                self.coordinates, self.tiling_radius, beam_shape.axisH,
+                beam_shape.axisV, beam_shape.angle, self.overlap, mode)
+        overlap = Overlap(overlap_metrics, mode)
         return overlap
 
 
@@ -296,30 +338,13 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5):
     beam_num -- number of beams to tile
     overlap -- how much overlap between two beams, range in (0, 1)
     return:
-    tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
+    tiling -- tiling coordinates in a list of pixel coordinates pairs in degree
     """
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates, tiling_radius = ellipseCompact(
             beam_num, widthH, widthV, beam_shape.angle, 10)
 
-    """
-    https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
-    CRVAL: coordinate system value at reference pixel
-    CRPIX: coordinate system reference pixel
-    CDELT: coordinate increment along axis
-    CTYPE: name of the coordinate axis
-    """
-    step = 1/1000000.
-    crpix = [0, 0]
-    cdelt = [step, step]
-    crval = beam_shape.bore_sight
-    ctype = ["RA---TAN", "DEC--TAN"]
-    coordinates = np.array(tiling_coordinates)/step
-
-    tiling_coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
-           tiling_coordinates, beam_shape.bore_sight)
-
-    tiling_obj = Tiling(tiling_coordinates_equatorial, beam_shape, tiling_radius, overlap)
+    tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
 
     return tiling_obj
 
@@ -331,17 +356,13 @@ def generate_radius_tiling(beam_shape, tiling_radius, overlap = 0.5):
     tilingRadius -- the radius of the region to tile
     overlap -- how much overlap between two beams, range in (0, 1)
     return:
-    tiling -- tiling coordinates in a list of [RA, DEC] pairs in degree
+    tiling -- tiling coordinates in a list of pixel coordinates pairs in degree
     """
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates = ellipseGrid(
             tiling_radius, widthH, widthV, beam_shape.angle)
 
-    tiling_coordinates_equatorial, tiling_radius_equatorial = coord.convert_pixel_coordinate_to_equatorial(
-           tiling_coordinates.T, beam_shape.bore_sight)
-
-    tiling_obj = Tiling(tiling_coordinates_equatorial,
-            beam_shape, tiling_radius_equatorial, overlap)
+    tiling_obj = Tiling(tiling_coordinates.T, beam_shape, tiling_radius, overlap)
 
     return tiling_obj
 
