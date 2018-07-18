@@ -475,7 +475,7 @@ def onClickedPackButton2():
     primaryBeamRadius = np.rad2deg(1.22*waveLength/13.5)/2. * factor
     coordinatesPrimary = ellipseGrid(primaryBeamRadius, beamRadius, beamRadius, 0)
     beamNumberPrimary = len(coordinatesPrimary)
-    plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, primaryBeamRadius, fileName='primaryPack.png')
+    plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, (0,0), primaryBeamRadius, fileName='primaryPack.png')
     # print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius))
     print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius)),
     print(", angle: %f" % angle2)
@@ -486,7 +486,7 @@ def onClickedPackButton2():
     # print(beamRadius)
     # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
     # ======================
-    plotPackedBeam(coordinates, angle2, axisH2, axisV2, beamRadius)
+    plotPackedBeam(coordinates, angle2, axisH2, axisV2, (0,0), beamRadius)
     pixmap = QPixmap(os.getcwd() + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     onClickedPackButton2.state = 1
@@ -656,11 +656,11 @@ defaultBeamSizeFactor = 1
 defaultBeamNumber = 400
 defaultBoreSight = (21.44389, -30.71106)
 
-observation = InterferometryObservation(arrayRefereceGEODET,
-        observationTime, waveLength)
+observation = InterferometryObservation(arrayRefereceGEODET, waveLength)
 observation.setBoreSight(defaultBoreSight)
 observation.setBeamSizeFactor(defaultBeamSizeFactor)
 observation.setBeamNumber(defaultBeamNumber)
+observation.setObserveTime(observationTime)
 observation.setInterpolating(True)
 observation.setAutoZoom(True)
 

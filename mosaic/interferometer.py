@@ -30,29 +30,18 @@ class InterferometryObservation:
     equatorialInput = 0
     horizontalInput = 1
 
-    def __init__(self, arrayRefereceGEODET, observeTime, waveLength):
+    def __init__(self, arrayRefereceGEODET, waveLength):
         self.arrayRefereceGEODET = arrayRefereceGEODET
-        self.observeTime = observeTime
         self.waveLength = waveLength
-        self.baselines = []
-        self.boreSightHorizontal = []
-        self.projectedBaselines = []
-        self.baselineIndex = []
-        self.beamAxis = []
         self.beamSizeFactor = 1
-        self.beamCoordinates = []
         self.beamNumber = 400
-        self.localSiderealTime = 0
-        self.beamSize = 1.22*self.waveLength/13.5
         self.interpolating = True
-        self.amplitude = []
         self.autoZoom = True
         self.gridNumOfDFT = 100000.0
         self.imageDensity = 20
-        self.projectedBaselines = []
         self.resolution = 1/3600.0
         self.inputType = self.equatorialInput
-        self.WCS = {}
+        self.updateBeamCoordinates()
 
 
 
@@ -145,7 +134,7 @@ class InterferometryObservation:
 
     def setBoreSight(self, beamBoreSight):
         self.boreSight = beamBoreSight
-        self.updateBeamCoordinates()
+        # self.updateBeamCoordinates()
 
     def getBoreSight(self):
         return self.boreSight
@@ -617,6 +606,7 @@ class InterferometryObservation:
         CDELT: coordinate increment along axis
         CTYPE: name of the coordinate axis
         """
+        self.WCS = {}
         self.WCS['crpix'] = [density/2 -1, density/2 -1]
         self.WCS['cdelt'] = np.rad2deg([imageLength/gridNum, imageLength/gridNum])
         self.WCS['crval'] = [self.boreSight[0] - self.WCS['cdelt'][0],

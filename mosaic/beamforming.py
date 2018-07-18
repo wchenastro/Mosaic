@@ -22,27 +22,16 @@ class PsfSim(object):
     reference_antenna = (-30.71106, 21.44389, 1035)
     '''speed Of Light'''
     sol = 299792458
-    # self.waveLengths = sol/frequencies
 
     def __init__(self, antennas, frequencies):
         """
         constructor of the PsfSim class.
 
         """
-        self.default_pixels = 400
-        self.boreSight = (21.44389, -30.71106)
-        self.observation = None
         waveLengths = float(self.sol)/np.array(frequencies)
         if waveLengths.shape == (1,): waveLengths = waveLengths[0]
-        observation = InterferometryObservation(self.reference_antenna,
-                            None, waveLengths)
-        observation.setBoreSight(self.boreSight)
-        observation.setBeamSizeFactor(1)
-        observation.setBeamNumber(self.default_pixels)
-        observation.setInterpolating(True)
-        observation.setAutoZoom(True)
-        observation.setInputType(InterferometryObservation.equatorialInput)
-        self.observation = observation
+        self.observation = InterferometryObservation(self.reference_antenna,
+                            waveLengths)
         self.antennas = PsfSim.check_antennas(antennas)
 
     @staticmethod
