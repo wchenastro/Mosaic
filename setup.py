@@ -15,6 +15,6 @@ setup(name='mosaic',
           'katpoint',
           'h5py',
           'nvector',
-          'astropy'
+          'astropy == 2.0.3'
       ],
       zip_safe=False)

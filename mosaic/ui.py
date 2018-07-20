@@ -328,16 +328,16 @@ def updateContour():
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
     latitude = latitudeCoord.text()
-    height = 1035
+    height = "1035"
     if longitude == '' or latitude == '':
         return
     rowCount = coordinateList.rowCount()
     coordinateList.insertRow(rowCount)
-    coordinateList.setItem(rowCount, 1, QTableWidgetItem(longitude))
     coordinateList.setItem(rowCount, 0, QTableWidgetItem(latitude))
+    coordinateList.setItem(rowCount, 1, QTableWidgetItem(longitude))
     coordinateList.setItem(rowCount, 2, QTableWidgetItem(height))
     coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
-    axis.addDots([float(latitude)],[float(longitude),])
+    axis.addDots([[float(latitude), float(longitude)],])
     updateContour()
 
 
