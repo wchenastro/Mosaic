@@ -288,7 +288,7 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
     CDELT: coordinate increment along axis
     CTYPE: name of the coordinate axis
     """
-    step = 1/1000000.
+    step = 1/10000000000.
 
     wcs_properties = wcs.WCS(naxis=2)
     wcs_properties.wcs.crpix = [0, 0]

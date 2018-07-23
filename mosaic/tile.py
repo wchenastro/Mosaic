@@ -74,17 +74,24 @@ def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     # return mean + sigma*np.sqrt(2)*inverfFunc(2*probability - 1)
 
-def ellipseCompact(beamNumber, axisH, axisV, angle, error, write=False):
+def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=False):
 
 
     area = beamNumber*np.pi*axisH*axisV
     beamRadius = np.sqrt(area/np.pi)*1.
+    error = int(round(error/2.))
+    if seed == None:
+        random.seed(axisH)
+    else:
+        random.seed(seed)
 
     inCircleCoordinates = ellipseGrid(beamRadius, axisH, axisV, angle, write=False)
 
     inCircleCount = inCircleCoordinates.shape[1]
     trialCount = 0
-    while(abs( inCircleCount - beamNumber) > error):
+    "the total number of beams should not less than required, so a padding error"
+    "is added to the actual required beam number"
+    while(abs(inCircleCount - (beamNumber+error)) > error):
 
         if inCircleCount <= beamNumber:
             factor = random.uniform(1.0, 1.1)
@@ -95,11 +102,19 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, write=False):
         inCircleCount = inCircleCoordinates.shape[1]
         trialCount += 1
         if trialCount > 150:
-            logger.critical('maximum trials reached in the tiling process')
-            raise 'maximum trials reached in the tiling process'
-        # print(inCircleCount, subBeamRadius)
+            if abs(inCircleCount - beamNumber) < int(beamNumber*0.1):
+                logger.warning("maximum trials reached in the tiling process, "
+                    "the tiling is not well optimized, number of beams is "
+                    "different from requried but less then 10%")
+                break
+            else:
+                logger.critical("maximum trials reached in the tiling process, "
+                                "the tiling is not optimized, please try to "
+                                "increase the error threshold.")
+                raise Exception('maximum trials reached in the tiling process')
 
 
+    random.seed()
     # print inCircleCount
     if(write==True):
         with open('ellipsePack', 'w') as inCoordFile:

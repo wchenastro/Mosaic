@@ -319,19 +319,27 @@ class Tiling(object):
         return overlap
 
 
-def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5):
+def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, error=None):
     """
     generate and return the tiling.
     arguments:
     beam_shape -- beam_shape object
     beam_num -- number of beams to tile
     overlap -- how much overlap between two beams, range in (0, 1)
+    error -- the maximum difference in beam number between required and generated
+             increase this number will make the tiling process faster, while
+             decrease this number will make the tiling process slower or even fail
+             the number of actual generated beams will always larger then required
+             default is 5% of the required beam number
     return:
     tiling -- tiling coordinates in a list of pixel coordinates pairs in degree
     """
+    if error == None:
+        error = int(round(beam_num * 0.05))
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates, tiling_radius = ellipseCompact(
-            beam_num, widthH, widthV, beam_shape.angle, 10)
+            beam_num, widthH, widthV, beam_shape.angle, error,
+            seed = beam_shape.bore_sight[0])
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
 
@@ -371,7 +379,7 @@ class DelayPolynomial(object):
     frequencies -- a list of frequencies on which the polynomail is calculated in Hz
     reference -- the reference antenna for delay calculation
     """
-    def __init__(self, antennas, targets, reference):
+    def __init__(self, antennas, bore_sight, targets, reference):
         """
         constructor of the Delay Polynomial class.
 
@@ -380,6 +388,7 @@ class DelayPolynomial(object):
         self.targets = DelayPolynomial.check_targets(targets)
         self.frequency = 1.4e9
         self.reference = reference
+        self.bore_sight = DelayPolynomial.check_targets([bore_sight,])[0]
 
     @staticmethod
     def check_targets(targets):
@@ -419,6 +428,17 @@ class DelayPolynomial(object):
 
     @staticmethod
     def make_katpoint_target(sources):
+        """
+        check the the data type of the source. If the values are in (RA, DEC) pair,
+        they will be converted to katpoint target object
+
+        arguments:
+        source -- source in either (RA, DEC) pairs or katpoint target objects
+
+        return:
+        katpoint target objects
+        """
+
         targets = []
         for source in sources:
             target_string = ",".join(['radec',
@@ -445,7 +465,8 @@ class DelayPolynomial(object):
 
         target_array = []
         for target in self.targets:
-            dc = katpoint.DelayCorrection(self.antennas , self.reference, self.frequency)
+            dc = katpoint.DelayCorrection(self.antennas,
+                    self.reference, self.frequency)
             delay, phase = dc.corrections(target, timestamp)
             delayArray = np.array(dict_to_ordered_list(delay))
             """
@@ -457,5 +478,10 @@ class DelayPolynomial(object):
         """
         subtract the boresight beam form the offset beams
         """
-        target_array = target_array - target_array[0, :, :]
+        dc = katpoint.DelayCorrection(self.antennas,
+            self.reference, self.frequency)
+        delay, phase = dc.corrections(self.bore_sight, timestamp)
+        bore_sight_delay = np.array(dict_to_ordered_list(delay))[::2][:,0,:]
+
+        target_array = target_array - bore_sight_delay
         return target_array
