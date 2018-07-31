@@ -319,14 +319,14 @@ class Tiling(object):
         return overlap
 
 
-def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, error=None):
+def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
     """
     generate and return the tiling.
     arguments:
     beam_shape -- beam_shape object
     beam_num -- number of beams to tile
     overlap -- how much overlap between two beams, range in (0, 1)
-    error -- the maximum difference in beam number between required and generated
+    margin -- the maximum difference in beam number between required and generated
              increase this number will make the tiling process faster, while
              decrease this number will make the tiling process slower or even fail
              the number of actual generated beams will always larger then required
@@ -334,11 +334,11 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, error=None):
     return:
     tiling -- tiling coordinates in a list of pixel coordinates pairs in degree
     """
-    if error == None:
-        error = int(round(beam_num * 0.05))
+    if margin == None:
+        margin = int(round(beam_num * 0.05))
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates, tiling_radius = ellipseCompact(
-            beam_num, widthH, widthV, beam_shape.angle, error,
+            beam_num, widthH, widthV, beam_shape.angle, margin,
             seed = beam_shape.bore_sight[0])
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)

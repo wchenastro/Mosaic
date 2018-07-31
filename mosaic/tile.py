@@ -74,6 +74,9 @@ def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     # return mean + sigma*np.sqrt(2)*inverfFunc(2*probability - 1)
 
+class TilingNotOptimizedError(Exception):
+    pass
+
 def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=False):
 
 
@@ -110,8 +113,12 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
             else:
                 logger.critical("maximum trials reached in the tiling process, "
                                 "the tiling is not optimized, please try to "
-                                "increase the error threshold.")
-                raise Exception('maximum trials reached in the tiling process')
+                                "increase the margin threshold.")
+                raise TilingNotOptimizedError({
+                        "message":"maximum trials reached in the tiling process",
+                        "required_beam_number":beamNumber,
+                        "generated_beam_number":inCircleCount,
+                        })
 
 
     random.seed()

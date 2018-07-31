@@ -44,6 +44,8 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, center, beamRadius, fileNam
     margin = beamRadius*1.3*scope
     ax.set_xlim(center[0]-margin, center[0]+margin)
     ax.set_ylim(center[1]-margin, center[1]+margin)
+    beamNum = len(coordinates)
+    plt.title("Tiling for %d beams with radius of %.2f degree" % (beamNum, beamRadius))
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
@@ -87,6 +89,7 @@ def plot_overlap(overlapTables, mode, fileName):
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    plt.title("overlap changes with time")
     if animate == True:
         overlapTable0 = overlapTables[0]
     else:
@@ -151,9 +154,10 @@ def plot_interferometry(antennas, center, horizons, fileName='horizon.gif'):
     "cartisian"
     ax.plot([-radius, radius, 0, 0, 0], [0, 0, 0, radius, -radius], c="k", alpha = 0.1)
     "antennas"
-    ax.scatter(antX,antY, s=pointSize)
+    ants = ax.scatter(antX,antY, s=pointSize)
     "horizon"
-    ax.add_artist(plt.Circle((0,0), radius, fill=False))
+    horizon = plt.Circle((0,0), radius, fill=False)
+    ax.add_artist(horizon )
 
     horizons = np.array(horizons)
     if isinstance(horizons[0], np.ndarray):
@@ -177,6 +181,8 @@ def plot_interferometry(antennas, center, horizons, fileName='horizon.gif'):
     ax.set_aspect('equal', 'datalim')
     ax.set_xlim([-radius*1.3, +radius*1.3])
     ax.set_ylim([-radius*1.3, +radius*1.3])
+
+    plt.legend([star, ants, horizon], ["source", "antennas", "horizon"])
 
 
     if isinstance(horizons[0], np.ndarray):
