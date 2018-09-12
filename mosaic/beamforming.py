@@ -49,17 +49,23 @@ class PsfSim(object):
         [latitude, longitude, elevation]
 
         """
-        antennas = np.array(antennas)
-        if isinstance(antennas[0], np.ndarray):
-            return antennas
-        elif isinstance(antennas[0], katpoint.Antenna):
+        def from_katpoint_list(antennas):
             antenna_list = []
             for antenna in antennas:
                 antenna_list.append([np.rad2deg(antenna.observer.lat),
                                     np.rad2deg(antenna.observer.lon),
                                     antenna.observer.elev])
-
             return np.array(antenna_list)
+            
+        antennas = np.array(antennas)
+        if isinstance(antennas[0], np.ndarray):
+            return antennas
+        elif isinstance(antennas[0], katpoint.Antenna):
+            return from_katpoint_list(antennas)
+        elif isinstance(antennas[0], str):
+            return from_katpoint_list([katpoint.Antenna(i) for i in antennas])
+        else:
+            raise Exception("Antennas passed in unknown format")
 
     @staticmethod
     def check_source(source):
