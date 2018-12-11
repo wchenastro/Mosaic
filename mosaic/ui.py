@@ -357,11 +357,16 @@ def onClickedImportButton():
         return
 
     fileName = QFileDialog.getOpenFileName()
-    with open(fileName, 'rb') as paraFile:
-        paras = pickle.load(paraFile)
-    antennaCoords = paras[0]
-    source = paras[1]
-    observeTime = paras[2]
+    if str(fileName).endswith('.csv'):
+        antennaCoords = np.loadtxt(str(fileName), delimiter=',')
+        onlyAntenna = True
+    else:
+        with open(fileName, 'rb') as paraFile:
+            paras = pickle.load(paraFile)
+        antennaCoords = paras[0]
+        source = paras[1]
+        observeTime = paras[2]
+        onlyAntenna = False
 
     onClickedDelAllButton()
     dateTimeEdit.blockSignals(True)
@@ -384,19 +389,21 @@ def onClickedImportButton():
 
     axis.addDots(dots)
 
-    RACoord.setText(str(source[0]))
-    RACoord.setCursorPosition(0)
-    DECCoord.setText(str(source[1]))
-    DECCoord.setCursorPosition(0)
+    if onlyAntenna == False:
+        RACoord.setText(str(source[0]))
+        RACoord.setCursorPosition(0)
+        DECCoord.setText(str(source[1]))
+        DECCoord.setCursorPosition(0)
 
-    observation.setBoreSight(source)
+        observation.setBoreSight(source)
 
-    newDateTime = QDateTime(observeTime.year,
-            observeTime.month, observeTime.day,
-            observeTime.hour, observeTime.minute,
-            observeTime.second, observeTime.microsecond/1000)
-    dateTimeEdit.setDateTime(newDateTime)
-    observation.setObserveTime(observeTime)
+        newDateTime = QDateTime(observeTime.year,
+                observeTime.month, observeTime.day,
+                observeTime.hour, observeTime.minute,
+                observeTime.second, observeTime.microsecond/1000)
+        dateTimeEdit.setDateTime(newDateTime)
+        observation.setObserveTime(observeTime)
+
     observation.setInputType(InterferometryObservation.equatorialInput)
 
 
@@ -621,17 +628,17 @@ def onCoordinateListSelectionChanged():
             # return super(MyEventFilter,self).eventFilter(receiver, event)
 
 
-def updateBaselineList(baselines):
-    baselineList.setRowCount(0)
-    if baselines == None:return
-    index = 0
-    for baseline in baselines:
-        length = '{:6.2f}'.format(np.linalg.norm(baseline))
-        baselineList.insertRow(index)
-        vector = ' '.join(['{: 9.1f}'.format(i) for i in baseline])
-        baselineList.setItem(index, 0, QTableWidgetItem(vector))
-        baselineList.setItem(index, 1, QTableWidgetItem(str(length)))
-        index += 1
+# def updateBaselineList(baselines):
+    # baselineList.setRowCount(0)
+    # if baselines == None:return
+    # index = 0
+    # for baseline in baselines:
+        # length = '{:6.2f}'.format(np.linalg.norm(baseline))
+        # baselineList.insertRow(index)
+        # vector = ' '.join(['{: 9.1f}'.format(i) for i in baseline])
+        # baselineList.setItem(index, 0, QTableWidgetItem(vector))
+        # baselineList.setItem(index, 1, QTableWidgetItem(str(length)))
+        # index += 1
 
 def updateUVPlane(baselines):
     # print baselines

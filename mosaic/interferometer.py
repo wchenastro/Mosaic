@@ -257,7 +257,9 @@ class InterferometryObservation:
 
         fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
 
+        # base = np.min(fringeSum.real)
         image = np.fft.fftshift(np.abs(fringeSum))
+        # image = np.fft.fftshift(fringeSum.real - base)
 
         return image
 
@@ -369,7 +371,6 @@ class InterferometryObservation:
 
         arrayRefereceECEF = coord.convertGodeticToECEF([self.arrayRefereceGEODET])[0]
         antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
-
 
         self.baselines = self.createBaselines(antCoordinatesENU)
 
@@ -483,7 +484,7 @@ class InterferometryObservation:
                     self.waveLength, imageLength, density, gridNum)
 
             if fileName != None:
-                plotBeamContour(image, (self.boreSight), windowLength,
+                plotBeamContour(image, (0,0), windowLength,
                     interpolation = self.interpolating, fileName='contourTest.png')
 
             sizeInfo = calculateBeamSize(image, density, windowLength, np.rad2deg(beamMajorAxisScale))
@@ -532,10 +533,12 @@ class InterferometryObservation:
         self.imageLength = windowLength
         self.psf = PointSpreadFunction(image, self.boreSight, windowLength)
         if fileName != None:
-            plotBeamContour(image, self.boreSight, windowLength,
+            plotBeamContour(image, (0,0), windowLength,
                     interpolation = self.interpolating)
 
         if baselineNum > 2:
+            resolution = windowLength/density
+            # print resolution*3600
             sizeInfo = calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
             if sizeInfo[3] != 0:
                 elevation = np.rad2deg(self.boreSightHorizontal[1])

@@ -214,7 +214,7 @@ def ellipseGrid(beamRadius, axisH, axisV, angle, write=False):
     angle = np.deg2rad(angle)
 
     if angle == 0:
-        inCircleCoordinatesRotated = inCircleCoordinates
+        inCircleCoordinatesRotated = np.array(inCircleCoordinates).T
     else:
         rotationMatrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
         inCircleCoordinatesRotated = np.dot(np.array(rotationMatrix), np.array(inCircleCoordinates).T)

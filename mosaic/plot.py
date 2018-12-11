@@ -88,7 +88,7 @@ def plot_overlap(overlapTables, mode, fileName):
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
-    fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    fig = plt.figure(figsize=(640./thisDpi, 480./thisDpi), dpi=thisDpi)
     plt.title("overlap changes with time")
     if animate == True:
         overlapTable0 = overlapTables[0]
@@ -149,7 +149,7 @@ def plot_interferometry(antennas, center, horizons, fileName='horizon.gif'):
     # matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
 
-    fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    fig = plt.figure(figsize=(640./thisDpi, 480./thisDpi), dpi=thisDpi)
     ax = fig.gca()
     "cartisian"
     ax.plot([-radius, radius, 0, 0, 0], [0, 0, 0, radius, -radius], c="k", alpha = 0.1)
