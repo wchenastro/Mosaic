@@ -242,10 +242,12 @@ def randomGrid(beamNumber, beamRadius, subBeamRadius=None):
 
     return coordinates, subBeamRadius
 
-def recGrid(beamNumber, beamRadius, subBeamRadius=None):
+def recGrid(beamNumber, subBeamRadius):
+
+    area = beamNumber*(subBeamRadius**2)
+    beamRadius = np.sqrt(area)
+
     sideLength = 2*beamRadius
-    if subBeamRadius == None:
-        subBeamRadius = sqrt(sideLength*sideLength/beamNumber)/2.
 
     gridDivider = int(sideLength/2/subBeamRadius)
     if gridDivider % 2 == 0:
@@ -264,7 +266,7 @@ def recGrid(beamNumber, beamRadius, subBeamRadius=None):
         coordinates += [[x, y-(i+1)*2*subBeamRadius] for x, y in singleLine]
 
 
-    return coordinates, subBeamRadius
+    return np.array(coordinates), beamRadius
 
 
 

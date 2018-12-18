@@ -19,7 +19,7 @@ class PsfSim(object):
     frequencies -- the central frequency of the observation in Hz
 
     """
-    reference_antenna = (-30.71106, 21.44389, 1035)
+    reference_antenna = coord.Antenna('ref', (-30.71106, 21.44389, 1035))
     '''speed Of Light'''
     sol = 299792458
 
@@ -56,16 +56,24 @@ class PsfSim(object):
                                     np.rad2deg(antenna.observer.lon),
                                     antenna.observer.elev])
             return np.array(antenna_list)
-            
         antennas = np.array(antennas)
         if isinstance(antennas[0], np.ndarray):
-            return antennas
+            antenna_coordinates = antennas
+            names = ["%03d" % i for i in range(len(antennas))]
         elif isinstance(antennas[0], katpoint.Antenna):
-            return from_katpoint_list(antennas)
+            antenna_coordinates = from_katpoint_list(antennas)
+            names = [ant.name for ant in antennas]
         elif isinstance(antennas[0], str):
-            return from_katpoint_list([katpoint.Antenna(i) for i in antennas])
+            katpoint_antennas = [katpoint.Antenna(i) for i in antennas]
+            antenna_coordinates = from_katpoint_list(katpoint_antennas)
+            names = [ant.name for ant in katpoint_antennas]
         else:
-            raise Exception("Antennas passed in unknown format")
+            raise Exception("Antennas are passed in unknown format")
+
+        antenna_objects = [coord.Antenna(names[idx], coordinate)
+                for idx, coordinate in enumerate(antenna_coordinates)]
+
+        return antenna_objects
 
     @staticmethod
     def check_source(source):
@@ -112,7 +120,7 @@ class PsfSim(object):
         self.observation.setObserveTime(time)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle = self.observation.getBeamAxis()
-        horizon = np.rad2deg(self.observation.getHorizontal())
+        horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
         psf = self.observation.getPointSpreadFunction()
         return BeamShape(axisH, axisV, angle, psf, self.antennas, bore_sight, self.reference_antenna, horizon)
 

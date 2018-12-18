@@ -3,6 +3,110 @@
 import datetime
 import numpy as np
 from astropy import wcs
+import nvector as nv
+
+class Antenna(object):
+    def __init__(self, name, geo=None):
+        self.name = name
+        self.geo = geo
+        self.enu = None
+
+        grs80 = nv.FrameE(name='GRS80')
+        lat, lon, height = geo
+        geoPoint = grs80.GeoPoint(latitude=lat,
+            longitude=lon, z=-height, degrees=True)
+        self.ecef = geoPoint.to_ecef_vector().pvector.ravel()
+
+class Baseline(object):
+    def __init__(self, ant0, ant1):
+        self.ant0 = ant0
+        self.ant1 = ant1
+        self.enu = np.array(ant0.enu) - np.array(ant1.enu)
+
+
+class Array(object):
+    def __init__(self, name, antennas, reference):
+        self.name = name
+        self.antennas = antennas
+        self.reference = reference
+        self.baselines = None
+
+        ecefCoordinates = [antenna.ecef for antenna in antennas]
+        enuCoordiantes = convertECEFToENU(ecefCoordinates, reference.ecef, reference.geo)
+        for i in range(len(self.antennas)): self.antennas[i].enu = enuCoordiantes[i]
+
+        self.baselines = self.createBaselines(self.antennas)
+
+    def createBaselines(self, antennas):
+         pairs = []
+         index = 1
+         for i in antennas:
+             for j in antennas[index:]:
+                 pairs.append(Baseline(i,j))
+             index += 1
+         return pairs
+
+    def getBaselines(self):
+        return self.baselines
+
+    def getAntennas(self):
+        return self.antennas
+
+    def getRotatedProjectedBaselines(self, boresight):
+
+        localHourAngle = (np.deg2rad(boresight.localSidereTime)
+            - np.deg2rad(boresight.equatorial[0]))
+
+        baselineCoordiantes = [baseline.enu for baseline in self.baselines]
+
+        rotatedENU = rotateENUToEquatorialPlane(baselineCoordiantes,
+            np.deg2rad(self.reference.geo[0]), boresight.horizontal[0],
+            boresight.horizontal[1])
+
+        rotatedProjectedBaselines = projectBaselines(rotatedENU,
+            localHourAngle, np.deg2rad(boresight.equatorial[1]))
+
+        return  rotatedProjectedBaselines
+
+class Boresight(object):
+
+    EquatorialFrame = 0
+    HorizontalFrame = 1
+
+    def __init__(self, name, boresight, time, arrayReference, frame):
+        self.name = name
+        self.time = time
+        self.arrayreference = arrayReference
+
+        arrayRefereceLatitude = np.deg2rad(arrayReference.geo[0])
+        LSTDeg =  calculateLocalSiderealTime(time, arrayReference.geo[1])
+
+
+        if frame == Boresight.EquatorialFrame:
+            altitude, azimuth = self.getAltAziFromRADEC([boresight],
+                LSTDeg, arrayRefereceLatitude)
+            self.horizontal = (azimuth[0], altitude[0])
+            self.equatorial = boresight
+        elif frame == Boresight.HorizontalFrame:
+            azimuth, altitude  = np.deg2rad(boresight)
+            RA, DEC = convertHorizontalToEquatorial(azimuth, altitude,
+                    np.deg2rad(LSTDeg), arrayRefereceLatitude)
+            self.equatorial = np.rad2deg([RA, DEC])
+            self.horizontal = np.deg2rad(boresight)
+            #print("source in RA, DEC is %f, %f" % (self.boreSight[0], self.boreSight[1]))
+
+        self.localSidereTime = LSTDeg
+
+    def getAltAziFromRADEC(self, beamCoordinates, LSTDeg, arrayRefereceLatitude):
+        beamCoordinates = np.array(beamCoordinates)
+        RA = np.deg2rad(beamCoordinates[:,0])
+        DEC = np.deg2rad(beamCoordinates[:,1])
+        LST = np.deg2rad(LSTDeg)
+
+        altitude, azimuth = convertEquatorialToHorizontal(
+                RA, DEC, LST, arrayRefereceLatitude)
+
+        return altitude, azimuth
 
 def readCoordinates(coordinateFileName, delimiter=None):
     coordinateMatrix = None
@@ -193,7 +297,6 @@ def epochToDatetime(epoches):
 
 def convertGodeticToECEF(geodetics):
 
-    import nvector as nv
     '''http://itrf.ensg.ign.fr/faq.php?type=answer#question2'''
     grs80 = nv.FrameE(name='GRS80')
     ecefPoints = np.empty((0,3))
@@ -204,7 +307,6 @@ def convertGodeticToECEF(geodetics):
         ecefPoints = np.append(ecefPoints, [ecefPoint], axis = 0)
 
     return ecefPoints
-
 
 def convertECEFToENU(ECEF, ECEFReference, GeodeticReference):
     offset = ECEF - ECEFReference

@@ -11,6 +11,7 @@ from interferometer import InterferometryObservation
 from plot import plotPackedBeam, plotBeamFit
 from tile import ellipseGrid, ellipseCompact
 from beamshape import calculateBeamOverlaps
+from coordinate import Antenna, Boresight
 
 import argparse
 import logging
@@ -211,31 +212,29 @@ def updateBoreSight(boreSightCoord):
 
 def onBoreSightUpdated():
     beamBoreSight = (float(RACoord.text()), float(DECCoord.text()))
-    preBoresight = observation.getBoreSight()
+    preBoresight = observation.getBoreSight().equatorial
     if ((abs(beamBoreSight[0] - preBoresight[0]) < 1e-4) and (abs(beamBoreSight[1] - preBoresight[1]) < 1e-4)):
         return
     print 'boresight edited'
-    observation.setInputType(InterferometryObservation.equatorialInput)
-    observation.setBoreSight(beamBoreSight)
+    observation.setBoreSight(beamBoreSight, Boresight.EquatorialFrame)
     updateContour()
-    updateHorizontal(observation.getHorizontal())
+    updateHorizontal(observation.getBoreSight().horizontal)
 
 def onHorizontalUpdated():
     horizontalCoord = (float(azimuthCoord.text()), float(elevationCoord.text()))
-    preHorizontal = np.rad2deg(observation.getHorizontal())
+    preHorizontal = np.rad2deg(observation.getBoreSight().horizontal)
     if ((abs(horizontalCoord[0] - preHorizontal[0]) < 1e-4) and (abs(horizontalCoord[1] - preHorizontal[1]) < 1e-4)):
         return
     print 'horizontal edited'
-    observation.setInputType(InterferometryObservation.horizontalInput)
-    observation.setHorizontal(horizontalCoord)
+    observation.setBoreSight(horizontalCoord, Boresight.HorizontalFrame)
     updateContour()
     axis.setAzAlt(horizontalCoord)
-    updateBoreSight(observation.getBoreSight())
+    updateBoreSight(observation.getBoreSight().equatorial)
 
 
-def onBeamSizeChanged():
+def onBeamSizeChanged(newValue):
     autoZoomCheckbox.setCheckState(Qt.Unchecked)
-    isSet = observation.setBeamSizeFactor(beamSizeEdit.value())
+    isSet = observation.setBeamSizeFactor(newValue)
     if isSet:
         updateContour()
     else:
@@ -267,10 +266,10 @@ def onAutoZoomOptionChanged(state):
     updateContour()
 
 def onDateTimeChanged(dateTime):
-    observation.setInputType(InterferometryObservation.equatorialInput)
+    observation.setBoreSight(frame = Boresight.EquatorialFrame)
     observation.setObserveTime(dateTime.toPyDateTime())
     updateContour()
-    updateHorizontal(observation.getHorizontal())
+    updateHorizontal(observation.getBoreSight().horizontal)
 
 def addRowToCoordinateList(latitude, longitude, height):
     rowCount = coordinateList.rowCount()
@@ -313,12 +312,18 @@ def updateContour():
         height = float(str(coordinateList.item(row, 2).text()))
         coordinates.append([latitude, longitude, height])
 
-    observation.createContour(coordinates, 'contour,png')
+    antennas = [Antenna("%03d" % idx, geo = ant)
+        for idx, ant in enumerate(coordinates)]
+
+    observation.createContour(antennas, 'contour,png')
     pixmap = QPixmap(os.getcwd() + '/contour.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
-    updateHorizontal(observation.getHorizontal())
+    updateHorizontal(observation.getBoreSight().horizontal)
     # updateBaselineList(observation.getBaselines())
-    updateUVPlane(observation.getProjectedBaselines())
+    projectedBaselines = observation.getProjectedBaselines()
+    baselineCoordinates = np.array([pbl.enu for pbl in projectedBaselines])
+    uvCoord = baselineCoordinates /waveLength
+    updateUVPlane(np.concatenate((uvCoord, -uvCoord)))
     resetPackState()
     beamSizeFactor = observation.getBeamSizeFactor()
     beamSizeEdit.blockSignals(True)
@@ -348,7 +353,7 @@ def onClickedImportButton():
     if modifiers == Qt.ShiftModifier:
         coordinates = observation.getAntCoordinates()
         observeTime = observation.getObserveTime()
-        source = observation.getBoreSight()
+        source = observation.getBoreSight().equatorial
 
         fileName = QFileDialog.getSaveFileName(parent=None, caption='Save File')
         with open(fileName, 'wb') as paraFile:
@@ -395,7 +400,7 @@ def onClickedImportButton():
         DECCoord.setText(str(source[1]))
         DECCoord.setCursorPosition(0)
 
-        observation.setBoreSight(source)
+        observation.setBoreSight(source, Boresight.EquatorialFrame)
 
         newDateTime = QDateTime(observeTime.year,
                 observeTime.month, observeTime.day,
@@ -404,11 +409,8 @@ def onClickedImportButton():
         dateTimeEdit.setDateTime(newDateTime)
         observation.setObserveTime(observeTime)
 
-    observation.setInputType(InterferometryObservation.equatorialInput)
-
-
     updateContour()
-    updateHorizontal(observation.getHorizontal())
+    updateHorizontal(observation.getBoreSight().horizontal)
 
     dateTimeEdit.blockSignals(False)
     dateTimeEdit.blockSignals(False)
@@ -454,7 +456,7 @@ def onClickedPackButton2():
     # coordinates = observation.getBeamCoordinates()
     # center, angle, axisH, axisV = fitEllipseBeam(coordinates, amplitude, number*0.4)
     # center = np.rad2deg(observation.getHorizontal())
-    center = observation.getBoreSight()
+    center = observation.getBoreSight().equatorial
     imageLength = observation.getImageLength()
     sizeInfo = observation.getBeamAxis()
     if sizeInfo == None:
@@ -653,7 +655,7 @@ np.set_printoptions(precision=3)
 '''MeerKAT coordinates'''
 # the values provided by http://public.ska.ac.za/meerkat
 # Longitude, Latitude, Height
-arrayRefereceGEODET = (-30.71106, 21.44389, 1035)
+arrayReferece = Antenna('ref', [-30.71106, 21.44389, 1035])
 '''observation time in UTC'''
 observationTime = QDateTime.currentDateTime().toPyDateTime()
 '''observation waveLength in meter'''
@@ -663,8 +665,8 @@ defaultBeamSizeFactor = 1
 defaultBeamNumber = 400
 defaultBoreSight = (21.44389, -30.71106)
 
-observation = InterferometryObservation(arrayRefereceGEODET, waveLength)
-observation.setBoreSight(defaultBoreSight)
+observation = InterferometryObservation(arrayReferece, waveLength)
+observation.setBoreSight(defaultBoreSight, Boresight.EquatorialFrame)
 observation.setBeamSizeFactor(defaultBeamSizeFactor)
 observation.setBeamNumber(defaultBeamNumber)
 observation.setObserveTime(observationTime)
@@ -686,7 +688,7 @@ w = QWidget()
 w.setWindowTitle("WaveRider")
 
 axis =Cartesian(w)
-axis.setCenter(arrayRefereceGEODET, 0.02)
+axis.setCenter(arrayReferece.geo, 0.02)
 axis.move(500, 10)
 
 label = QLabel(w)
@@ -858,7 +860,7 @@ UVPlaneLabel.setText('UV plane')
 UVPlaneLabel.move(500, 440)
 
 UVPlane = miniCartesian(w)
-UVPlane.setCenter(arrayRefereceGEODET, 20000)
+UVPlane.setCenter(arrayReferece.geo, 20000)
 UVPlane.move(500, 460)
 
 

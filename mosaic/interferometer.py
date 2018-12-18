@@ -27,11 +27,8 @@ class PointSpreadFunction(object):
 
 class InterferometryObservation:
 
-    equatorialInput = 0
-    horizontalInput = 1
-
-    def __init__(self, arrayRefereceGEODET, waveLength):
-        self.arrayRefereceGEODET = arrayRefereceGEODET
+    def __init__(self, arrayReferece, waveLength):
+        self.arrayReferece = arrayReferece
         self.waveLength = waveLength
         self.beamSizeFactor = 1
         self.beamNumber = 400
@@ -40,7 +37,7 @@ class InterferometryObservation:
         self.gridNumOfDFT = 100000.0
         self.imageDensity = 20
         self.resolution = 1/3600.0
-        self.inputType = self.equatorialInput
+        self.boresightFrame = coord.Boresight.EquatorialFrame
         self.updateBeamCoordinates()
 
 
@@ -51,8 +48,8 @@ class InterferometryObservation:
         else:
             self.interpolating = False
 
-    def setInputType(self, inputType):
-        self.inputType = inputType
+    #def setInputType(self, inputType):
+    #   self.inputType = inputType
 
     def setObserveTime(self, dateTime):
         if type(dateTime) != datetime.datetime:
@@ -120,7 +117,6 @@ class InterferometryObservation:
     def getBaselinesNumber(self):
         return len(self.baselines)
 
-
     def saveParas(self, fileName):
         coordinates = self.getAntCoordinates()
         observeTime = self.getObserveTime()
@@ -132,22 +128,25 @@ class InterferometryObservation:
     def getsynthesizedBeam(self):
         return self.beamSynthesized
 
-    def setBoreSight(self, beamBoreSight):
-        self.boreSight = beamBoreSight
-        # self.updateBeamCoordinates()
+    def setBoreSight(self, boreSight=None, frame=None):
+        if boreSight != None:
+            self.boresightInput = boreSight
+        if frame != None:
+            self.boresightFrame = frame
 
     def getBoreSight(self):
-        return self.boreSight
+        return self.boresight
 
-    def getHorizontal(self):
-        return self.boreSightHorizontal
+    #def getHorizontal(self):
+    #   return self.boreSight.horizontal
 
-    def setHorizontal(self, horizontal):
-        self.boreSightHorizontal = np.deg2rad(horizontal)
+    #def setHorizontal(self, horizontal):
+    #   self.boresightInput = np.deg2rad(horizontal)
 
     def getProjectedBaselines(self):
-        uvCoord = self.projectedBaselines/self.waveLength
-        return np.concatenate((uvCoord, -uvCoord))
+        return self.baselines
+        #uvCoord = self.projectedBaselines/self.waveLength
+        #return np.concatenate((uvCoord, -uvCoord))
 
     def getBeamAxis(self):
         return self.beamAxis
@@ -162,7 +161,7 @@ class InterferometryObservation:
         self.imageDensity = density
 
     def getAntCoordinates(self):
-        return self.antCoordinatesGEODET.tolist()
+        return [antenna.geo for antenna in self.array.getAntennas]
 
     def createBaselines(self, antCoordinatesENU):
         baselines = []
@@ -361,60 +360,21 @@ class InterferometryObservation:
 
         return majorAxis, minorAxis
 
-
-    def createContour(self, antennacoor, fileName=None, minAlt=0):
-
-
-        self.antCoordinatesGEODET = np.array(antennacoor)
-
-        antCoordinatesECEF = coord.convertGodeticToECEF(self.antCoordinatesGEODET)
-
-        arrayRefereceECEF = coord.convertGodeticToECEF([self.arrayRefereceGEODET])[0]
-        antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
-
-        self.baselines = self.createBaselines(antCoordinatesENU)
-
-        arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[0])
-        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
-
-        if self.inputType == self.equatorialInput:
-
-            altitude, azimuth = self.getAltAziFromRADEC(np.array([self.boreSight]),
-                        LSTDeg, arrayRefereceLatitude)
-            self.boreSightHorizontal = (azimuth[0], altitude[0])
-
-        elif self.inputType == self.horizontalInput:
-
-            azimuth, altitude  = self.boreSightHorizontal
-            RA, DEC = coord.convertHorizontalToEquatorial(azimuth, altitude, np.deg2rad(LSTDeg), arrayRefereceLatitude)
-            self.boreSight = np.rad2deg([RA, DEC])
-            print(np.rad2deg([RA, DEC]))
+    def createContour(self, antennas, fileName=None, minAlt=0):
 
 
-        self.saveParas('paras')
+        self.array = coord.Array("main", antennas, self.arrayReferece)
 
-        # if abs(altitude[0]) < minAlt:
-            # return
-        # LHA = LST - RA
-        LHA = np.deg2rad(LSTDeg) - np.deg2rad(self.boreSight[0])
+        self.baselines = self.array.getBaselines()
 
-        rotatedENU = coord.rotateENUToEquatorialPlane(self.baselines,
-                arrayRefereceLatitude, self.boreSightHorizontal[0], self.boreSightHorizontal[1])
+        self.boresight = coord.Boresight("main", self.boresightInput, self.observeTime,
+                self.arrayReferece, self.boresightFrame)
 
-
-
-        # self.projectedBaselines = sv.projectedBaselinesDROP(
-                # np.array([altitude[0]]), np.array([azimuth[0]]), self.baselines)
-
-        # rotatedProjectedBaselines = sv.rotateCoordinateDROP(self.projectedBaselines,
-                # np.pi/2.0 - altitude[0], azimuth[0])
-
-        rotatedProjectedBaselines = coord.projectBaselines(rotatedENU, LHA, np.deg2rad(self.boreSight[1]))
-
-        self.projectedBaselines = rotatedProjectedBaselines
+        self.projectedBaselines = self.array.getRotatedProjectedBaselines(self.boresight)
+        rotatedProjectedBaselines = self.projectedBaselines
 
         beamMajorAxisScale, beamMinorAxisScale = self.calculateBeamScaleFromBaselines(
-                rotatedProjectedBaselines, self.waveLength)
+                self.projectedBaselines, self.waveLength)
         # print self.waveLength, beamMinorAxisScale
         baselineMax = 1.22*self.waveLength/(beamMinorAxisScale*2)
 
@@ -531,7 +491,7 @@ class InterferometryObservation:
         windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
-        self.psf = PointSpreadFunction(image, self.boreSight, windowLength)
+        self.psf = PointSpreadFunction(image, self.boresight.equatorial, windowLength)
         if fileName != None:
             plotBeamContour(image, (0,0), windowLength,
                     interpolation = self.interpolating)
@@ -541,7 +501,7 @@ class InterferometryObservation:
             # print resolution*3600
             sizeInfo = calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
             if sizeInfo[3] != 0:
-                elevation = np.rad2deg(self.boreSightHorizontal[1])
+                elevation = np.rad2deg(self.boresight.horizontal[1])
                 if abs(elevation) < 20.:
                     logger.warning("Elevation is low %f" % elevation)
                 logger.warning("Beam shape probably is not correct.")
