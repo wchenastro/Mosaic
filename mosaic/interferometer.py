@@ -443,9 +443,9 @@ class InterferometryObservation:
             image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                     self.waveLength, imageLength, density, gridNum)
 
-            if fileName != None:
-                plotBeamContour(image, (0,0), windowLength,
-                    interpolation = self.interpolating, fileName='contourTest.png')
+            #if fileName != None:
+            #    plotBeamContour(image, (0,0), windowLength,
+            #        interpolation = self.interpolating, fileName='contourTest.png')
 
             sizeInfo = calculateBeamSize(image, density, windowLength, np.rad2deg(beamMajorAxisScale))
             # self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
@@ -494,7 +494,7 @@ class InterferometryObservation:
         self.psf = PointSpreadFunction(image, self.boresight.equatorial, windowLength)
         if fileName != None:
             plotBeamContour(image, (0,0), windowLength,
-                    interpolation = self.interpolating)
+                    interpolation = self.interpolating, fileName = fileName)
 
         if baselineNum > 2:
             resolution = windowLength/density
@@ -600,4 +600,3 @@ class InterferometryObservation:
             images.append(image)
 
         return image
-

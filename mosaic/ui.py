@@ -14,7 +14,7 @@ from beamshape import calculateBeamOverlaps
 from coordinate import Antenna, Boresight
 
 import argparse
-import logging
+import logging, tempfile
 
 
 class Cartesian(QWidget):
@@ -315,8 +315,9 @@ def updateContour():
     antennas = [Antenna("%03d" % idx, geo = ant)
         for idx, ant in enumerate(coordinates)]
 
-    observation.createContour(antennas, 'contour,png')
-    pixmap = QPixmap(os.getcwd() + '/contour.png')
+    imageFileName = tempfile.gettempdir() + '/' + 'contour.png'
+    observation.createContour(antennas, imageFileName)
+    pixmap = QPixmap(imageFileName)
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     updateHorizontal(observation.getBoreSight().horizontal)
     # updateBaselineList(observation.getBaselines())
@@ -329,6 +330,9 @@ def updateContour():
     beamSizeEdit.blockSignals(True)
     beamSizeEdit.setValue(beamSizeFactor)
     beamSizeEdit.blockSignals(False)
+
+    if os.path.exists(imageFileName):
+        os.remove(imageFileName)
 
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()

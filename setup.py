@@ -11,7 +11,7 @@ setup(name='mosaic',
       install_requires=[
           'scipy',
           'numpy',
-          'matplotlib',
+          'matplotlib == 2.2.3',
           'katpoint',
           'h5py',
           'nvector',
