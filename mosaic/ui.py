@@ -111,7 +111,8 @@ class Cartesian(QWidget):
         height = 1035
         self.dots.append([event.x(), event.y()])
         longitude, latitude = self.pixelCoordinateConv((event.x(), event.y()), 'toCoord')
-        addRowToCoordinateList(latitude, longitude, height)
+        position = coordinateList.rowCount()
+        addRowToCoordinateList('*', position, latitude, longitude, height)
         self.update()
         updateContour()
         # updateBaselineList(observation.getBaselines())
@@ -271,18 +272,42 @@ def onDateTimeChanged(dateTime):
     updateContour()
     updateHorizontal(observation.getBoreSight().horizontal)
 
-def addRowToCoordinateList(latitude, longitude, height):
-    rowCount = coordinateList.rowCount()
-    coordinateList.insertRow(rowCount)
-    coordinateList.setItem(rowCount, 0, QTableWidgetItem('{:6.4f}'.format(latitude)))
-    coordinateList.setItem(rowCount, 1, QTableWidgetItem('{:6.4f}'.format(longitude)))
-    coordinateList.setItem(rowCount, 2, QTableWidgetItem('{:6.4f}'.format(height)))
-    coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
+def addRowToCoordinateList(name, position, latitude, longitude, height, hidden=''):
+    coordinateList.insertRow(position)
+    coordinateList.setVerticalHeaderItem(position, QTableWidgetItem(str(name)))
+    '''
+    coordinateList.setItem(position, 0, QTableWidgetItem('{:6.4f}'.format(latitude)))
+    coordinateList.setItem(position, 1, QTableWidgetItem('{:6.4f}'.format(longitude)))
+    coordinateList.setItem(position, 2, QTableWidgetItem('{:6.4f}'.format(height)))
+    '''
+    coordinateList.setItem(position, 0, QTableWidgetItem(str(latitude)))
+    coordinateList.setItem(position, 1, QTableWidgetItem(str(longitude)))
+    coordinateList.setItem(position, 2, QTableWidgetItem(str(height)))
+
+    coordinateList.setItem(position, 3, QTableWidgetItem(hidden))
+    coordinateList.setItem(position, 4, QTableWidgetItem('-'))
 
 def resetPackState():
     onClickedPackButton2.newData = True
     onClickedPackButton2.state = 0
     onClickedPackButton2.fittedImage = None
+
+def collectCoordinates():
+    rowCount = coordinateList.rowCount()
+    coordinates = []
+    hidden = []
+    for row in range(rowCount):
+        #item = coordinateList.item(row, 3)
+        #if item != None and item.text() == 'hidden': continue
+        longitude = float(str(coordinateList.item(row, 1).text()))
+        latitude = float(str(coordinateList.item(row, 0).text()))
+        height = float(str(coordinateList.item(row, 2).text()))
+        hiddenFlag = str(coordinateList.item(row, 3).text())
+        if hiddenFlag == 'hidden':
+            hidden.append(row)
+        coordinates.append([latitude, longitude, height])
+
+    return coordinates, hidden
 
 def updateContour():
     # print('updateContour')
@@ -322,7 +347,7 @@ def updateContour():
     updateHorizontal(observation.getBoreSight().horizontal)
     # updateBaselineList(observation.getBaselines())
     projectedBaselines = observation.getProjectedBaselines()
-    baselineCoordinates = np.array([pbl.enu for pbl in projectedBaselines])
+    baselineCoordinates = np.array([pbl for pbl in projectedBaselines])
     uvCoord = baselineCoordinates /waveLength
     updateUVPlane(np.concatenate((uvCoord, -uvCoord)))
     resetPackState()
@@ -331,8 +356,8 @@ def updateContour():
     beamSizeEdit.setValue(beamSizeFactor)
     beamSizeEdit.blockSignals(False)
 
-    if os.path.exists(imageFileName):
-        os.remove(imageFileName)
+    #if os.path.exists(imageFileName):
+    #    os.remove(imageFileName)
 
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
@@ -340,12 +365,8 @@ def onClickedAddGeoButton():
     height = "1035"
     if longitude == '' or latitude == '':
         return
-    rowCount = coordinateList.rowCount()
-    coordinateList.insertRow(rowCount)
-    coordinateList.setItem(rowCount, 0, QTableWidgetItem(latitude))
-    coordinateList.setItem(rowCount, 1, QTableWidgetItem(longitude))
-    coordinateList.setItem(rowCount, 2, QTableWidgetItem(height))
-    coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
+    position = coordinateList.rowCount()
+    addRowToCoordinateList('*', position, latitude, longitude, height)
     axis.addDots([[float(latitude), float(longitude)],])
     updateContour()
 
@@ -355,13 +376,13 @@ def onClickedImportButton():
     modifiers = QApplication.keyboardModifiers()
 
     if modifiers == Qt.ShiftModifier:
-        coordinates = observation.getAntCoordinates()
+        coordinates, hidden = collectCoordinates()
         observeTime = observation.getObserveTime()
         source = observation.getBoreSight().equatorial
 
         fileName = QFileDialog.getSaveFileName(parent=None, caption='Save File')
         with open(fileName, 'wb') as paraFile:
-            pickle.dump([coordinates, source, observeTime], paraFile)
+            pickle.dump([coordinates, source, observeTime, hidden], paraFile)
 
         return
 
@@ -375,6 +396,10 @@ def onClickedImportButton():
         antennaCoords = paras[0]
         source = paras[1]
         observeTime = paras[2]
+        if len(paras) > 3:
+            hidden = paras[3]
+        else:
+            hidden = []
         onlyAntenna = False
 
     onClickedDelAllButton()
@@ -384,17 +409,16 @@ def onClickedImportButton():
     RACoord.blockSignals(True)
     DECCoord.blockSignals(True)
 
-    rowCount = 0
+    position = 0
     dots = []
     for latitude, longitude, height in antennaCoords:
-        coordinateList.insertRow(rowCount)
-        coordinateList.setItem(rowCount, 0, QTableWidgetItem(str(latitude)))
-        coordinateList.setItem(rowCount, 1, QTableWidgetItem(str(longitude)))
-        coordinateList.setItem(rowCount, 2, QTableWidgetItem(str(height)))
-        coordinateList.setItem(rowCount, 3, QTableWidgetItem(''))
-        coordinateList.setItem(rowCount, 4, QTableWidgetItem('-'))
-        rowCount += 1
-        dots.append([float(latitude), float(longitude),])
+        if position in hidden:
+            hiddenFlag = 'hidden'
+        else:
+            hiddenFlag = ''
+            dots.append([float(latitude), float(longitude),])
+        addRowToCoordinateList(position, position, latitude, longitude, height, hiddenFlag)
+        position += 1
 
     axis.addDots(dots)
 
@@ -438,6 +462,7 @@ def onClickedPackButton2():
     if not hasattr(onClickedPackButton2, "newData"):
         onClickedPackButton2.newData = True
 
+    tempdir = tempfile.gettempdir()
 
     if onClickedPackButton2.state == 1:
         onClickedPackButton2.state = 0
@@ -445,13 +470,13 @@ def onClickedPackButton2():
         if(fittedImage != None):
             label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
         else:
-            pixmap = QPixmap(os.getcwd() + '/contour.png')
+            pixmap = QPixmap(tempdir + '/contour.png')
             label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
         return
 
     if  onClickedPackButton2.newData == False:
         onClickedPackButton2.state = 1
-        pixmap = QPixmap(os.getcwd() + '/pack.png')
+        pixmap = QPixmap(tempdir + '/pack.png')
         label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
         return
 
@@ -474,9 +499,10 @@ def onClickedPackButton2():
     imageDensity = observation.getImageDensity()
     step=imageLength*1.0/imageDensity
     ellipseCenter = [center[0] + step/2., center[1] - step/2.]
-    plotBeamFit(imageLength, center, ellipseCenter, angle2, axisH2, axisV2)
-    bottomImage = QImage(os.getcwd() + '/contour.png')
-    topImage = QImage(os.getcwd() + '/fit.png')
+    plotBeamFit(imageLength, center, ellipseCenter, angle2, axisH2, axisV2,
+            fileName = tempdir + '/fit.png')
+    bottomImage = QImage(tempdir + '/contour.png')
+    topImage = QImage(tempdir + '/fit.png')
     fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
     onClickedPackButton2.fittedImage = fittedImage
     label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
@@ -486,9 +512,10 @@ def onClickedPackButton2():
     # factor = float(packSizeEdit.text())
     factor = 1
     primaryBeamRadius = np.rad2deg(1.22*waveLength/13.5)/2. * factor
-    coordinatesPrimary = ellipseGrid(primaryBeamRadius, beamRadius, beamRadius, 0)
+    coordinatesPrimary = ellipseGrid(primaryBeamRadius, beamRadius, beamRadius, 0).T
     beamNumberPrimary = len(coordinatesPrimary)
-    plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, (0,0), primaryBeamRadius, fileName='primaryPack.png')
+    plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, (0,0), primaryBeamRadius,
+            fileName = tempdir + '/primaryPack.png')
     # print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius))
     print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius)),
     print(", angle: %f" % angle2)
@@ -499,8 +526,8 @@ def onClickedPackButton2():
     # print(beamRadius)
     # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
     # ======================
-    plotPackedBeam(coordinates, angle2, axisH2, axisV2, (0,0), beamRadius)
-    pixmap = QPixmap(os.getcwd() + '/pack.png')
+    plotPackedBeam(coordinates, angle2, axisH2, axisV2, (0,0), beamRadius, fileName = tempdir + '/pack.png')
+    pixmap = QPixmap(tempdir + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     onClickedPackButton2.state = 1
     onClickedPackButton2.newData = False

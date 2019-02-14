@@ -144,7 +144,8 @@ class InterferometryObservation:
     #   self.boresightInput = np.deg2rad(horizontal)
 
     def getProjectedBaselines(self):
-        return self.baselines
+        #return self.baselines
+        return self.projectedBaselines
         #uvCoord = self.projectedBaselines/self.waveLength
         #return np.concatenate((uvCoord, -uvCoord))
 
