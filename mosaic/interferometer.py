@@ -161,6 +161,9 @@ class InterferometryObservation:
     def setImageDensity(self, density):
         self.imageDensity = density
 
+    def getImageData(self):
+        return self.imageData
+
     def getAntCoordinates(self):
         return [antenna.geo for antenna in self.array.getAntennas]
 
@@ -361,6 +364,22 @@ class InterferometryObservation:
 
         return majorAxis, minorAxis
 
+    def constructFitsHeader(self, density, step, boresight):
+        """
+        https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
+        CRVAL: coordinate system value at reference pixel
+        CRPIX: coordinate system reference pixel
+        CDELT: coordinate increment along axis
+        CTYPE: name of the coordinate axis
+        """
+        self.WCS = {}
+        self.WCS['crpix'] = [density/2 -1, density/2 -1]
+        self.WCS['cdelt'] = [step, step]
+        self.WCS['crval'] = [boresight[0] - self.WCS['cdelt'][0],
+                             boresight[1] - self.WCS['cdelt'][1]]
+        self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
+
+
     def createContour(self, antennas, fileName=None, minAlt=0):
 
 
@@ -487,14 +506,31 @@ class InterferometryObservation:
             image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                     self.waveLength, imageLength, density, gridNum)
 
+        # image_height, image_width = image.shape
+        # image_grid = np.mgrid(-image_height/2., image_height/2., 1)
+        # pixel_coordinates = np.stack((image_grid[0], vert_grid), axis= -1)
+        # print pixel_coordinates.shape
 
         sidelength = density * self.beamSizeFactor
         windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
         self.psf = PointSpreadFunction(image, self.boresight.equatorial, windowLength)
+
+        # left_most_pixel = [-windowLength/2., 0] # x,y
+        # bottom_most_pixel = [0, -windowLength/2.] # x,y
+        upper_left_pixel = [-windowLength/2., windowLength/2.] # x,y
+        bottom_right_pixel = [windowLength/2., -windowLength/2.] # x,y
+
+        coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+            [upper_left_pixel, bottom_right_pixel], self.boresight.equatorial)
+        equatorial_range = [coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
+                            coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
+
+        self.constructFitsHeader(density, self.resolution, self.boresight.equatorial)
+
         if fileName != None:
-            plotBeamContour(image, (0,0), windowLength,
+            plotBeamContour(image, (0,0), equatorial_range,
                     interpolation = self.interpolating, fileName = fileName)
 
         if baselineNum > 2:
@@ -507,6 +543,9 @@ class InterferometryObservation:
                     logger.warning("Elevation is low %f" % elevation)
                 logger.warning("Beam shape probably is not correct.")
             self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+
+        self.imageData = image
+        return image
 
     def createPSF(self, antennacoor, waveLengths, writer, plotting):
 

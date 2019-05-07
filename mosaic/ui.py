@@ -320,6 +320,7 @@ def updateContour():
         # observation.setObserveTime(observeTime)
         # updateContour.lastObservetime = observeTime
 
+    #FitsButton.disconnect()
     modifiers = QApplication.keyboardModifiers()
     if modifiers == Qt.ShiftModifier:
         observation.setAutoZoom(False)
@@ -341,7 +342,7 @@ def updateContour():
         for idx, ant in enumerate(coordinates)]
 
     imageFileName = tempfile.gettempdir() + '/' + 'contour.png'
-    observation.createContour(antennas, imageFileName)
+    image = observation.createContour(antennas, imageFileName)
     pixmap = QPixmap(imageFileName)
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     updateHorizontal(observation.getBoreSight().horizontal)
@@ -356,8 +357,35 @@ def updateContour():
     beamSizeEdit.setValue(beamSizeFactor)
     beamSizeEdit.blockSignals(False)
 
+
     #if os.path.exists(imageFileName):
     #    os.remove(imageFileName)
+def onClickedFitsButton():
+
+    from astropy import wcs
+    from astropy.io import fits
+
+    WCS = observation.getWCS()
+    w = wcs.WCS(naxis=2)
+    data = observation.getImageData()
+
+    # "Airy's zenithal" projection
+    w.wcs.crpix = WCS['crpix']
+    w.wcs.cdelt = WCS['cdelt']
+    w.wcs.crval = WCS['crval']
+    w.wcs.ctype = WCS['ctype']
+    # w.wcs.set_pv([(2, 1, 45.0)])
+
+    header = w.to_header()
+
+    hdu = fits.PrimaryHDU(header=header, data=data)
+    # Save to FITS file
+
+    fileName = QFileDialog.getSaveFileName(parent=None, caption='Save File')
+
+    hdu.writeto(str(fileName), overwrite=True)
+
+
 
 def onClickedAddGeoButton():
     longitude = longitudeCoord.text()
@@ -370,21 +398,17 @@ def onClickedAddGeoButton():
     axis.addDots([[float(latitude), float(longitude)],])
     updateContour()
 
+def onClickedOutputButton():
+    coordinates, hidden = collectCoordinates()
+    observeTime = observation.getObserveTime()
+    source = observation.getBoreSight().equatorial
+
+    fileName = QFileDialog.getSaveFileName(parent=None, caption='Save File')
+    with open(fileName, 'wb') as paraFile:
+        pickle.dump([coordinates, source, observeTime, hidden], paraFile)
+
 
 def onClickedImportButton():
-
-    modifiers = QApplication.keyboardModifiers()
-
-    if modifiers == Qt.ShiftModifier:
-        coordinates, hidden = collectCoordinates()
-        observeTime = observation.getObserveTime()
-        source = observation.getBoreSight().equatorial
-
-        fileName = QFileDialog.getSaveFileName(parent=None, caption='Save File')
-        with open(fileName, 'wb') as paraFile:
-            pickle.dump([coordinates, source, observeTime, hidden], paraFile)
-
-        return
 
     fileName = QFileDialog.getOpenFileName()
     if str(fileName).endswith('.csv'):
@@ -704,6 +728,8 @@ observation.setObserveTime(observationTime)
 observation.setInterpolating(True)
 observation.setAutoZoom(True)
 
+imageData = None
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
@@ -752,10 +778,20 @@ importButton.resize(60, 30)
 importButton.clicked.connect(onClickedImportButton)
 importButton.move(230, 400)
 
+outputButton = QPushButton('Output', w)
+outputButton.resize(60, 30)
+outputButton.move(230, 360)
+outputButton.clicked.connect(onClickedOutputButton)
+
 
 DeleteAllButton = QPushButton('Delete All', w)
 DeleteAllButton.clicked.connect(onClickedDelAllButton)
 DeleteAllButton.move(300, 400)
+
+FitsButton = QPushButton('Fits', w)
+FitsButton.resize(50, 30)
+FitsButton.move(400, 360)
+FitsButton.clicked.connect(onClickedFitsButton)
 
 PackButton = QPushButton('Pack', w)
 PackButton.clicked.connect(onClickedPackButton2)
@@ -765,12 +801,12 @@ PackButton.move(400, 400)
 # packSizeLabel = QLabel(w)
 # packSizeLabel.setText('Div')
 # packSizeLabel.move(450, 380)
-packSizeEdit = QSpinBox(w)
-packSizeEdit.move(450, 400)
-packSizeEdit.setValue(0)
-packSizeEdit.setMinimum(0)
-packSizeEdit.setMaximum(999)
-packSizeEdit.valueChanged.connect(onRotationChanged)
+# packSizeEdit = QSpinBox(w)
+# packSizeEdit.move(450, 400)
+# packSizeEdit.setValue(0)
+# packSizeEdit.setMinimum(0)
+# packSizeEdit.setMaximum(999)
+# packSizeEdit.valueChanged.connect(onRotationChanged)
 
 
 

@@ -10,19 +10,25 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
-    halfSideLength = sideLength/2.0
-    xStart = (center[0] - halfSideLength)
-    xEnd = (center[0] + halfSideLength)
-    yStart = (center[1] - halfSideLength)
-    yEnd = (center[1] + halfSideLength)
-    plotRange = [xStart, xEnd, yStart, yEnd]
+    if type(sideLength) == list:
+        plotRange = sideLength
+    else:
+        halfSideLength = sideLength/2.0
+        xStart = (center[0] - halfSideLength)
+        xEnd = (center[0] + halfSideLength)
+        yStart = (center[1] - halfSideLength)
+        yEnd = (center[1] + halfSideLength)
+        plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
     plt.imshow(array,cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
     plt.colorbar()
-    fig.gca().set_aspect('equal', 'datalim')
+    fig.gca().set_aspect('auto')
+    plt.subplots_adjust(left=0.20, right=1.00)
     # axes = plt.gca()
     # axes.set_xlim([x.min(),x.max()])
     # axes.set_ylim([y.min(),y.max()])
+    plt.xlabel('Right Ascension')
+    plt.ylabel('Declination')
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
@@ -59,7 +65,7 @@ def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
-    plt.subplots_adjust(right=0.75)
+    plt.subplots_adjust(right=0.92)
     ax = fig.add_subplot(111, aspect='equal')
     # step=sideLength/20.0
     # trueCenter = [center[0] + step/2., center[1] - step/2.]
