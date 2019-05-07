@@ -129,9 +129,9 @@ class InterferometryObservation:
         return self.beamSynthesized
 
     def setBoreSight(self, boreSight=None, frame=None):
-        if boreSight != None:
+        if boreSight is not None:
             self.boresightInput = boreSight
-        if frame != None:
+        if frame is not None:
             self.boresightFrame = frame
 
     def getBoreSight(self):
@@ -529,7 +529,7 @@ class InterferometryObservation:
 
         self.constructFitsHeader(density, self.resolution, self.boresight.equatorial)
 
-        if fileName != None:
+        if fileName is not None:
             plotBeamContour(image, (0,0), equatorial_range,
                     interpolation = self.interpolating, fileName = fileName)
 

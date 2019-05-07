@@ -322,7 +322,7 @@ class Tiling(object):
         overlap_counter -- counter when choose "counter" mode
         overlapHeater -- heater when choose "heater" mode
         """
-        if new_beam_shape == None:
+        if new_beam_shape is None:
             beam_shape = self.beam_shape
         else:
             beam_shape = new_beam_shape
@@ -348,7 +348,7 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
     return:
     tiling -- tiling coordinates in a list of pixel coordinates pairs in degree
     """
-    if margin == None:
+    if margin is None:
         margin = int(round(beam_num * 0.05))
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates, tiling_radius = ellipseCompact(

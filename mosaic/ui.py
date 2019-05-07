@@ -332,7 +332,7 @@ def updateContour():
     coordinates = []
     for row in range(rowCount):
         item = coordinateList.item(row, 3)
-        if item != None and item.text() == 'hidden': continue
+        if item is not None and item.text() == 'hidden': continue
         longitude = float(str(coordinateList.item(row, 1).text()))
         latitude = float(str(coordinateList.item(row, 0).text()))
         height = float(str(coordinateList.item(row, 2).text()))
@@ -491,7 +491,7 @@ def onClickedPackButton2():
     if onClickedPackButton2.state == 1:
         onClickedPackButton2.state = 0
         fittedImage = onClickedPackButton2.fittedImage
-        if(fittedImage != None):
+        if(fittedImage is not None):
             label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
         else:
             pixmap = QPixmap(tempdir + '/contour.png')
@@ -512,7 +512,7 @@ def onClickedPackButton2():
     center = observation.getBoreSight().equatorial
     imageLength = observation.getImageLength()
     sizeInfo = observation.getBeamAxis()
-    if sizeInfo == None:
+    if sizeInfo is None:
         return
     else:
         axisH2, axisV2, angle2, = sizeInfo[0], sizeInfo[1], sizeInfo[2]
@@ -642,7 +642,7 @@ def onClickedAtCoordinateList(row, column):
         return
     elif column == 3:
         item = coordinateList.item(row, column)
-        if item != None and str(item.text()) == 'hidden':
+        if item is not None and str(item.text()) == 'hidden':
             coordinateList.setItem(row, column, QTableWidgetItem(''))
             axis.addDots([[x,y],])
         else:

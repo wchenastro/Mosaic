@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
     sideLength = beamRadius*2
-    if subBeamRadius == None:
+    if subBeamRadius is None:
         subBeamRadius = sqrt(sideLength**2 / beamNumber / pi )
 
     horizontalNumber = int(ceil(sideLength/(2*subBeamRadius)))
@@ -83,7 +83,7 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
     area = beamNumber*np.pi*axisH*axisV
     beamRadius = np.sqrt(area/np.pi)*1.
     error = int(round(error/2.))
-    if seed == None:
+    if seed is None:
         random.seed(axisH)
     else:
         random.seed(seed)
@@ -272,7 +272,7 @@ def recGrid(beamNumber, subBeamRadius):
 
 def squareGrid(beamNumber, beamRadius, subBeamRadius=None):
     sideLength = 2*beamRadius
-    if subBeamRadius == None:
+    if subBeamRadius is None:
         subBeamRadius = sqrt(sideLength*sideLength/beamNumber)/2.
 
     gridDivider = int(sideLength/2/subBeamRadius)
