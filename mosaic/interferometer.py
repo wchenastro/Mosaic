@@ -20,10 +20,14 @@ class PointSpreadFunction(object):
     class for point spread function
     """
 
-    def __init__(self, image, bore_sight, width):
+    def __init__(self, image, bore_sight, width, wcs_header):
         self.image = image
         self.bore_sight = bore_sight
         self.width = width
+        self.wcs_header = wcs_header
+
+    def write_fits(self, filename):
+        coord.writeFits(self.wcs_header, self.image, filename)
 
 class InterferometryObservation:
 
@@ -38,7 +42,7 @@ class InterferometryObservation:
         self.imageDensity = 20
         self.resolution = 1/3600.0
         self.boresightFrame = coord.Boresight.EquatorialFrame
-        self.updateBeamCoordinates()
+        self.updateBeamCoordinates(self.beamSizeFactor, self.imageDensity, self.gridNumOfDFT)
 
 
 
@@ -62,15 +66,13 @@ class InterferometryObservation:
     def getPointSpreadFunction(self):
         return self.psf
 
-    def setBeamSizeFactor(self, size, autoZoom = True):
+    def setBeamSizeFactor(self, size):
         if size != self.beamSizeFactor:
-            oldSize = self.beamSizeFactor
-            self.beamSizeFactor = size
-            isUpdated = self.updateBeamCoordinates()
+            isUpdated = self.updateBeamCoordinates(size, self.imageDensity, self.gridNumOfDFT)
             if isUpdated:
+                self.beamSizeFactor = size
                 return True
             else:
-                self.beamSizeFactor = oldSize
                 return False
 
     def setAutoZoom(self, switch):
@@ -94,7 +96,7 @@ class InterferometryObservation:
             if density % 2 != 0: density += 1
             oldDensity = self.imageDensity
             self.setImageDensity(density)
-            isUpdated = self.updateBeamCoordinates()
+            isUpdated = self.updateBeamCoordinates(self.beamSizeFactor, density, self.gridNumOfDFT)
             if isUpdated:
                 return True
             else:
@@ -178,15 +180,16 @@ class InterferometryObservation:
 
         return baselines
 
-    def updateBeamCoordinates(self):
-        interval = self.beamSizeFactor
+    def updateBeamCoordinates(self, interval, imageDensity, DFTSideLength):
+        # interval = self.beamSizeFactor
         # halfLength = self.beamSizeFactor * 10
-        halfLength = self.imageDensity/2 * interval
+        halfLength = imageDensity/2 * interval
         # print halfLength, self.imageDensity/2, interval
-        if halfLength > self.gridNumOfDFT/2:
+        if halfLength > DFTSideLength/2:
             return False
         else:
-            self.partialDFTGrid = self.createDFTGrid(self.gridNumOfDFT, halfLength, interval)
+            self.partialDFTGrid =self.createDFTGrid(
+                    DFTSideLength, halfLength, interval)
             return True
 
 
@@ -374,8 +377,8 @@ class InterferometryObservation:
         """
         self.WCS = {}
         self.WCS['crpix'] = [density/2 -1, density/2 -1]
-        self.WCS['cdelt'] = [step, step]
-        self.WCS['crval'] = [boresight[0] - self.WCS['cdelt'][0],
+        self.WCS['cdelt'] = [-step, step]
+        self.WCS['crval'] = [boresight[0] - abs(self.WCS['cdelt'][0]),
                              boresight[1] - self.WCS['cdelt'][1]]
         self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
 
@@ -401,33 +404,12 @@ class InterferometryObservation:
         baselineNum = len(self.baselines)
         density = self.imageDensity
         gridNum = self.gridNumOfDFT
-
-        # width = 1/self.resolution
-        # imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                # self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
         imageLength = gridNum * self.resolution
 
-        # newBeamSizeFactor = beamMajorAxisScale*1.3 / (imageLength/gridNum) / density
-        # newBeamSizeFactor = beamMinorAxisScale*4*1.3 / (imageLength/gridNum) / density
-
-
-        # if newBeamSizeFactor < 1:
-            # newBeamSizeFactor = 1
-        # else:
-            # newBeamSizeFactor = int(round(newBeamSizeFactor))
-
-        # if baselineNum > 2 and self.autoZoom == True and abs(newBeamSizeFactor - self.beamSizeFactor) > 0:
-
-            # self.beamSizeFactor = newBeamSizeFactor
-            # print "new beam factor:", newBeamSizeFactor
-            # self.setBeamSizeFactor(newBeamSizeFactor)
         sidelength = density * self.beamSizeFactor
         windowLength = self.resolution * sidelength
 
-        # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                # self.waveLength, imageLength, self.beamSizeFactor, density, gridNum)
         if baselineNum > 2 and self.autoZoom == True:
-            # newBeamSizeFactor = beamMajorAxisScale*10*1.3 / (imageLength/gridNum) / density
             axisRatio = beamMajorAxisScale/beamMinorAxisScale
             newBeamSizeFactor = axisRatio * beamMajorAxisScale*2*1.3 / (self.resolution * density)
             # print newBeamSizeFactor,
@@ -498,7 +480,6 @@ class InterferometryObservation:
                 # self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
 
-            imageLength = gridNum * self.resolution
             image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                     self.waveLength, imageLength, density, gridNum)
 
@@ -515,7 +496,6 @@ class InterferometryObservation:
         windowLength = self.resolution * sidelength
 
         self.imageLength = windowLength
-        self.psf = PointSpreadFunction(image, self.boresight.equatorial, windowLength)
 
         # left_most_pixel = [-windowLength/2., 0] # x,y
         # bottom_most_pixel = [0, -windowLength/2.] # x,y
@@ -524,10 +504,12 @@ class InterferometryObservation:
 
         coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
             [upper_left_pixel, bottom_right_pixel], self.boresight.equatorial)
-        equatorial_range = [coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
-                            coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
+        equatorial_range = [coordinates_equatorial[1][0], coordinates_equatorial[0][0], # left, right
+                            coordinates_equatorial[1][1], coordinates_equatorial[0][1]] # up, bottom
 
-        self.constructFitsHeader(density, self.resolution, self.boresight.equatorial)
+        self.constructFitsHeader(density, self.resolution*self.beamSizeFactor, self.boresight.equatorial)
+
+        self.psf = PointSpreadFunction(image, self.boresight.equatorial, windowLength, self.WCS)
 
         if fileName is not None:
             plotBeamContour(image, (0,0), equatorial_range,
@@ -611,7 +593,7 @@ class InterferometryObservation:
         """
         self.WCS = {}
         self.WCS['crpix'] = [density/2 -1, density/2 -1]
-        self.WCS['cdelt'] = np.rad2deg([imageLength/gridNum, imageLength/gridNum])
+        self.WCS['cdelt'] = np.rad2deg([-imageLength/gridNum, imageLength/gridNum])
         self.WCS['crval'] = [self.boreSight[0] - self.WCS['cdelt'][0],
                              self.boreSight[1] - self.WCS['cdelt'][1]]
         self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]

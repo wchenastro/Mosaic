@@ -11,7 +11,7 @@ from interferometer import InterferometryObservation
 from plot import plotPackedBeam, plotBeamFit
 from tile import ellipseGrid, ellipseCompact
 from beamshape import calculateBeamOverlaps
-from coordinate import Antenna, Boresight
+from coordinate import Antenna, Boresight, convertBoresightToHour, convertBoresightToDegree
 
 import argparse
 import logging, tempfile
@@ -201,8 +201,7 @@ def updateHorizontal(horizontalCoord):
 
 def updateBoreSight(boreSightCoord):
     if boreSightCoord == []: return
-    RA = boreSightCoord[0]
-    DEC = boreSightCoord[1]
+    RA, DEC = convertBoresightToHour(boreSightCoord, frame='icrs', unit='deg');
     RACoord.blockSignals(True)
     DECCoord.blockSignals(True)
     RACoord.setText('{:6.5f}'.format(RA))
@@ -212,7 +211,8 @@ def updateBoreSight(boreSightCoord):
 
 
 def onBoreSightUpdated():
-    beamBoreSight = (float(RACoord.text()), float(DECCoord.text()))
+    beamBoreSight = convertBoresightToDegree((str(RACoord.text()), str(DECCoord.text())))
+    # beamBoreSight = (float(RACoord.text()), float(DECCoord.text()))
     preBoresight = observation.getBoreSight().equatorial
     if ((abs(beamBoreSight[0] - preBoresight[0]) < 1e-4) and (abs(beamBoreSight[1] - preBoresight[1]) < 1e-4)):
         return
@@ -447,12 +447,16 @@ def onClickedImportButton():
     axis.addDots(dots)
 
     if onlyAntenna == False:
+        if source[0] != 'str':
+            sourceDeg = source
+            source = convertBoresightToHour(source)
+
         RACoord.setText(str(source[0]))
         RACoord.setCursorPosition(0)
         DECCoord.setText(str(source[1]))
         DECCoord.setCursorPosition(0)
 
-        observation.setBoreSight(source, Boresight.EquatorialFrame)
+        observation.setBoreSight(sourceDeg, Boresight.EquatorialFrame)
 
         newDateTime = QDateTime(observeTime.year,
                 observeTime.month, observeTime.day,
@@ -718,12 +722,12 @@ waveLength = 0.21
 
 defaultBeamSizeFactor = 1
 defaultBeamNumber = 400
-defaultBoreSight = (21.44389, -30.71106)
+defaultBoreSight = ("1:25:46.5336", "-30:42:39.815999")
 
 observation = InterferometryObservation(arrayReferece, waveLength)
-observation.setBoreSight(defaultBoreSight, Boresight.EquatorialFrame)
-observation.setBeamSizeFactor(defaultBeamSizeFactor)
-observation.setBeamNumber(defaultBeamNumber)
+observation.setBoreSight(convertBoresightToDegree(defaultBoreSight), Boresight.EquatorialFrame)
+# observation.setBeamSizeFactor(defaultBeamSizeFactor)
+# observation.setBeamNumber(defaultBeamNumber)
 observation.setObserveTime(observationTime)
 observation.setInterpolating(True)
 observation.setAutoZoom(True)
@@ -815,7 +819,7 @@ dateTimeLabel.setText('UTC Time')
 dateTimeLabel.move(500, 320)
 dateTimeEdit = QDateTimeEdit(w)
 dateTimeEdit.move(500, 340)
-dateTimeEdit.setDisplayFormat("dd.MM.yyyy hh:mm:ss.zzz")
+dateTimeEdit.setDisplayFormat("yyyy.MM.dd hh:mm:ss.zzz")
 dateTimeEdit.setDateTime(QDateTime.currentDateTime())
 dateTimeEdit.dateTimeChanged.connect(onDateTimeChanged)
 dateTimeEdit.setWrapping(True)
@@ -825,7 +829,8 @@ beamSizeLabel.setText('Zoom')
 beamSizeLabel.move(710, 320)
 beamSizeEdit = QSpinBox(w)
 beamSizeEdit.move(710, 340)
-beamSizeEdit.setValue(defaultBeamSizeFactor)
+# beamSizeEdit.setValue(defaultBeamSizeFactor)
+beamSizeEdit.setValue(observation.getBeamSizeFactor())
 beamSizeEdit.setMinimum(1)
 beamSizeEdit.setMaximum(99)
 beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
@@ -848,7 +853,8 @@ beamNumberLabel.move(780, 320)
 beamNumberEdit = QLineEdit(w)
 beamNumberEdit.move(785, 340)
 beamNumberEdit.resize(40,30)
-beamNumberEdit.setText(str(defaultBeamNumber))
+# beamNumberEdit.setText(str(defaultBeamNumber))
+beamNumberEdit.setText(str(int(observation.getBeamNumber())))
 beamNumberEdit.editingFinished.connect(onBeamNumberChanged)
 
 interpolateLabel = QLabel(w)
@@ -873,16 +879,15 @@ DECCoordLabel.move(590, 380)
 RACoord = QLineEdit(w)
 RACoord.move(500, 400)
 RACoord.resize(80,30)
-RACoord.setAlignment(Qt.AlignRight)
-RACoord.setText(str(defaultBoreSight[0]))
-RACoord.editingFinished.connect(onBoreSightUpdated)
 DECCoord = QLineEdit(w)
 DECCoord.resize(80,30)
 DECCoord.move(590, 400)
-DECCoord.setAlignment(Qt.AlignRight)
 RACoord.setText(str(defaultBoreSight[0]))
 DECCoord.setText(str(defaultBoreSight[1]))
+RACoord.home(True)
+DECCoord.home(True)
 DECCoord.editingFinished.connect(onBoreSightUpdated)
+RACoord.editingFinished.connect(onBoreSightUpdated)
 
 
 azimuthCoordLabel = QLabel(w)

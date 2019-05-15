@@ -107,18 +107,20 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
         if trialCount > 150:
             if abs(inCircleCount - beamNumber) < int(beamNumber*0.1):
                 logger.warning("maximum trials reached in the tiling process, "
-                    "the tiling is not well optimized, number of beams is "
-                    "different from requried but less then 10%")
+                    "the tiling is not well optimized, the difference in number "
+                    "of beams between requried and generated is less than 10%")
                 break
             else:
                 logger.critical("maximum trials reached in the tiling process, "
-                                "the tiling is not optimized, please try to "
-                                "increase the margin threshold.")
-                raise TilingNotOptimizedError({
-                        "message":"maximum trials reached in the tiling process",
-                        "required_beam_number":beamNumber,
-                        "generated_beam_number":inCircleCount,
-                        })
+                    "the tiling is not optimized. the number of requried beams and "
+                    "generated beams is %d and %d, please consider increasing "
+                    "the margin threshold if needed." % (beamNumber, inCircleCount))
+                break
+                # raise TilingNotOptimizedError({
+                        # "message":"maximum trials reached in the tiling process",
+                        # "required_beam_number":beamNumber,
+                        # "generated_beam_number":inCircleCount,
+                        # })
 
 
     random.seed()

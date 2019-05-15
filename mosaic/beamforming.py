@@ -198,7 +198,8 @@ class BeamShape(object):
         filename --  name and directory of the plot
 
         """
-        plot_interferometry(self.antennas, self.reference_antenna, self.horizon, filename)
+        antennas = np.array([antenna.geo for antenna in self.antennas])
+        plot_interferometry(antennas, self.reference_antenna.geo, self.horizon, filename)
 
 
 class Overlap(object):

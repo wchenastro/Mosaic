@@ -3,7 +3,11 @@
 import datetime
 import numpy as np
 from astropy import wcs
+from astropy.io import fits
 import nvector as nv
+
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 
 class Antenna(object):
     def __init__(self, name, geo=None):
@@ -408,4 +412,33 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
 
 
     return equatorial_coodinates, tiling_radius
+
+
+def convertBoresightToHour(boresight):
+    boresight = SkyCoord(boresight[0], boresight[1], frame='icrs', unit='deg');
+    RA = ":".join([str(int(boresight.ra.hms.h)), str(int(boresight.ra.hms.m)), str(boresight.ra.hms.s)])
+    DEC = ":".join([str(int(boresight.dec.dms.d)), str(abs(int(boresight.dec.dms.m))), str(abs(boresight.dec.dms.s))])
+    return (RA, DEC)
+
+def convertBoresightToDegree(boresight):
+    boresight_coord = SkyCoord(boresight[0]+" "+boresight[1], unit=(u.hourangle, u.deg))
+    return(boresight_coord.ra.deg, boresight_coord.dec.deg)
+
+
+def writeFits(wcsHeader, data, fileName):
+    w = wcs.WCS(naxis=2)
+
+    # "Airy's zenithal" projection
+    w.wcs.crpix = wcsHeader['crpix']
+    w.wcs.cdelt = wcsHeader['cdelt']
+    w.wcs.crval = wcsHeader['crval']
+    w.wcs.ctype = wcsHeader['ctype']
+    # w.wcs.set_pv([(2, 1, 45.0)])
+
+    header = w.to_header()
+
+    hdu = fits.PrimaryHDU(header=header, data=data)
+    # Save to FITS file
+    hdu.writeto(str(fileName), overwrite=True)
+
 
