@@ -384,6 +384,14 @@ def dict_to_ordered_list(dict_obj):
         ordered_list.append(dict_obj[key])
     return ordered_list
 
+def dict_to_antenna_ordered_list(dict_obj, antennas, pol='h'):
+    ordered_list = []
+    for antenna in antennas:
+        antenna_key = "{}{}".format(antenna.name, pol)
+        ordered_list.append(dict_obj[antenna_key])
+
+    return ordered_list
+
 class DelayPolynomial(object):
     """
     Class for generation of  delay polynomial
@@ -483,12 +491,12 @@ class DelayPolynomial(object):
             dc = katpoint.DelayCorrection(self.antennas,
                     self.reference, self.frequency)
             delay, phase = dc.corrections(target, timestamp)
-            delayArray = np.array(dict_to_ordered_list(delay))
+            delayArray = np.array(dict_to_antenna_ordered_list(
+                        delay, self.antennas))
             """
-            [::2]: only take the one polarization
             [:, 0, :]: only take first rate output
             """
-            target_array.append(delayArray[::2][:,0,:])
+            target_array.append(delayArray[:,0,:])
         target_array = np.array(target_array)
         """
         subtract the boresight beam form the offset beams
@@ -496,7 +504,8 @@ class DelayPolynomial(object):
         dc = katpoint.DelayCorrection(self.antennas,
             self.reference, self.frequency)
         delay, phase = dc.corrections(self.bore_sight, timestamp)
-        bore_sight_delay = np.array(dict_to_ordered_list(delay))[::2][:,0,:]
+        bore_sight_delay = np.array(dict_to_antenna_ordered_list(
+                    delay, self.antennas))[:,0,:]
 
         target_array = target_array - bore_sight_delay
         return target_array
