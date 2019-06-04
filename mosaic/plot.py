@@ -20,7 +20,7 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
         yEnd = (center[1] + halfSideLength)
         plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
-    plt.imshow(array,cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
+    plt.imshow(np.flipud(array),cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
     plt.colorbar()
     fig.gca().set_aspect('auto')
     plt.subplots_adjust(left=0.20, right=1.00)
@@ -33,6 +33,7 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     plt.close()
 
 def plotPackedBeam(coordinates, angle, axis1, axis2, center, beamRadius, fileName='pack.png', scope=1.):
+    angle = 180 - angle
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
@@ -54,6 +55,44 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, center, beamRadius, fileNam
     plt.title("Tiling for %d beams with radius of %.2f degree" % (beamNum, beamRadius))
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
+
+def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
+        fileName='contourfit.png', interpolation = True):
+    thisDpi = 96.
+    matplotlib.rcParams.update({'font.size': 8})
+    fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    axis = fig.gca()
+    if type(sideLength) == list:
+        plotRange = sideLength
+    else:
+        halfSideLength = sideLength/2.0
+        xStart = (center[0] - halfSideLength)
+        xEnd = (center[0] + halfSideLength)
+        yStart = (center[1] - halfSideLength)
+        yEnd = (center[1] + halfSideLength)
+        plotRange = [xStart, xEnd, yStart, yEnd]
+    interpolateOption = 'bicubic' if interpolation == True else 'nearest'
+    ims = axis.imshow(np.flipud(array),cmap=plt.cm.jet, vmin=0, vmax=1,
+            # interpolation=interpolateOption, extent=plotRange)
+            interpolation=interpolateOption)
+
+    imageShape = array.shape
+    center = ((imageShape[1]/2.0), (imageShape[0]/2.0)-1.0)
+    ellipse = Ellipse(center, width=2*widthH, height=2*widthV, angle=angle)
+    ellipse.fill = False
+    axis.add_artist(ellipse)
+
+    fig.colorbar(ims)
+    axis.set_aspect('auto')
+    plt.subplots_adjust(left=0.20, right=1.00)
+    # axes = plt.gca()
+    # axes.set_xlim([x.min(),x.max()])
+    # axes.set_ylim([y.min(),y.max()])
+    # plt.xlabel('Right Ascension')
+    # plt.ylabel('Declination')
+    plt.savefig(fileName, dpi=thisDpi)
+    plt.close()
+
 
 def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName='fit.png'):
     halfSideLength = sideLength/2.0
@@ -233,5 +272,3 @@ def plot_beam_shape(array, center, sideLength, ellipseCenter, axis1, axis2, angl
     ax.add_artist(ellipse)
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
-
-

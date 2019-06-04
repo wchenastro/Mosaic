@@ -8,7 +8,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from interferometer import InterferometryObservation
-from plot import plotPackedBeam, plotBeamFit
+from plot import plotPackedBeam, plotBeamFit, plotBeamWithFit
 from tile import ellipseGrid, ellipseCompact
 from beamshape import calculateBeamOverlaps
 from coordinate import Antenna, Boresight, convertBoresightToHour, convertBoresightToDegree
@@ -524,14 +524,31 @@ def onClickedPackButton2():
     if center == []: return
     # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
     # plotBeamFit(coordinates, center, np.rad2deg(angle), axisH, axisV)
-    imageDensity = observation.getImageDensity()
-    step=imageLength*1.0/imageDensity
-    ellipseCenter = [center[0] + step/2., center[1] - step/2.]
-    plotBeamFit(imageLength, center, ellipseCenter, angle2, axisH2, axisV2,
-            fileName = tempdir + '/fit.png')
-    bottomImage = QImage(tempdir + '/contour.png')
-    topImage = QImage(tempdir + '/fit.png')
-    fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
+    # ==============================
+    # imageDensity = observation.getImageDensity()
+    # step=imageLength*1.0/imageDensity
+    # ellipseCenter = [center[0] + step/2., center[1] - step/2.]
+    # plotBeamFit(imageLength, center, ellipseCenter, angle2, axisH2, axisV2,
+            # fileName = tempdir + '/fit.png')
+    # bottomImage = QImage(tempdir + '/contour.png')
+    # topImage = QImage(tempdir + '/fit.png')
+    # fittedImage = QPixmap.fromImage(overlayImage(bottomImage, topImage))
+    # ===============================
+    imageFileName = tempfile.gettempdir() + '/' + 'contourfit.png'
+    imageData = observation.getImageData()
+    boresight = observation.getBoreSight().equatorial
+    resolution = observation.getResolution()
+    widthH = axisH2/resolution
+    widthV = axisV2/resolution
+    # boresight = (10, 9)
+    # widthH = axisH2
+    # widthV = axisV2
+    plotBeamWithFit(imageData, None, sizeInfo[3], widthH, widthV, angle2,
+                    fileName=imageFileName)
+    pixmap = QPixmap(imageFileName)
+    label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
+    fittedImage = pixmap
+    # ===============================
     onClickedPackButton2.fittedImage = fittedImage
     label.setPixmap(fittedImage.scaledToHeight(fittedImage.height()))
     coordinates, beamRadius = ellipseCompact(400, axisH2, axisV2, angle2, 10)

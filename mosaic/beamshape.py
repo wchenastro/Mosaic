@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import interpolate
+from scipy.optimize import curve_fit
 from utilities import normInverse
 import logging
 
@@ -148,9 +149,9 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     # np.save('overlapCounter', overlapCounter)
 
 
-def trackBorder(image, threshold = 0.3, density = 20, interpolatedLength = 800):
+def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 800):
 
-    interpolater = interpolate.interp2d(range(density), range(density), image ,kind='cubic')
+    interpolater = interpolate.interp2d(range(density), range(density), image_orig ,kind='cubic')
     image = interpolater(np.linspace(0, density - 1, interpolatedLength),
             np.linspace(0, density - 1, interpolatedLength))
     # np.savetxt('interpolate', image)
@@ -170,37 +171,93 @@ def trackBorder(image, threshold = 0.3, density = 20, interpolatedLength = 800):
     state = State.move
     rowStep = -1
     colStep = 1
-    colBorder = interpolatedLength - 1
+    right_border = int(interpolatedLength - 1)
+    left_border = 0
+    colBorder = right_border
     rowBorder = 0
+    # horizonDirection = 1 # left
     bottom = False
     overstep = False
     maxOverstepValue = 0
     offset = 0.1
+    filling = threshold * 0.66666666666666
     # closestToCenter = 1
     # closestToCenterIndex = []
+    states = {
+        State.move:"move",
+        State.addRow:"addRow",
+        State.findBorder:"findBorder",
+        State.findBorderReverse:"findBorderReverse",
+        State.upsideDown:"upsideDown",
+        State.end:"end"}
 
+    logs = []
+    leftStep=True
+    rowCenter = colIdx
+    edges = [0,0]
+    maxHalfWdith = interpolatedLength/2
+    first = True
+    stepCounter = 0
     while state != State.end:
+        # log = "%s %d %d %d %d %s\n" % (states[state], rowIdx, colIdx, colStep, rowCenter, str(edges))
+        # logs.append(log)
         if state == State.move:
-            if colIdx != colBorder:
-                colIdx += colStep
-                if image[rowIdx, colIdx] < threshold:
+            colIdx = rowCenter
+            stepCounter = 0
+            while colIdx != colBorder:
+                if image[rowIdx, colIdx] < threshold or stepCounter >= maxHalfWdith:
                     border.append([rowIdx, colIdx])
-                    state = State.addRow
-                # else:
-                    # distToCenter = 1 - image[rowIdx, colIdx]
-                    # if distToCenter  < closestToCenter:
-                        # closestToCenter = distToCenter
-                        # closestToCenterIndex = [rowIdx, colIdx]
-            else:
+                    if colStep == 1:
+                        image[rowIdx, colIdx:] = filling
+                        edges[1] = colIdx
+                    else:
+                        image[rowIdx, :colIdx] = filling
+                        edges[0] = colIdx
+                    break
+                colIdx += colStep
+                stepCounter += abs(colStep)
+            if colIdx == colBorder:
                 overstep = True
                 if image[rowIdx, colIdx] > maxOverstepValue:
                     maxOverstepValue = image[rowIdx, colIdx]
-                state = State.addRow
+                if colStep == 1:
+                    edges[1] = colIdx
+                else:
+                    edges[0] = colIdx
 
-        if state == State.addRow:
-            if rowIdx != rowBorder:
+            if leftStep == True:
+                leftStep = False
+            else:
+                leftStep = True
+                if first == True:
+                    first = False
+                    widthLeft = edges[1] - rowCenter
+                    widthRight = rowCenter - edges[0]
+                    smallerWidth = widthRight if widthLeft > widthRight else widthLeft
+                    maxHalfWdith = smallerWidth
+                else:
+                    halfWidth = int(round((edges[1] - edges[0])/2.0))
+                    if halfWidth < maxHalfWdith:
+                        maxHalfWdith = halfWidth
+
+                state = State.addRow
+                if edges[0] != edges[1]:
+                    rowCenter = edges[0] + np.argmax(image[rowIdx, edges[0]:edges[1]])
+                    if image[rowIdx, edges[0]:edges[1]].max() < (threshold + 0.07):
+                        state = State.upsideDown
+            colStep *= -1
+            if colStep == 1:
+                colBorder = right_border
+            else:
+                colBorder = left_border
+
+        elif state == State.addRow:
+            if edges[0] == edges[1]:
+                state = State.upsideDown
+                border.pop()
+            elif rowIdx != rowBorder:
                 rowIdx += rowStep
-                state = State.findBorder
+                state = State.move
             else:
                 overstep = True
                 if image[rowIdx, colIdx] > maxOverstepValue:
@@ -208,64 +265,41 @@ def trackBorder(image, threshold = 0.3, density = 20, interpolatedLength = 800):
                 state = State.upsideDown
 
 
-        if state == State.findBorder:
-            if image[rowIdx, colIdx] < threshold:
-                colStep *= -1
-                colBorder = interpolatedLength - 1 - colBorder
-                state = State.findBorderReverse
-            else:
-                if colIdx != colBorder:
-                    colIdx += colStep
-                else:
-                    overstep = True
-                    if image[rowIdx, colIdx] > maxOverstepValue:
-                        maxOverstepValue = image[rowIdx, colIdx]
-
-                    colStep *= -1
-                    colBorder = interpolatedLength - 1 - colBorder
-                    state = State.move
-
-        if state == State.findBorderReverse:
-            try:
-                if image[rowIdx, colIdx] < threshold:
-                    if colIdx != colBorder:
-                        colIdx += colStep
-                    else:
-                        state = State.upsideDown
-
-                else:
-                    if len(border) > 2:
-                        distLastSQ = (border[-1][0] - border[-2][0])**2 + (border[-1][1] - border[-2][1])**2
-                        distNowSQ = (border[-1][0] - rowIdx)**2 + (border[-1][1] - colIdx)**2
-                        if (distNowSQ - distLastSQ*1.5) > 0:
-                            state = State.upsideDown
-                            continue
-                    border.append([rowIdx, colIdx])
-                    state = State.move
-            except IndexError:
-                print(rowIdx, colIdx)
-                raise "unknown IndexError"
-
-        if state == State.upsideDown:
+        elif state == State.upsideDown:
             if bottom == True:
                 state = State.end
             else:
                 bottom = True
                 rowStep = 1
-                colStep = -1
-                colBorder = 0
+                colStep = 1
+                colBorder = right_border
                 rowBorder = interpolatedLength - 1
                 rowIdx = int(imageCenter[0])
                 colIdx = int(imageCenter[1])
+                rowCenter = colIdx
+                first = True
+                maxHalfWdith = interpolatedLength/2
                 state = State.move
 
+    # with open("/tmp/stateLog", 'w') as stateLogFile:
+        # stateLogFile.writelines(logs)
 
-    return border, trueCenterIndex, maxOverstepValue
+    border = np.array(border)
+    if border != []:
+        topRow = border[:,0].max()
+        bottomRow = border[:,0].min()
+        image[topRow+1:, :] = filling
+        image[:bottomRow, :] = filling
+
+        # np.save("/tmp/trackimage", image)
+
+
+    return border, trueCenterIndex, maxOverstepValue, image
 
 
 def calculateBeamSize(image, density, windowLength,
-        beamMajorAxisScale, interpolatedLength = 800, threshold = 0.5):
-    border, closestToCenterIndex, overstep = trackBorder(
+        beamMajorAxisScale, interpolatedLength = 800, threshold = 0.2, fit=False):
+    border, closestToCenterIndex, overstep, iterpolatedImage = trackBorder(
             image, threshold, density, interpolatedLength)
 
     # if overstep != 0: print 'overstep'
@@ -274,46 +308,61 @@ def calculateBeamSize(image, density, windowLength,
         logger.info('less then 10 points in the border tracking:')
         return 0, 0, 0, overstep
 
-    imageArray = np.array(border) - [0, closestToCenterIndex[1]]
-    imageArray[:, 0] = closestToCenterIndex[0] - imageArray[:, 0]
-    # np.savetxt('border', imageArray)
-    distancesSQ = np.sum(np.square(imageArray), axis=1)
-    minDistIndex = np.argmin(distancesSQ)
-    minDist = np.sqrt(distancesSQ[minDistIndex])
-    minDistVector = imageArray[minDistIndex]
+    if fit == False:
+        imageArray = np.array(border) - [0, closestToCenterIndex[1]]
+        imageArray[:, 0] = closestToCenterIndex[0] - imageArray[:, 0]
+        distancesSQ = np.sum(np.square(imageArray), axis=1)
+        minDistIndex = np.argmin(distancesSQ)
+        minDist = np.sqrt(distancesSQ[minDistIndex])
+        minDistVector = imageArray[minDistIndex]
 
-    maxDistIndex = np.argmax(distancesSQ)
-    maxDist = np.sqrt(distancesSQ[maxDistIndex])
-    maxDistVector = imageArray[maxDistIndex]
-    angle = np.rad2deg(np.arctan2(maxDistVector[0], maxDistVector[1]))
-
-    minorAxis  = (windowLength/interpolatedLength*minDist)
-    majorAxis  = (windowLength/interpolatedLength*maxDist)
-
-
-    # if overstep == False:
-        # maxDistIndex = np.argmax(distancesSQ)
-        # maxDist = np.sqrt(distancesSQ[maxDistIndex])
-        # maxDistVector = imageArray[maxDistIndex]
-        # angle = np.arctan2(maxDistVector[0], maxDistVector[1])
-
-        # minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
-        # majorAxis  = np.rad2deg(windowLength/interpolatedLength*maxDist)
-    # else:
-        # angle = np.pi/2. + np.arctan2(minDistVector[0], minDistVector[1])
-
-
-        # majorAxis = np.rad2deg(beamMajorAxisScale)
-        # minorAxis  = np.rad2deg(windowLength/interpolatedLength*minDist)
-
-    # print majorAxis, minorAxis, threshold
-    # majorSigma = normSigma(majorAxis, 0, threshold)
-    # minorSigma = normSigma(minorAxis, 0, threshold)
-
-    # majorAxis = normInverse(0.5, 0, majorSigma)
-    # minorAxis = normInverse(0.5, 0, minorSigma)
+        maxDistIndex = np.argmax(distancesSQ)
+        maxDist = np.sqrt(distancesSQ[maxDistIndex])
+        maxDistVector = imageArray[maxDistIndex]
+        angle = np.arctan2(maxDistVector[0], maxDistVector[1])
+        minorAxis  = (windowLength/interpolatedLength*minDist)
+        majorAxis  = (windowLength/interpolatedLength*maxDist)
+    else:
+        widthH, widthV, angle = fitEllipse(np.flipud(iterpolatedImage))
+        minorAxis  = (windowLength/interpolatedLength*widthH)
+        majorAxis  = (windowLength/interpolatedLength*widthV)
+        angle = angle + np.pi/2.0
+        if abs(angle) > 360.:
+            angle = angle % 360.
+        # angle = np.pi - (angle + np.pi/2.0)
 
     # print majorAxis, minorAxis
-    return majorAxis, minorAxis, angle, overstep
+    return majorAxis , minorAxis, np.rad2deg(angle), overstep
+
+
+def fitEllipse(image):
+    def RotatedGaussian2DPDF((x, y), xMean, yMean, xSigma, ySigma, angle):
+        angle = -(angle - np.pi)
+        a = np.power(np.cos(angle), 2)/(2*xSigma**2) + np.power(np.sin(angle), 2)/(2*ySigma**2)
+        b = - np.sin(2*angle)/(4*xSigma**2) + np.sin(2*angle)/(4*ySigma**2)
+        c = np.power(np.sin(angle), 2)/(2*xSigma**2) + np.power(np.cos(angle), 2)/(2*ySigma**2)
+
+        values = np.exp(-(a*np.power(x-xMean, 2) + 2*b*(x-xMean)*(y-yMean) + c*np.power(y-yMean, 2)))
+        return values.ravel()
+
+    yData = image
+    dataShape = yData.shape
+    yData = yData.ravel()
+
+    grids = np.meshgrid(np.linspace(0, dataShape[0]-1, dataShape[0]),
+            np.linspace(0, dataShape[1]-1, dataShape[1]))
+
+    initial_guess = (dataShape[1]/2, dataShape[0]/2, 20,40,0)
+
+    paras_bounds = ([300, 300, 10, 10, -2*np.inf], [500, 500, dataShape[0], dataShape[0], 2*np.inf])
+    popt, pcov = curve_fit(RotatedGaussian2DPDF, grids, yData,
+            p0=initial_guess, bounds=paras_bounds)
+
+    centerX, centerY, sigmaH, sigmaV, angle = popt
+
+    widthH = normInverse(0.5, 0, sigmaH)
+    widthV = normInverse(0.5, 0, sigmaV)
+
+    return widthH, widthV, angle
 
 

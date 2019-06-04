@@ -4,7 +4,7 @@ import katpoint
 import coordinate as coord
 from interferometer import InterferometryObservation
 from tile import ellipseCompact, ellipseGrid
-from plot import plotPackedBeam, plotBeamContour, plot_beam_shape, plot_interferometry, plot_overlap
+from plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interferometry, plot_overlap
 from beamshape import calculateBeamOverlaps
 from utilities import normInverse
 
@@ -119,10 +119,12 @@ class PsfSim(object):
         self.observation.setBoreSight(bore_sight)
         self.observation.setObserveTime(time)
         self.observation.createContour(self.antennas)
-        axisH, axisV, angle = self.observation.getBeamAxis()
+        axisH, axisV, angle, image_range = self.observation.getBeamAxis()
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
         psf = self.observation.getPointSpreadFunction()
-        return BeamShape(axisH, axisV, angle, psf, self.antennas, bore_sight, self.reference_antenna, horizon)
+        resolution = self.observation.getResolution()
+        return BeamShape(axisH, axisV, angle, psf, self.antennas, bore_sight,
+                self.reference_antenna, horizon, resolution)
 
 
 class BeamShape(object):
@@ -135,7 +137,8 @@ class BeamShape(object):
     angle -- orientation of the angle in degree
 
     """
-    def __init__(self, axisH, axisV, angle, psf, antennas, bore_sight, reference_antenna, horizon):
+    def __init__(self, axisH, axisV, angle, psf, antennas, bore_sight,
+            reference_antenna, horizon, resolution):
         """
         constructor of the BeamShape class.
 
@@ -148,6 +151,7 @@ class BeamShape(object):
         self.bore_sight = bore_sight
         self.reference_antenna = reference_antenna
         self.horizon = horizon
+        self.resolution = resolution
 
     def width_at_overlap(self, overlap):
         """
@@ -178,17 +182,13 @@ class BeamShape(object):
 
         """
         if not shape_overlay:
-            plotBeamContour(self.psf.image, self.psf.bore_sight, self.psf.width,
+            plotBeamContour(self.psf.image, self.psf.bore_sight, self.psf.image_range,
                     filename, interpolation = True)
         else:
-            image_width = self.psf.image.shape[0]
-            step=self.psf.width*1.0/image_width
-            ellipse_center = [self.psf.bore_sight[0] + step/2.,
-                             self.psf.bore_sight[1] - step/2.]
-            plot_beam_shape(self.psf.image, self.psf.bore_sight, self.psf.width,
-                ellipse_center, self.axisH, self.axisV, self.angle, filename,
-                interpolation = True)
-
+            widthH = self.axisH/self.resolution
+            widthV = self.axisV/self.resolution
+            plotBeamWithFit(self.psf.image, None, self.psf.image_range, widthH, widthV,
+                    self.angle, filename, interpolation = True)
 
     def plot_interferometry(self, filename):
         """

@@ -6,7 +6,7 @@ import numpy as np
 import coordinate as coord
 from plot import plotBeamContour
 from utilities import normSigma, normInverse
-from beamshape import calculateBeamSize, trackBorder
+from beamshape import calculateBeamSize
 
 import inspect, pickle, datetime, logging
 
@@ -20,11 +20,12 @@ class PointSpreadFunction(object):
     class for point spread function
     """
 
-    def __init__(self, image, bore_sight, width, wcs_header):
+    def __init__(self, image, bore_sight, width, wcs_header, image_range):
         self.image = image
         self.bore_sight = bore_sight
         self.width = width
         self.wcs_header = wcs_header
+        self.image_range = image_range
 
     def write_fits(self, filename):
         coord.writeFits(self.wcs_header, self.image, filename)
@@ -107,6 +108,10 @@ class InterferometryObservation:
         '''resolution default in arc second deg for now'''
         self.resolution = resolution/3600.0
 
+    def getResolution(self):
+        '''in degree'''
+        return self.resolution * self.beamSizeFactor
+
     def getBaselines(self):
         return self.baselines
 
@@ -152,6 +157,7 @@ class InterferometryObservation:
         #return np.concatenate((uvCoord, -uvCoord))
 
     def getBeamAxis(self):
+        self.fitContour()
         return self.beamAxis
 
     def getImageLength(self):
@@ -245,16 +251,18 @@ class InterferometryObservation:
         uvSamples = []
         for baseline in rotatedProjectedBaselines:
             # print baseline
-            uSlot = int((baseline[0]/waveLength*step + halfGridNum - 1))
-            vSlot = int((halfGridNum - baseline[1]/waveLength*step - 1))
+            uSlot = int(round(baseline[0]/waveLength*step + halfGridNum - 1))
+            vSlot = int(round(halfGridNum - baseline[1]/waveLength*step - 1))
 
             uvSamples.append([uSlot, vSlot])
-            uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
+            uvSamples.append([gridNum - uSlot, gridNum - vSlot])
+            # uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
             # uvGrids[vSlot][uSlot] = 1
             # uvGrids[-vSlot-1][-uSlot-1] = 1
 
 
         imagesCoord = partialDFTGrid
+        # print imagesCoord
         fringeSum = np.zeros(density*density)
         for uv in uvSamples:
             fringeSum = fringeSum + np.exp(1j*np.pi*2*(imagesCoord[1]*uv[0] + imagesCoord[0]*uv[1])/gridNum)
@@ -382,6 +390,16 @@ class InterferometryObservation:
                              boresight[1] - self.WCS['cdelt'][1]]
         self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
 
+    def fitContour(self):
+        sizeInfo = calculateBeamSize(self.imageData,self.imageDensity,
+                self.imageLength, None, fit=True)
+        if sizeInfo[3] != 0:
+            elevation = np.rad2deg(self.boresight.horizontal[1])
+            if abs(elevation) < 20.:
+                logger.warning("Elevation is low %f" % elevation)
+            logger.warning("Beam shape probably is not correct.")
+        self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+
 
     def createContour(self, antennas, fileName=None, minAlt=0):
 
@@ -507,118 +525,25 @@ class InterferometryObservation:
         equatorial_range = [coordinates_equatorial[1][0], coordinates_equatorial[0][0], # left, right
                             coordinates_equatorial[1][1], coordinates_equatorial[0][1]] # up, bottom
 
+        self.beamAxis = [None, None, None, equatorial_range]
         self.constructFitsHeader(density, self.resolution*self.beamSizeFactor, self.boresight.equatorial)
 
-        self.psf = PointSpreadFunction(image, self.boresight.equatorial, windowLength, self.WCS)
+        self.psf = PointSpreadFunction(image, self.boresight.equatorial,
+                windowLength, self.WCS, equatorial_range)
 
         if fileName is not None:
             plotBeamContour(image, (0,0), equatorial_range,
                     interpolation = self.interpolating, fileName = fileName)
 
-        if baselineNum > 2:
-            resolution = windowLength/density
-            # print resolution*3600
-            sizeInfo = calculateBeamSize(image, density, windowLength, beamMajorAxisScale)
-            if sizeInfo[3] != 0:
-                elevation = np.rad2deg(self.boresight.horizontal[1])
-                if abs(elevation) < 20.:
-                    logger.warning("Elevation is low %f" % elevation)
-                logger.warning("Beam shape probably is not correct.")
-            self.beamAxis = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+        # if baselineNum > 2:
+            # resolution = windowLength/density
+            # sizeInfo = calculateBeamSize(image, density, windowLength, beamMajorAxisScale, fit=True)
+            # if sizeInfo[3] != 0:
+                # elevation = np.rad2deg(self.boresight.horizontal[1])
+                # if abs(elevation) < 20.:
+                    # logger.warning("Elevation is low %f" % elevation)
+                # logger.warning("Beam shape probably is not correct.")
+            # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
         self.imageData = image
-        return image
-
-    def createPSF(self, antennacoor, waveLengths, writer, plotting):
-
-        self.antCoordinatesGEODET = np.array(antennacoor)
-
-        antCoordinatesECEF = coord.convertGodeticToECEF(self.antCoordinatesGEODET)
-
-        arrayRefereceECEF = coord.convertGodeticToECEF([self.arrayRefereceGEODET])[0]
-        antCoordinatesENU = coord.convertECEFToENU(antCoordinatesECEF, arrayRefereceECEF, self.arrayRefereceGEODET)
-
-        self.baselines = self.createBaselines(antCoordinatesENU)
-
-        arrayRefereceLatitude = np.deg2rad(self.arrayRefereceGEODET[0])
-        LSTDeg =  coord.calculateLocalSiderealTime(self.observeTime, self.arrayRefereceGEODET[1])
-
-        if self.inputType == self.equatorialInput:
-
-            altitude, azimuth = self.getAltAziFromRADEC(np.array([self.boreSight]),
-                        LSTDeg, arrayRefereceLatitude)
-            self.boreSightHorizontal = (azimuth[0], altitude[0])
-            # print("source in Azi, Alt is %f, %f" % (np.rad2deg(self.boreSightHorizontal[0]), np.rad2deg(self.boreSightHorizontal[1])))
-
-        elif self.inputType == self.horizontalInput:
-
-            azimuth, altitude  = self.boreSightHorizontal
-            RA, DEC = coord.convertHorizontalToEquatorial(azimuth, altitude, np.deg2rad(LSTDeg), arrayRefereceLatitude)
-            self.boreSight = np.rad2deg([RA, DEC])
-            print("source in RA, DEC is %f, %f" % (self.boreSight[0], self.boreSight[1]))
-
-
-        rotatedENU = coord.rotateENUToEquatorialPlane(self.baselines,
-                arrayRefereceLatitude, self.boreSightHorizontal[0], self.boreSightHorizontal[1])
-
-
-
-
-        # LHA = LST - RA
-        LHA = np.deg2rad(LSTDeg) - np.deg2rad(self.boreSight[0])
-
-
-        rotatedProjectedBaselines = coord.projectBaselines(rotatedENU, LHA, np.deg2rad(self.boreSight[1]))
-
-        self.projectedBaselines = rotatedProjectedBaselines
-
-
-        density = self.imageDensity
-        gridNum = self.gridNumOfDFT
-
-        width = np.rad2deg(1/self.resolution)
-        imageLength = self.calculateImageLength(rotatedProjectedBaselines,
-                None, self.beamSizeFactor, density, gridNum, fixRange=width)
-
-        sidelength = density * self.beamSizeFactor
-        windowLength = imageLength/gridNum*sidelength
-
-
-        """
-        https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
-        CRVAL: coordinate system value at reference pixel
-        CRPIX: coordinate system reference pixel
-        CDELT: coordinate increment along axis
-        CTYPE: name of the coordinate axis
-        """
-        self.WCS = {}
-        self.WCS['crpix'] = [density/2 -1, density/2 -1]
-        self.WCS['cdelt'] = np.rad2deg([-imageLength/gridNum, imageLength/gridNum])
-        self.WCS['crval'] = [self.boreSight[0] - self.WCS['cdelt'][0],
-                             self.boreSight[1] - self.WCS['cdelt'][1]]
-        self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
-
-        chanIdx = 0
-        images = []
-        for waveLength in waveLengths:
-
-            # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                    # waveLength, imageLength, self.beamSizeFactor, density, gridNum)
-
-            # paddingToWidth = gridNum * width/(gridnum/imageLength)
-            # fullWidth = int(round(width * imageLength))
-            # paddingToWidth = [fullWidth, fullWidth]
-
-            image = self.performFFT(rotatedProjectedBaselines, waveLength, imageLength, gridNum)
-
-            # flippedImage = np.fliplr(image)
-            if plotting == True:
-                self.imageLength = windowLength
-                psfName = 'psf' + str(chanIdx) + '.png'
-                chanIdx += 1
-                plotBeamContour(image, np.deg2rad(self.boreSight), windowLength,
-                        fileName = psfName, interpolation = self.interpolating)
-            # writer(waveLength, image)
-            images.append(image)
-
         return image
