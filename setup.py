@@ -9,7 +9,7 @@ setup(name='mosaic',
       license='MIT',
       packages=['mosaic'],
       install_requires=[
-          'scipy',
+          'scipy == 1.2',
           'numpy',
           'matplotlib == 2.2.3',
           'katpoint',
