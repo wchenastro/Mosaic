@@ -4,12 +4,16 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import matplotlib.animation as animation
+from matplotlib.ticker import FormatStrFormatter
+
 
 
 def plotBeamContour(array, center, sideLength, fileName='contour.png', interpolation = True):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
     fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    # plt.locator_params(axis='x', nbins=3)
+    # plt.locator_params(axis='y', nbins=3)
     if type(sideLength) == list:
         plotRange = sideLength
     else:
@@ -23,6 +27,12 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     plt.imshow(np.flipud(array),cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
     plt.colorbar()
     fig.gca().set_aspect('auto')
+    fig.gca().xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+    fig.gca().yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+    plt.xticks((plotRange[0], center[0], plotRange[1]))
+    plt.yticks((plotRange[2], center[1], plotRange[3]), rotation=90, va='center')
+
+
     plt.subplots_adjust(left=0.20, right=1.00)
     # axes = plt.gca()
     # axes.set_xlim([x.min(),x.max()])
@@ -33,7 +43,9 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     plt.close()
 
 def plotPackedBeam(coordinates, angle, axis1, axis2, center, beamRadius, fileName='pack.png', scope=1.):
-    angle = 180 - angle
+    #angle = 180 - angle
+    # print("tiling angle: %.2f" % angle)
+    # angle = angle - 90
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
@@ -72,19 +84,20 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
         yEnd = (center[1] + halfSideLength)
         plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
-    ims = axis.imshow(np.flipud(array),cmap=plt.cm.jet, vmin=0, vmax=1,
+    ims = axis.imshow(np.fliplr(array),cmap=plt.cm.jet, vmin=0, vmax=1,
             # interpolation=interpolateOption, extent=plotRange)
             interpolation=interpolateOption)
 
     imageShape = array.shape
-    center = ((imageShape[1]/2.0), (imageShape[0]/2.0)-1.0)
-    ellipse = Ellipse(center, width=2*widthH, height=2*widthV, angle=angle)
+    center = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
+    # print("plot angle: %.2f" % angle)
+    ellipse = Ellipse(center, width=2*widthH, height=2*widthV, angle= 180 - angle)
     ellipse.fill = False
     axis.add_artist(ellipse)
 
     fig.colorbar(ims)
     axis.set_aspect('auto')
-    plt.subplots_adjust(left=0.20, right=1.00)
+    # plt.subplots_adjust(left=0.20, right=1.00)
     # axes = plt.gca()
     # axes.set_xlim([x.min(),x.max()])
     # axes.set_ylim([y.min(),y.max()])

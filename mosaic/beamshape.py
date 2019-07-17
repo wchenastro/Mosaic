@@ -291,7 +291,7 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
         image[topRow+1:, :] = filling
         image[:bottomRow, :] = filling
 
-        # np.save("/tmp/trackimage", image)
+        np.save("/tmp/trackimage", image)
 
 
     return border, trueCenterIndex, maxOverstepValue, image
@@ -323,12 +323,14 @@ def calculateBeamSize(image, density, windowLength,
         minorAxis  = (windowLength/interpolatedLength*minDist)
         majorAxis  = (windowLength/interpolatedLength*maxDist)
     else:
-        widthH, widthV, angle = fitEllipse(np.flipud(iterpolatedImage))
+        widthH, widthV, angle = fitEllipse(iterpolatedImage)
         minorAxis  = (windowLength/interpolatedLength*widthH)
         majorAxis  = (windowLength/interpolatedLength*widthV)
-        angle = angle + np.pi/2.0
+        # print("fit angle: %.2f" % np.rad2deg(angle))
+        #angle = angle + np.pi/2.0
+        #angle = np.pi - angle
         if abs(angle) > 360.:
-            angle = angle % 360.
+          angle = angle % 360.
         # angle = np.pi - (angle + np.pi/2.0)
 
     # print majorAxis, minorAxis
@@ -337,7 +339,7 @@ def calculateBeamSize(image, density, windowLength,
 
 def fitEllipse(image):
     def RotatedGaussian2DPDF((x, y), xMean, yMean, xSigma, ySigma, angle):
-        angle = -(angle - np.pi)
+        #angle = -(angle - np.pi)
         a = np.power(np.cos(angle), 2)/(2*xSigma**2) + np.power(np.sin(angle), 2)/(2*ySigma**2)
         b = - np.sin(2*angle)/(4*xSigma**2) + np.sin(2*angle)/(4*ySigma**2)
         c = np.power(np.sin(angle), 2)/(2*xSigma**2) + np.power(np.cos(angle), 2)/(2*ySigma**2)
@@ -360,8 +362,8 @@ def fitEllipse(image):
 
     centerX, centerY, sigmaH, sigmaV, angle = popt
 
-    widthH = normInverse(0.5, 0, sigmaH)
-    widthV = normInverse(0.5, 0, sigmaV)
+    widthV = normInverse(0.5, 0, sigmaH)
+    widthH = normInverse(0.5, 0, sigmaV)
 
     return widthH, widthV, angle
 

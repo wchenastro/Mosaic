@@ -80,7 +80,7 @@ class TilingNotOptimizedError(Exception):
 def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=False):
 
 
-    angle = 180-angle
+    #angle = 180-angle
     area = beamNumber*np.pi*axisH*axisV
     beamRadius = np.sqrt(area/np.pi)*1.
     error = int(round(error/2.))

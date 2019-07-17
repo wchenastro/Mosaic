@@ -359,6 +359,7 @@ class InterferometryObservation:
         baselineLengths = coord.distances(rotatedProjectedBaselines)
         baselineMax = np.amax(baselineLengths)
         baselineMin = np.amin(baselineLengths)
+        # print baselineMax, baselineMin
         indexOfMaximum = np.argmax(baselineLengths)
         maxBaselineVector = rotatedProjectedBaselines[indexOfMaximum]
         # rotate vector on a surface https://math.stackexchange.com/questions/1830695/
@@ -398,7 +399,10 @@ class InterferometryObservation:
             if abs(elevation) < 20.:
                 logger.warning("Elevation is low %f" % elevation)
             logger.warning("Beam shape probably is not correct.")
-        self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+        """flip the beamshpe"""
+        angle = 180 - sizeInfo[2]
+        self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], angle]
+        # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
 
     def createContour(self, antennas, fileName=None, minAlt=0):
@@ -532,7 +536,7 @@ class InterferometryObservation:
                 windowLength, self.WCS, equatorial_range)
 
         if fileName is not None:
-            plotBeamContour(image, (0,0), equatorial_range,
+            plotBeamContour(image, self.boresight.equatorial, equatorial_range,
                     interpolation = self.interpolating, fileName = fileName)
 
         # if baselineNum > 2:

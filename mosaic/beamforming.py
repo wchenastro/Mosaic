@@ -96,6 +96,8 @@ class PsfSim(object):
             ra = source.body._ra
             dec = source.body._dec
             return np.rad2deg([ra, dec])
+        else:
+            raise Exception("source are passed in unknown format")
 
     def get_beam_shape(self, source, time):
         """

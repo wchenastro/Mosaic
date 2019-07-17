@@ -80,9 +80,13 @@ class Cartesian(QWidget):
 
         for dot in self.dots:
             painter.drawEllipse(dot[0], dot[1],3,3)
+            # painter.drawPoint(dot[0], dot[1])
 
+        painter.setPen(Qt.blue)
         for dot in self.highLightDots:
             painter.drawEllipse(dot[0], dot[1],5,5)
+            # painter.drawPoint(dot[0], dot[1])
+        painter.setPen(Qt.black)
         self.highLightDots[:] = []
 
         painter.end()
