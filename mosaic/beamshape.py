@@ -320,21 +320,21 @@ def calculateBeamSize(image, density, windowLength,
         maxDist = np.sqrt(distancesSQ[maxDistIndex])
         maxDistVector = imageArray[maxDistIndex]
         angle = np.arctan2(maxDistVector[0], maxDistVector[1])
-        minorAxis  = (windowLength/interpolatedLength*minDist)
-        majorAxis  = (windowLength/interpolatedLength*maxDist)
+        axis2  = (windowLength/interpolatedLength*minDist)
+        axis1  = (windowLength/interpolatedLength*maxDist)
     else:
         widthH, widthV, angle = fitEllipse(iterpolatedImage)
-        minorAxis  = (windowLength/interpolatedLength*widthH)
-        majorAxis  = (windowLength/interpolatedLength*widthV)
+        axis1  = (windowLength/interpolatedLength*widthH)
+        axis2  = (windowLength/interpolatedLength*widthV)
         # print("fit angle: %.2f" % np.rad2deg(angle))
         #angle = angle + np.pi/2.0
         #angle = np.pi - angle
-        if abs(angle) > 360.:
-          angle = angle % 360.
+        # if abs(angle) > 360.:
+          # angle = angle % 360.
         # angle = np.pi - (angle + np.pi/2.0)
 
     # print majorAxis, minorAxis
-    return majorAxis , minorAxis, np.rad2deg(angle), overstep
+    return axis1, axis2, np.rad2deg(angle), overstep
 
 
 def fitEllipse(image):
@@ -362,8 +362,8 @@ def fitEllipse(image):
 
     centerX, centerY, sigmaH, sigmaV, angle = popt
 
-    widthV = normInverse(0.5, 0, sigmaH)
-    widthH = normInverse(0.5, 0, sigmaV)
+    widthH = normInverse(0.5, 0, sigmaH)
+    widthV = normInverse(0.5, 0, sigmaV)
 
     return widthH, widthV, angle
 

@@ -84,9 +84,9 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
         yEnd = (center[1] + halfSideLength)
         plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
-    ims = axis.imshow(np.fliplr(array),cmap=plt.cm.jet, vmin=0, vmax=1,
+    ims = axis.imshow(np.fliplr(array), cmap=plt.cm.jet, vmin=0, vmax=1,
             # interpolation=interpolateOption, extent=plotRange)
-            interpolation=interpolateOption)
+            interpolation=interpolateOption, aspect = 'equal')
 
     imageShape = array.shape
     center = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))

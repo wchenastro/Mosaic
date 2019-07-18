@@ -401,6 +401,7 @@ class InterferometryObservation:
             logger.warning("Beam shape probably is not correct.")
         """flip the beamshpe"""
         angle = 180 - sizeInfo[2]
+        angle = angle % 360. if abs(angle) > 360. else angle
         self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], angle]
         # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
