@@ -225,6 +225,14 @@ class InterferometryObservation:
                         np.concatenate((ul[1].T, ur[1].T)).T,
                         np.concatenate((bl[1].T, br[1].T)).T)).flatten()])
 
+        # imagesCoord = np.array([
+                        # np.vstack((
+                        # np.hstack((ul[0], ur[0])),
+                        # np.hstack((bl[0], br[0])))).flatten(),
+                        # np.vstack((
+                        # np.hstack((ul[1], ur[1])),
+                        # np.hstack((bl[1], br[1])))).flatten()])
+
         return imagesCoord
 
 
@@ -399,7 +407,7 @@ class InterferometryObservation:
             if abs(elevation) < 20.:
                 logger.warning("Elevation is low %f" % elevation)
             logger.warning("Beam shape probably is not correct.")
-        """flip the beamshpe"""
+        """flip the beamshpe because the the telescope is looking at the sky form the ground"""
         angle = 180 - sizeInfo[2]
         angle = angle % 360. if abs(angle) > 360. else angle
         self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], angle]

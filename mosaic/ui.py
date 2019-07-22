@@ -153,11 +153,16 @@ class Cartesian(QWidget):
         self.elevation = horizontalCoord[1]
         self.update()
 
-    def setCenter(self, center, radius):
-        self.xStart = center[1] - radius
-        self.xEnd = center[1] + radius
-        self.yStart = center[0] - radius
-        self.yEnd = center[0] + radius
+    def setCenter(self, center, radius, swapXY=False):
+        if swapXY == True:
+            center = center[1], center[0]
+
+        self.xStart = center[0] - radius
+        self.xEnd = center[0] + radius
+        self.yStart = center[1] - radius
+        self.yEnd = center[1] + radius
+
+        # print (center, self.xStart, self.xEnd, self.yStart, self.yEnd)
 
 class miniCartesian(Cartesian):
 
@@ -353,8 +358,10 @@ def updateContour():
     # updateBaselineList(observation.getBaselines())
     projectedBaselines = observation.getProjectedBaselines()
     baselineCoordinates = np.array([pbl for pbl in projectedBaselines])
-    uvCoord = baselineCoordinates /waveLength
-    updateUVPlane(np.concatenate((uvCoord, -uvCoord)))
+    uvCoord = baselineCoordinates / waveLength
+    uvSamples = np.concatenate((uvCoord, -uvCoord))
+    # np.save("/tmp/uvSamples", uvSamples)
+    updateUVPlane(uvSamples)
     resetPackState()
     beamSizeFactor = observation.getBeamSizeFactor()
     beamSizeEdit.blockSignals(True)
@@ -722,12 +729,13 @@ def onCoordinateListSelectionChanged():
         # baselineList.setItem(index, 1, QTableWidgetItem(str(length)))
         # index += 1
 
-def updateUVPlane(baselines):
+def updateUVPlane(uvSamples):
     # print baselines
     # if baselines == None:return
 
     UVPlane.clearDots()
-    UVPlane.addDots(baselines[:,0:2])
+    #swap x,y because the Cartesian class use (y,x) index.
+    UVPlane.addDots(uvSamples[:,[1,0]])
 
 
 np.set_printoptions(precision=3)
@@ -770,7 +778,7 @@ w = QWidget()
 w.setWindowTitle("WaveRider")
 
 axis =Cartesian(w)
-axis.setCenter(arrayReferece.geo, 0.02)
+axis.setCenter(arrayReferece.geo, 0.04, swapXY=True)
 axis.move(500, 10)
 
 label = QLabel(w)
@@ -953,7 +961,7 @@ UVPlaneLabel.setText('UV plane')
 UVPlaneLabel.move(500, 440)
 
 UVPlane = miniCartesian(w)
-UVPlane.setCenter(arrayReferece.geo, 20000)
+UVPlane.setCenter((0,0), 40000)
 UVPlane.move(500, 460)
 
 
