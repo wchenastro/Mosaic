@@ -91,7 +91,7 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
     imageShape = array.shape
     center = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
     # print("plot angle: %.2f" % angle)
-    ellipse = Ellipse(center, width=2*widthH, height=2*widthV, angle= 180 - angle)
+    ellipse = Ellipse(center, width=2*widthH, height=2*widthV, angle= angle)
     ellipse.fill = False
     axis.add_artist(ellipse)
 
