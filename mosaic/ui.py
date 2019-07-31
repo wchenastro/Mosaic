@@ -739,6 +739,17 @@ def updateUVPlane(uvSamples):
 
 
 np.set_printoptions(precision=3)
+loggerFormat = '%(asctime)-15s %(filename)s  %(message)s'
+logging.basicConfig(format = loggerFormat, level=logging.WARNING)
+logger = logging.getLogger()
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-v", "--verbose", help="increase output verbosity",
+        action="store_true")
+
+args = parser.parse_args()
+if args.verbose:
+    logger.setLevel(logging.INFO)
 
 '''MeerKAT coordinates'''
 # the values provided by http://public.ska.ac.za/meerkat
@@ -764,13 +775,6 @@ observation.setAutoZoom(True)
 imageData = None
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-v", "--verbose", help="increase output verbosity",
-        action="store_true")
-
-args = parser.parse_args()
-if args.verbose:
-    logging.basicConfig(level=logging.DEBUG)
 
 a = QApplication(sys.argv)
 

@@ -24,7 +24,8 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
         yEnd = (center[1] + halfSideLength)
         plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
-    plt.imshow(np.flipud(array),cmap=plt.cm.jet, vmin=0, vmax=1, interpolation=interpolateOption, extent=plotRange)
+    plt.imshow(np.fliplr(array),cmap=plt.cm.jet, vmin=0, vmax=1,
+            interpolation=interpolateOption, extent=plotRange, origin='bottom')
     plt.colorbar()
     fig.gca().set_aspect('auto')
     fig.gca().xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -86,7 +87,7 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
     ims = axis.imshow(np.fliplr(array), cmap=plt.cm.jet, vmin=0, vmax=1,
             # interpolation=interpolateOption, extent=plotRange)
-            interpolation=interpolateOption, aspect = 'equal')
+            interpolation=interpolateOption, aspect = 'equal', origin='bottom')
 
     imageShape = array.shape
     center = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))

@@ -4,8 +4,6 @@ import sys
 import random, logging
 import numpy as np
 
-loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
-logging.basicConfig(format = loggerFormat, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def hexagonGrid(beamNumber, beamRadius, subBeamRadius=None):
@@ -122,7 +120,8 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
                         # "required_beam_number":beamNumber,
                         # "generated_beam_number":inCircleCount,
                         # })
-
+    logger.info("tiling result, required_beam_number: {}, generate_beam_number: {}, "
+                "trial counter: {}".format(beamNumber, inCircleCount, trialCount))
 
     random.seed()
     # print inCircleCount

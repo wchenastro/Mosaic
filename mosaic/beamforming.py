@@ -1,5 +1,5 @@
 import numpy as np
-import datetime
+import datetime, logging
 import katpoint
 import coordinate as coord
 from interferometer import InterferometryObservation
@@ -8,6 +8,7 @@ from plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interfer
 from beamshape import calculateBeamOverlaps
 from utilities import normInverse
 
+logger = logging.getLogger(__name__)
 
 class PsfSim(object):
     """
@@ -360,6 +361,10 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
 
+    logger.info("tiling summary, beam num: {}, axis1: {:.3g}, axis2: {:.3g}, "
+                "angle: {:.3f}, overlap: {}, tiling radius: {:.3g}".format(
+                tiling_obj.beam_num, widthH, widthV, beam_shape.angle,overlap,
+                tiling_radius))
     return tiling_obj
 
 def generate_radius_tiling(beam_shape, tiling_radius, overlap = 0.5):

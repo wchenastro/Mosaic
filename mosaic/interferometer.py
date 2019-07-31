@@ -10,10 +10,7 @@ from beamshape import calculateBeamSize
 
 import inspect, pickle, datetime, logging
 
-loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
-logging.basicConfig(format = loggerFormat, level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 class PointSpreadFunction(object):
     """
@@ -44,7 +41,6 @@ class InterferometryObservation:
         self.resolution = 1/3600.0
         self.boresightFrame = coord.Boresight.EquatorialFrame
         self.updateBeamCoordinates(self.beamSizeFactor, self.imageDensity, self.gridNumOfDFT)
-
 
 
     def setInterpolating(self, state):
@@ -412,6 +408,9 @@ class InterferometryObservation:
         self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], angle]
         # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
+        logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f}".format(
+                    sizeInfo[0], sizeInfo[1], angle))
+
 
     def createContour(self, antennas, fileName=None, minAlt=0):
 
@@ -558,4 +557,8 @@ class InterferometryObservation:
             # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
         self.imageData = image
+        logger.info("beamshape simulation imputs, freq: {:.3g}, source: {}, "
+                    "time: {}, subarray: {}".format(299792458./self.waveLength,
+                        self.boresight.equatorial, self.observeTime,
+                        [ant.name for ant in antennas]))
         return image
