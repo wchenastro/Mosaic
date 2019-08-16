@@ -96,7 +96,7 @@ class PsfSim(object):
         elif isinstance(source, katpoint.Target):
             ra = source.body._ra
             dec = source.body._dec
-            return np.rad2deg([ra, dec])
+            return (str(ra), str(dec))
         else:
             raise Exception("source are passed in unknown format")
 
@@ -126,8 +126,9 @@ class PsfSim(object):
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
         psf = self.observation.getPointSpreadFunction()
         resolution = self.observation.getResolution()
-        return BeamShape(axisH, axisV, angle, psf, self.antennas, bore_sight,
-                self.reference_antenna, horizon, resolution)
+        bore_sight_degree = self.observation.getBoreSight().equatorial
+        return BeamShape(axisH, axisV, angle, psf, self.antennas,
+                bore_sight_degree, self.reference_antenna, horizon, resolution)
 
 
 class BeamShape(object):

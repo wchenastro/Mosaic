@@ -131,9 +131,13 @@ class InterferometryObservation:
     def getsynthesizedBeam(self):
         return self.beamSynthesized
 
-    def setBoreSight(self, boreSight=None, frame=None):
-        if boreSight is not None:
-            self.boresightInput = boreSight
+    def setBoreSight(self, boresight=None, frame=None):
+        if boresight is not None:
+            self.boresightInput = boresight
+            if len(boresight[0].split(":")) > 1:
+                self.boresightCoord  = coord.convertBoresightToDegree(boresight)
+            else:
+                self.boresightCoord = (float(boresight[0]), float(boresight[1]))
         if frame is not None:
             self.boresightFrame = frame
 
@@ -402,7 +406,8 @@ class InterferometryObservation:
             elevation = np.rad2deg(self.boresight.horizontal[1])
             if abs(elevation) < 20.:
                 logger.warning("Elevation is low %f" % elevation)
-            logger.warning("Beam shape probably is not correct.")
+            logger.warning("Beam shape probably is not correct. "
+                           "overstep at the power of {:.3}.".format(sizeInfo[3]))
         angle =  sizeInfo[2]
         angle = angle % 360. if abs(angle) > 360. else angle
         self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], angle]
@@ -419,7 +424,7 @@ class InterferometryObservation:
 
         self.baselines = self.array.getBaselines()
 
-        self.boresight = coord.Boresight("main", self.boresightInput, self.observeTime,
+        self.boresight = coord.Boresight("main", self.boresightCoord, self.observeTime,
                 self.arrayReferece, self.boresightFrame)
 
         self.projectedBaselines = self.array.getRotatedProjectedBaselines(self.boresight)
@@ -557,8 +562,8 @@ class InterferometryObservation:
             # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
         self.imageData = image
-        logger.info("beamshape simulation imputs, freq: {:.3g}, source: {}, "
+        logger.info("beamshape simulation imputs, freq: {:.5g}, source: {}, "
                     "time: {}, subarray: {}".format(299792458./self.waveLength,
-                        self.boresight.equatorial, self.observeTime,
+                        self.boresightInput, self.observeTime,
                         [ant.name for ant in antennas]))
         return image
