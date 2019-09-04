@@ -134,7 +134,9 @@ class InterferometryObservation:
     def setBoreSight(self, boresight=None, frame=None):
         if boresight is not None:
             self.boresightInput = boresight
-            if len(boresight[0].split(":")) > 1:
+            if type(boresight[0]) != type("str"):
+                self.boresightCoord = boresight
+            elif len(boresight[0].split(":")) > 1:
                 self.boresightCoord  = coord.convertBoresightToDegree(boresight)
             else:
                 self.boresightCoord = (float(boresight[0]), float(boresight[1]))
@@ -531,15 +533,13 @@ class InterferometryObservation:
 
         self.imageLength = windowLength
 
-        # left_most_pixel = [-windowLength/2., 0] # x,y
-        # bottom_most_pixel = [0, -windowLength/2.] # x,y
         upper_left_pixel = [-windowLength/2., windowLength/2.] # x,y
         bottom_right_pixel = [windowLength/2., -windowLength/2.] # x,y
 
         coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
             [upper_left_pixel, bottom_right_pixel], self.boresight.equatorial)
-        equatorial_range = [coordinates_equatorial[1][0], coordinates_equatorial[0][0], # left, right
-                            coordinates_equatorial[1][1], coordinates_equatorial[0][1]] # up, bottom
+        equatorial_range = [coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
+                            coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
 
         self.beamAxis = [None, None, None, equatorial_range]
         self.constructFitsHeader(density, self.resolution*self.beamSizeFactor, self.boresight.equatorial)

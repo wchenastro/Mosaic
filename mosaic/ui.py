@@ -11,7 +11,8 @@ from interferometer import InterferometryObservation
 from plot import plotPackedBeam, plotBeamFit, plotBeamWithFit
 from tile import ellipseGrid, ellipseCompact
 from beamshape import calculateBeamOverlaps
-from coordinate import Antenna, Boresight, convertBoresightToHour, convertBoresightToDegree
+from coordinate import Antenna, Boresight, convertBoresightToHour
+from coordinate import convertBoresightToDegree, convert_pixel_coordinate_to_equatorial
 
 import argparse
 import logging, tempfile
@@ -210,11 +211,13 @@ def updateHorizontal(horizontalCoord):
 
 def updateBoreSight(boreSightCoord):
     if boreSightCoord == []: return
-    RA, DEC = convertBoresightToHour(boreSightCoord, frame='icrs', unit='deg');
+    RA, DEC = convertBoresightToHour(boreSightCoord);
     RACoord.blockSignals(True)
     DECCoord.blockSignals(True)
-    RACoord.setText('{:6.5f}'.format(RA))
-    DECCoord.setText('{:6.5f}'.format(DEC))
+    # RACoord.setText('{:6.5f}'.format(RA))
+    # DECCoord.setText('{:6.5f}'.format(DEC))
+    RACoord.setText(RA)
+    DECCoord.setText(DEC)
     RACoord.blockSignals(False)
     DECCoord.blockSignals(False)
 
@@ -530,7 +533,7 @@ def onClickedPackButton2():
     if sizeInfo is None:
         return
     else:
-        axisH2, axisV2, angle2, = sizeInfo[0], sizeInfo[1], sizeInfo[2]
+        axisH2, axisV2, angle2, plotRange = sizeInfo
     # print sizeInfo
     if center == []: return
     # print 'axisLengthFit: ', axisH, axisV, np.rad2deg(angle), center
@@ -554,7 +557,7 @@ def onClickedPackButton2():
     # boresight = (10, 9)
     # widthH = axisH2
     # widthV = axisV2
-    plotBeamWithFit(imageData, None, sizeInfo[3], widthH, widthV, angle2,
+    plotBeamWithFit(imageData, center, plotRange, widthH, widthV, angle2,
                     fileName=imageFileName)
     pixmap = QPixmap(imageFileName)
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
@@ -570,8 +573,10 @@ def onClickedPackButton2():
     primaryBeamRadius = np.rad2deg(1.22*waveLength/13.5)/2. * factor
     coordinatesPrimary = ellipseGrid(primaryBeamRadius, beamRadius, beamRadius, 0).T
     beamNumberPrimary = len(coordinatesPrimary)
-    plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, (0,0), primaryBeamRadius,
-            fileName = tempdir + '/primaryPack.png')
+
+
+    # plotPackedBeam(coordinatesPrimary, 0, beamRadius, beamRadius, (0,0), primaryBeamRadius,
+            # fileName = tempdir + '/primaryPack.png')
     # print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius))
     print("tidal: num:%d, axisH:%f, axisV:%f, radius:%f" % (beamNumberTidal, axisH2, axisV2, beamRadius)),
     print(", angle: %f" % angle2)
@@ -582,7 +587,22 @@ def onClickedPackButton2():
     # print(beamRadius)
     # print("%dx%f/%f=%f" % (beamNumber, beamArea, primaryBeamArea, ratio))
     # ======================
-    plotPackedBeam(coordinates, angle2, axisH2, axisV2, (0,0), beamRadius, fileName = tempdir + '/pack.png')
+    maxDistance = np.max(
+            np.sqrt(np.sum(np.square(coordinates), axis = 1)))
+    upper_left_pixel = [-maxDistance, maxDistance] # x,y
+    bottom_right_pixel = [maxDistance, -maxDistance] # x,y
+    coordinates_equatorial, tiling_radius = convert_pixel_coordinate_to_equatorial(
+        [upper_left_pixel, bottom_right_pixel], center)
+
+    equatorial_range = [
+        coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
+        coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
+    pixel_range = [upper_left_pixel[0], bottom_right_pixel[0], # left, right
+                   upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
+
+    plotPackedBeam(coordinates, angle2, axisH2, axisV2, center,
+            equatorial_range, pixel_range, beamRadius,
+            fileName = tempdir + '/pack.png', HD = False)
     pixmap = QPixmap(tempdir + '/pack.png')
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     onClickedPackButton2.state = 1
@@ -789,6 +809,7 @@ label = QLabel(w)
 blankImage = QPixmap(400, 300)
 blankImage.fill(Qt.white)
 label.setPixmap(blankImage)
+label.setScaledContents(True)
 label.move(10, 10)
 
 longitudeCoordLabel = QLabel(w)

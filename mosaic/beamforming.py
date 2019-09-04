@@ -191,7 +191,7 @@ class BeamShape(object):
         else:
             widthH = self.axisH/self.resolution
             widthV = self.axisV/self.resolution
-            plotBeamWithFit(self.psf.image, None, self.psf.image_range, widthH, widthV,
+            plotBeamWithFit(self.psf.image, self.psf.bore_sight, self.psf.image_range, widthH, widthV,
                     self.angle, filename, interpolation = True)
 
     def plot_interferometry(self, filename):
@@ -279,17 +279,37 @@ class Tiling(object):
         self.beam_num = len(coordinates)
         self.overlap = overlap
 
-    def plot_tiling(self, filename):
+    def plot_tiling(self, filename, overlap = None, index = False):
         """
         plot the tiling pattern with specified file name.
 
         arguments:
         filename --  filename of the plot, the format and directory can be
         specified in the file name such as  "plot/pattern.png" or "pattern.pdf"
+        overlap -- the overlap ration between beams,
+                   default is None(using the tilling overlap)
+        index -- wather to show the index of the beam, default is False
         """
-        widthH, widthV = self.beam_shape.width_at_overlap(self.overlap)
+        if overlap is None:
+            widthH, widthV = self.beam_shape.width_at_overlap(self.overlap)
+        elif overlap == 0.5:
+            widthH, widthV = self.beam_shape.axisH, self.beam_shape.axisV
+        else:
+            widthH, widthV = self.beam_shape.width_at_overlap(overlap)
+        maxDistance = np.max(
+                np.sqrt(np.sum(np.square(self.coordinates), axis = 1)))
+        upper_left_pixel = [-maxDistance, maxDistance] # x,y
+        bottom_right_pixel = [maxDistance, -maxDistance] # x,y
+        coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+            [upper_left_pixel, bottom_right_pixel], self.beam_shape.bore_sight)
+        equatorial_range = [
+            coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
+            coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
+        pixel_range = [upper_left_pixel[0], bottom_right_pixel[0], # left, right
+                       upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
         plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
-                (0,0), self.tiling_radius, fileName=filename)
+            self.beam_shape.bore_sight, equatorial_range, pixel_range,
+            self.tiling_radius, fileName=filename, index = index)
 
     def get_equatorial_coordinates(self):
         """

@@ -4,9 +4,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import matplotlib.animation as animation
-from matplotlib.ticker import FormatStrFormatter
-
-
+from matplotlib.ticker import FormatStrFormatter, FixedLocator, FixedFormatter
 
 def plotBeamContour(array, center, sideLength, fileName='contour.png', interpolation = True):
     thisDpi = 96.
@@ -24,14 +22,15 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
         yEnd = (center[1] + halfSideLength)
         plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
+    extent = [plotRange[0],plotRange[1],plotRange[3],plotRange[2]]
     plt.imshow(np.fliplr(array),cmap=plt.cm.jet, vmin=0, vmax=1,
-            interpolation=interpolateOption, extent=plotRange, origin='bottom')
+            interpolation=interpolateOption, extent=extent, origin='bottom')
     plt.colorbar()
     fig.gca().set_aspect('auto')
     fig.gca().xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     fig.gca().yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     plt.xticks((plotRange[0], center[0], plotRange[1]))
-    plt.yticks((plotRange[2], center[1], plotRange[3]), rotation=90, va='center')
+    plt.yticks((plotRange[3], center[1], plotRange[2]), rotation=90, va='center')
 
 
     plt.subplots_adjust(left=0.20, right=1.00)
@@ -43,29 +42,58 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotPackedBeam(coordinates, angle, axis1, axis2, center, beamRadius, fileName='pack.png', scope=1.):
+def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_range,
+        pixel_range, beamRadius, fileName='pack.png', scope=1.,
+        transparency = 1., index = False, HD = True):
     #angle = 180 - angle
     # print("tiling angle: %.2f" % angle)
     # angle = angle - 90
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
-    fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    if HD == True:
+        fig = plt.figure(figsize=(1600./thisDpi, 1200./thisDpi), dpi=thisDpi)
+    else:
+        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
     # plt.axes().set_aspect('equal', 'datalim')
-    ax = fig.add_subplot(111, aspect='equal')
+    axis = fig.add_subplot(111, aspect='equal')
     # center = coordinates[0]
-    for coord in coordinates:
-        ellipse = Ellipse(xy=coord, width=2*axis1, height=2*axis2, angle=angle)
+    for idx in range(len(coordinates)):
+        coord = coordinates[idx]
+        ellipse = Ellipse(xy=coord, width=2*axis1, height=2*axis2, angle=angle,
+                alpha = transparency)
         ellipse.fill = False
-        ax.add_artist(ellipse)
-    circle = Ellipse(xy=center, width=2*beamRadius, height=2*beamRadius, angle=0)
+        axis.add_artist(ellipse)
+        if index == True:
+            axis.text(coord[0], coord[1], idx)
+    gridCenter = [0,0]
+    circle = Ellipse(xy=gridCenter, width=2*beamRadius, height=2*beamRadius, angle=0)
     circle.fill = False
-    ax.add_artist(circle)
+    axis.add_artist(circle)
     margin = beamRadius*1.3*scope
-    ax.set_xlim(center[0]-margin, center[0]+margin)
-    ax.set_ylim(center[1]-margin, center[1]+margin)
+    axis.set_xlim(gridCenter[0]-margin, gridCenter[0]+margin)
+    axis.set_ylim(gridCenter[1]-margin, gridCenter[1]+margin)
     beamNum = len(coordinates)
-    plt.title("Tiling for %d beams with radius of %.2f degree" % (beamNum, beamRadius))
+
+    xTicks = FixedLocator([pixel_range[0], 0, pixel_range[1]])
+    xTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[0]),
+                          "{:.2f}".format(boresight[0]),
+                          "{:.2f}".format(equaltorial_range[1])])
+    axis.xaxis.set_major_formatter(xTicksLabel)
+    axis.xaxis.set_major_locator(xTicks)
+    axis.set_xlabel("RA")
+
+    yTicks = FixedLocator([pixel_range[2], 0, pixel_range[3]])
+    yTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[2]),
+                          "{:.2f}".format(boresight[1]),
+                          "{:.2f}".format(equaltorial_range[3])])
+    axis.yaxis.set_major_formatter(yTicksLabel)
+    axis.yaxis.set_major_locator(yTicks)
+    axis.yaxis.set_tick_params(rotation=90)
+    axis.set_ylabel("DEC")
+
+    fig.tight_layout()
+
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
@@ -90,14 +118,34 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
             interpolation=interpolateOption, aspect = 'equal', origin='bottom')
 
     imageShape = array.shape
-    center = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
+    gridCenter = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
     # print("plot angle: %.2f" % angle)
-    ellipse = Ellipse(center, width=2*widthH, height=2*widthV, angle= angle)
+    ellipse = Ellipse(gridCenter, width=2*widthH, height=2*widthV, angle= angle)
     ellipse.fill = False
     axis.add_artist(ellipse)
 
     fig.colorbar(ims)
     axis.set_aspect('auto')
+    xTicks = FixedLocator([0, gridCenter[0], imageShape[1]-1])
+    xTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[0]),
+                          "{:.2f}".format(center[0]),
+                          "{:.2f}".format(plotRange[1])])
+    axis.xaxis.set_major_formatter(xTicksLabel)
+    axis.xaxis.set_major_locator(xTicks)
+    axis.set_xlabel("RA")
+
+    yTicks = FixedLocator([0, gridCenter[1], imageShape[0]-1])
+    yTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[3]),
+                          "{:.2f}".format(center[1]),
+                          "{:.2f}".format(plotRange[2])])
+    axis.yaxis.set_major_formatter(yTicksLabel)
+    axis.yaxis.set_major_locator(yTicks)
+    axis.yaxis.set_tick_params(rotation=90)
+    axis.set_ylabel("DEC")
+
+
+
+
     # plt.subplots_adjust(left=0.20, right=1.00)
     # axes = plt.gca()
     # axes.set_xlim([x.min(),x.max()])
@@ -168,7 +216,7 @@ def plot_overlap(overlapTables, mode, fileName):
 
         mov = animation.FuncAnimation(fig, animator, frames=overlapTables)
 
-        mov.save(fileName, dpi=thisDpi)
+        mov.save(fileName, dpi=thisDpi, writer='imagemagick')
 
     else:
         plt.savefig(fileName, dpi=thisDpi)
