@@ -399,14 +399,30 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
 
     equatorial_coodinates = wcs_properties.wcs_pix2world(scaled_pixel_coordinats, 0)
 
-    farest_coordinate = equatorial_coodinates[-1]
-    tiled_bore_sight = equatorial_coodinates[0]
-    tiling_radius = (np.sqrt((farest_coordinate[0] - tiled_bore_sight[0])**2 +
-                (farest_coordinate[1] - tiled_bore_sight[1])**2))
+    return equatorial_coodinates
 
 
-    return equatorial_coodinates, tiling_radius
+def convert_pixel_length_to_equatorial(axis1, axis2, angle, boresight):
 
+    angle1Radian = np.deg2rad(angle)
+    angle2Radian = np.deg2rad(angle + 90)
+    pixel1 = [axis1 * np.cos(angle1Radian), axis1 * np.sin(angle1Radian)]
+    pixel2 = [axis2 * np.cos(angle2Radian), axis2 * np.sin(angle2Radian)]
+    equatorials = convert_pixel_coordinate_to_equatorial(
+        [pixel1, pixel2], boresight)
+
+    equatorial1 = SkyCoord(equatorials[0][0], equatorials[0][1], unit="deg")
+    equatorial2 = SkyCoord(equatorials[1][0], equatorials[1][1], unit="deg")
+    equatorialB = SkyCoord(boresight[0], boresight[1], unit="deg")
+
+    width1 = equatorial1.separation(equatorialB)
+    width2 = equatorial2.separation(equatorialB)
+
+    # width1 = np.sqrt(np.sum(np.square(equatorials[0]-boresight)))
+    # width2 = np.sqrt(np.sum(np.square(equatorials[1]-boresight)))
+
+
+    return width1, width2
 
 def convertBoresightToHour(boresight):
     boresight = SkyCoord(boresight[0], boresight[1], frame='icrs', unit='deg');

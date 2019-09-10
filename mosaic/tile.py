@@ -83,7 +83,7 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
     beamRadius = np.sqrt(area/np.pi)*1.
     error = int(round(error/2.))
     if seed is None:
-        random.seed(axisH)
+        random.seed(float("{:.2g}".format(axisH)))
     else:
         random.seed(seed)
 

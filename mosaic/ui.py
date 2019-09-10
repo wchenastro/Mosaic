@@ -591,7 +591,7 @@ def onClickedPackButton2():
             np.sqrt(np.sum(np.square(coordinates), axis = 1)))
     upper_left_pixel = [-maxDistance, maxDistance] # x,y
     bottom_right_pixel = [maxDistance, -maxDistance] # x,y
-    coordinates_equatorial, tiling_radius = convert_pixel_coordinate_to_equatorial(
+    coordinates_equatorial = convert_pixel_coordinate_to_equatorial(
         [upper_left_pixel, bottom_right_pixel], center)
 
     equatorial_range = [

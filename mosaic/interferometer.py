@@ -402,22 +402,27 @@ class InterferometryObservation:
         self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
 
     def fitContour(self):
-        sizeInfo = calculateBeamSize(self.imageData,self.imageDensity,
-                self.imageLength, None, fit=True)
-        if sizeInfo[3] != 0:
+        axis1, axis2, angle, overstep = calculateBeamSize(self.imageData,
+                self.imageDensity, self.imageLength, None, fit=True)
+        if overstep != 0:
             elevation = np.rad2deg(self.boresight.horizontal[1])
             if abs(elevation) < 20.:
                 logger.warning("Elevation is low %f" % elevation)
             logger.warning("Beam shape probably is not correct. "
-                           "overstep at the power of {:.3}.".format(sizeInfo[3]))
-        angle =  sizeInfo[2]
+                           "overstep at the power of {:.3}.".format(overstep))
         angle = angle % 360. if abs(angle) > 360. else angle
-        self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], angle]
-        # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
+        self.beamAxis[0:3] = [axis1, axis2, angle]
 
-        logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f}".format(
-                    sizeInfo[0], sizeInfo[1], angle))
+        width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
+                angle, self.boresight.equatorial)
 
+        self.beamSize = [width1, width2]
+
+        logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
+                .format(axis1, axis2, angle))
+
+        logger.info("width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
+                .format(width1.arcsecond, width2.arcsecond, angle))
 
     def createContour(self, antennas, fileName=None, minAlt=0):
 
@@ -536,7 +541,7 @@ class InterferometryObservation:
         upper_left_pixel = [-windowLength/2., windowLength/2.] # x,y
         bottom_right_pixel = [windowLength/2., -windowLength/2.] # x,y
 
-        coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+        coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
             [upper_left_pixel, bottom_right_pixel], self.boresight.equatorial)
         equatorial_range = [coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
                             coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom

@@ -65,7 +65,7 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
         ellipse.fill = False
         axis.add_artist(ellipse)
         if index == True:
-            axis.text(coord[0], coord[1], idx)
+            axis.text(coord[0], coord[1], idx, size=6, ha='center', va='center')
     gridCenter = [0,0]
     circle = Ellipse(xy=gridCenter, width=2*beamRadius, height=2*beamRadius, angle=0)
     circle.fill = False

@@ -300,7 +300,7 @@ class Tiling(object):
                 np.sqrt(np.sum(np.square(self.coordinates), axis = 1)))
         upper_left_pixel = [-maxDistance, maxDistance] # x,y
         bottom_right_pixel = [maxDistance, -maxDistance] # x,y
-        coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+        coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
             [upper_left_pixel, bottom_right_pixel], self.beam_shape.bore_sight)
         equatorial_range = [
             coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
@@ -318,7 +318,7 @@ class Tiling(object):
         return:
         coordinates_equatorial --  tiling coordinates in equatorial frame
         """
-        coordinates_equatorial, tiling_radius = coord.convert_pixel_coordinate_to_equatorial(
+        coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
                self.coordinates, self.beam_shape.bore_sight)
         return coordinates_equatorial
 
