@@ -180,7 +180,8 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
     overstep = False
     maxOverstepValue = 0
     offset = 0.1
-    filling = threshold * 0.66666666666666
+    # filling = threshold * 0.66666666666666
+    filling = 0
     # closestToCenter = 1
     # closestToCenterIndex = []
     states = {
@@ -284,6 +285,7 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
     # with open("/tmp/stateLog", 'w') as stateLogFile:
         # stateLogFile.writelines(logs)
 
+    # np.save("/tmp/trackimage", image)
     border = np.array(border)
     if border != []:
         topRow = border[:,0].max()
@@ -339,25 +341,34 @@ def calculateBeamSize(image, density, windowLength,
 
 def fitEllipse(image):
     def RotatedGaussian2DPDF((x, y), xMean, yMean, xSigma, ySigma, angle):
-        #angle = -(angle - np.pi)
-        a = np.power(np.cos(angle), 2)/(2*xSigma**2) + np.power(np.sin(angle), 2)/(2*ySigma**2)
-        b = - np.sin(2*angle)/(4*xSigma**2) + np.sin(2*angle)/(4*ySigma**2)
-        c = np.power(np.sin(angle), 2)/(2*xSigma**2) + np.power(np.cos(angle), 2)/(2*ySigma**2)
+        xSigma_square = xSigma**2
+        ySigma_square = ySigma**2
+        cos_angle_square = (np.cos(angle))**2
+        sin_angle_square = (np.sin(angle))**2
+        a = cos_angle_square/(2*xSigma_square) + sin_angle_square/(2*ySigma_square)
+        b = - np.sin(2*angle)/(4*xSigma_square) + np.sin(2*angle)/(4*ySigma_square)
+        c = sin_angle_square/(2*xSigma_square) + cos_angle_square/(2*ySigma_square)
 
-        values = np.exp(-(a*np.power(x-xMean, 2) + 2*b*(x-xMean)*(y-yMean) + c*np.power(y-yMean, 2)))
-        return values.ravel()
+        xMinusxMean = x-xMean
+        yMinusyMean = y-yMean
+        values = np.exp(-(a*xMinusxMean**2 + 2*b*(xMinusxMean)*(yMinusyMean) + c*yMinusyMean**2))
+        return values
 
     yData = image
     dataShape = yData.shape
-    yData = yData.ravel()
 
-    grids = np.meshgrid(np.linspace(0, dataShape[0]-1, dataShape[0]),
+    X,Y = np.meshgrid(np.linspace(0, dataShape[0]-1, dataShape[0]),
             np.linspace(0, dataShape[1]-1, dataShape[1]))
 
-    initial_guess = (dataShape[1]/2, dataShape[0]/2, 20,40,0)
+    X = X[yData != 0]
+    Y = Y[yData != 0]
+    yData = yData[yData != 0]
 
-    paras_bounds = ([300, 300, 10, 10, -2*np.inf], [500, 500, dataShape[0], dataShape[0], 2*np.inf])
-    popt, pcov = curve_fit(RotatedGaussian2DPDF, grids, yData,
+    initial_guess = (dataShape[1]/2, dataShape[0]/2, 160, 160, 0)
+
+    # paras_bounds = ([300, 300, 10, 10, -2*np.inf], [500, 500, dataShape[0], dataShape[0], 2*np.inf])
+    paras_bounds = ([360, 360, 10, 10, -2*np.inf], [440, 440, dataShape[0], dataShape[0], 2*np.inf])
+    popt, pcov = curve_fit(RotatedGaussian2DPDF, (X,Y), yData,
             p0=initial_guess, bounds=paras_bounds)
 
     centerX, centerY, sigmaH, sigmaV, angle = popt

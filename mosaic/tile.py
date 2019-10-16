@@ -120,7 +120,7 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
                         # "required_beam_number":beamNumber,
                         # "generated_beam_number":inCircleCount,
                         # })
-    logger.info("tiling result, required_beam_number: {}, generate_beam_number: {}, "
+    logger.info("tiling: required_beam_number: {}, generate_beam_number: {}, "
                 "trial counter: {}".format(beamNumber, inCircleCount, trialCount))
 
     random.seed()

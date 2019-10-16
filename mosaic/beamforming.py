@@ -322,6 +322,19 @@ class Tiling(object):
                self.coordinates, self.beam_shape.bore_sight)
         return coordinates_equatorial
 
+    def get_beam_size(self):
+        """
+        get the size of the beam in equatorial metric
+
+        return:
+        width1, width2 --  semi-majors of the beam in degree in equatorial plane
+        """
+
+        axis1, axis2 = self.beam_shape.width_at_overlap(self.overlap)
+        width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
+                self.beam_shape.angle, self.beam_shape.bore_sight)
+        return width1, width2
+
     def plot_sky_pattern(self, filename):
         """
         plot the ksy pattern with specified filename
@@ -381,11 +394,13 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
             seed = beam_shape.bore_sight[0])
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
+    width1, width2 = tiling_obj.get_beam_size()
 
-    logger.info("tiling summary, beam num: {}, axis1: {:.3g}, axis2: {:.3g}, "
-                "angle: {:.3f}, overlap: {}, tiling radius: {:.3g}".format(
-                tiling_obj.beam_num, widthH, widthV, beam_shape.angle,overlap,
-                tiling_radius))
+    logger.info("tiling: overlap: {},radius: {:.3g} in pixel plane".format(
+                overlap, tiling_radius))
+    logger.info("tiling: width1: {:.3g} arcsec, width2: {:.3g} arcsec "
+                "in equatorial plane".format(width1.arcsec, width2.arcsec))
+
     return tiling_obj
 
 def generate_radius_tiling(beam_shape, tiling_radius, overlap = 0.5):

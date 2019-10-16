@@ -416,12 +416,12 @@ class InterferometryObservation:
         width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
                 angle, self.boresight.equatorial)
 
-        self.beamSize = [width1, width2]
+        self.beamSize = [width1.degree, width2.degree]
 
-        logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
-                .format(axis1, axis2, angle))
+        # logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
+                # .format(axis1, axis2, angle))
 
-        logger.info("width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
+        logger.info("beamshape: width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
                 .format(width1.arcsecond, width2.arcsecond, angle))
 
     def createContour(self, antennas, fileName=None, minAlt=0):
