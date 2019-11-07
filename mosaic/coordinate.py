@@ -100,6 +100,7 @@ class Boresight(object):
             #print("source in RA, DEC is %f, %f" % (self.boreSight[0], self.boreSight[1]))
 
         self.localSidereTime = LSTDeg
+        self.LocalHourAngle = LSTDeg - self.equatorial[0]
 
     def getAltAziFromRADEC(self, beamCoordinates, LSTDeg, arrayRefereceLatitude):
         beamCoordinates = np.array(beamCoordinates)

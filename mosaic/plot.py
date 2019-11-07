@@ -308,7 +308,7 @@ def plot_interferometry(antennas, center, horizons, fileName='horizon.gif'):
             return (aziLine, altCircle, star)
 
         mov = animation.FuncAnimation(fig, animator, frames=horizons)
-        mov.save(fileName, dpi=thisDpi)
+        mov.save(fileName, dpi=thisDpi, writer='imagemagick')
     else:
         plt.savefig(fileName, dpi=thisDpi)
 

@@ -549,7 +549,7 @@ class InterferometryObservation:
         self.beamAxis = [None, None, None, equatorial_range]
         self.constructFitsHeader(density, self.resolution*self.beamSizeFactor, self.boresight.equatorial)
 
-        self.psf = PointSpreadFunction(image, self.boresight.equatorial,
+        self.psf = PointSpreadFunction(image, self.boresight,
                 windowLength, self.WCS, equatorial_range)
 
         if fileName is not None:

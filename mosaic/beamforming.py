@@ -126,9 +126,9 @@ class PsfSim(object):
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
         psf = self.observation.getPointSpreadFunction()
         resolution = self.observation.getResolution()
-        bore_sight_degree = self.observation.getBoreSight().equatorial
+        bore_sight_object = self.observation.getBoreSight()
         return BeamShape(axisH, axisV, angle, psf, self.antennas,
-                bore_sight_degree, self.reference_antenna, horizon, resolution)
+                bore_sight_object, self.reference_antenna, horizon, resolution)
 
 
 class BeamShape(object):
@@ -186,12 +186,13 @@ class BeamShape(object):
 
         """
         if not shape_overlay:
-            plotBeamContour(self.psf.image, self.psf.bore_sight, self.psf.image_range,
-                    filename, interpolation = True)
+            plotBeamContour(self.psf.image, self.psf.bore_sight.equatorial,
+                    self.psf.image_range, filename, interpolation = True)
         else:
             widthH = self.axisH/self.resolution
             widthV = self.axisV/self.resolution
-            plotBeamWithFit(self.psf.image, self.psf.bore_sight, self.psf.image_range, widthH, widthV,
+            plotBeamWithFit(self.psf.image, self.psf.bore_sight.equatorial,
+                    self.psf.image_range, widthH, widthV,
                     self.angle, filename, interpolation = True)
 
     def plot_interferometry(self, filename):
@@ -301,14 +302,14 @@ class Tiling(object):
         upper_left_pixel = [-maxDistance, maxDistance] # x,y
         bottom_right_pixel = [maxDistance, -maxDistance] # x,y
         coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
-            [upper_left_pixel, bottom_right_pixel], self.beam_shape.bore_sight)
+            [upper_left_pixel, bottom_right_pixel], self.beam_shape.bore_sight.equatorial)
         equatorial_range = [
             coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
             coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
         pixel_range = [upper_left_pixel[0], bottom_right_pixel[0], # left, right
                        upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
         plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
-            self.beam_shape.bore_sight, equatorial_range, pixel_range,
+            self.beam_shape.bore_sight.equatorial, equatorial_range, pixel_range,
             self.tiling_radius, fileName=filename, index = index)
 
     def get_equatorial_coordinates(self):
@@ -319,7 +320,7 @@ class Tiling(object):
         coordinates_equatorial --  tiling coordinates in equatorial frame
         """
         coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
-               self.coordinates, self.beam_shape.bore_sight)
+               self.coordinates, self.beam_shape.bore_sight.equatorial)
         return coordinates_equatorial
 
     def get_beam_size(self):
@@ -332,7 +333,7 @@ class Tiling(object):
 
         axis1, axis2 = self.beam_shape.width_at_overlap(self.overlap)
         width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
-                self.beam_shape.angle, self.beam_shape.bore_sight)
+                self.beam_shape.angle, self.beam_shape.bore_sight.equatorial)
         return width1, width2
 
     def plot_sky_pattern(self, filename):
@@ -391,7 +392,7 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
     widthH, widthV = beam_shape.width_at_overlap(overlap)
     tiling_coordinates, tiling_radius = ellipseCompact(
             beam_num, widthH, widthV, beam_shape.angle, margin,
-            seed = beam_shape.bore_sight[0])
+            seed = beam_shape.bore_sight.equatorial[0])
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
     width1, width2 = tiling_obj.get_beam_size()
