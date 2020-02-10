@@ -17,6 +17,7 @@ setup(name='mosaic',
           'katpoint',
           'h5py',
           'nvector',
-          'astropy == 2.0.7'
+          'astropy == 2.0.7',
+          'geographiclib'
       ],
       zip_safe=False)
