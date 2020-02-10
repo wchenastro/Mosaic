@@ -100,7 +100,7 @@ class PsfSim(object):
         else:
             raise Exception("source are passed in unknown format")
 
-    def get_beam_shape(self, source, time):
+    def get_beam_shape(self, source, time, beam_number = 400, beam_size = None):
         """
         return the beamshape of current oservation parameters
         assuming the beam is roughly a ellipse.
@@ -121,6 +121,10 @@ class PsfSim(object):
         bore_sight = PsfSim.check_source(source)
         self.observation.setBoreSight(bore_sight)
         self.observation.setObserveTime(time)
+        self.observation.setBeamNumber(beam_number)
+        if beam_size != None:
+		self.observation.setAutoZoom(False)
+		self.observation.setBeamSizeFactor(beam_size)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle, image_range = self.observation.getBeamAxis()
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
