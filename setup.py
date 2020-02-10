@@ -9,6 +9,7 @@ setup(name='mosaic',
       license='MIT',
       packages=['mosaic'],
       install_requires=[
+          'more-itertools == 5.0',
           'scipy == 1.2.2',
           'numpy == 1.16',
           'matplotlib == 2.2.3',
