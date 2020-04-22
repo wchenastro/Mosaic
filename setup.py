@@ -9,6 +9,7 @@ setup(name='mosaic',
       license='MIT',
       packages=['mosaic'],
       install_requires=[
+          'kiwisolver == 1.1.0',
           'more-itertools == 5.0',
           'setuptools',
           'numpy == 1.16',
