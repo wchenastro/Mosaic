@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
+from matplotlib.patches import Ellipse, Circle
 import matplotlib.animation as animation
 from matplotlib.ticker import FormatStrFormatter, FixedLocator, FixedFormatter
 
@@ -44,6 +44,7 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
 
 def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_range,
         pixel_range, beamRadius, fileName='pack.png', scope=1.,
+        extra_coordinates = [], extra_coordinates_text = [],
         transparency = 1., index = False, HD = True):
     #angle = 180 - angle
     # print("tiling angle: %.2f" % angle)
@@ -52,9 +53,9 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
     if HD == True:
-        fig = plt.figure(figsize=(1600./thisDpi, 1200./thisDpi), dpi=thisDpi)
+        fig = plt.figure(figsize=(1600./thisDpi, 1600./thisDpi), dpi=thisDpi)
     else:
-        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
     # plt.axes().set_aspect('equal', 'datalim')
     axis = fig.add_subplot(111, aspect='equal')
     # center = coordinates[0]
@@ -66,6 +67,16 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
         axis.add_artist(ellipse)
         if index == True:
             axis.text(coord[0], coord[1], idx, size=6, ha='center', va='center')
+    # print(extra_coordinates)
+    # print(coordinates)
+    for idx in range(len(extra_coordinates)):
+        coord = extra_coordinates[idx]
+        circle = Circle(xy=coord, radius = 0.0006)
+        axis.add_artist(circle)
+        if extra_coordinates_text != []:
+            axis.text(coord[0], coord[1], extra_coordinates_text[idx],
+                    size=5, ha='center', va='center')
+
     gridCenter = [0,0]
     circle = Ellipse(xy=gridCenter, width=2*beamRadius, height=2*beamRadius, angle=0)
     circle.fill = False
@@ -81,7 +92,8 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
                           "{:.2f}".format(equaltorial_range[1])])
     axis.xaxis.set_major_formatter(xTicksLabel)
     axis.xaxis.set_major_locator(xTicks)
-    axis.set_xlabel("RA")
+    axis.xaxis.set_tick_params(tickdir="out", tick2On=False)
+    axis.set_xlabel("Right Ascension")
 
     yTicks = FixedLocator([pixel_range[2], 0, pixel_range[3]])
     yTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[2]),
@@ -89,8 +101,9 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
                           "{:.2f}".format(equaltorial_range[3])])
     axis.yaxis.set_major_formatter(yTicksLabel)
     axis.yaxis.set_major_locator(yTicks)
-    axis.yaxis.set_tick_params(rotation=90)
-    axis.set_ylabel("DEC")
+    axis.yaxis.set_tick_params(tickdir="out", tick2On=False)
+    axis.set_ylabel("Declination")
+    plt.yticks(axis.get_yticks(), visible=True, rotation="vertical")
 
     fig.tight_layout()
 
