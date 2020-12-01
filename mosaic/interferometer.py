@@ -395,7 +395,7 @@ class InterferometryObservation:
         CTYPE: name of the coordinate axis
         """
         self.WCS = {}
-        self.WCS['crpix'] = [density/2 -1, density/2 -1]
+        self.WCS['crpix'] = [density/2. + 1, density/2. + 1]
         self.WCS['cdelt'] = [step, step]
         self.WCS['crval'] = [boresight[0], boresight[1]]
         self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
