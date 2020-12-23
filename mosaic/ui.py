@@ -7,12 +7,12 @@ import numpy as np
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from interferometer import InterferometryObservation
-from plot import plotPackedBeam, plotBeamFit, plotBeamWithFit
-from tile import ellipseGrid, ellipseCompact
-from beamshape import calculateBeamOverlaps
-from coordinate import Antenna, Boresight, convertBoresightToHour
-from coordinate import convertBoresightToDegree, convert_pixel_coordinate_to_equatorial
+from .interferometer import InterferometryObservation
+from .plot import plotPackedBeam, plotBeamWithFit
+from .tile import ellipseGrid, ellipseCompact
+from .beamshape import calculateBeamOverlaps
+from .coordinate import Antenna, Boresight, convertBoresightToHour
+from .coordinate import convertBoresightToDegree, convert_pixel_coordinate_to_equatorial
 
 import argparse
 import logging, tempfile
@@ -228,7 +228,7 @@ def onBoreSightUpdated():
     preBoresight = observation.getBoreSight().equatorial
     if ((abs(beamBoreSight[0] - preBoresight[0]) < 1e-4) and (abs(beamBoreSight[1] - preBoresight[1]) < 1e-4)):
         return
-    print 'boresight edited'
+    print('boresight edited')
     observation.setBoreSight(beamBoreSight, Boresight.EquatorialFrame)
     updateContour()
     updateHorizontal(observation.getBoreSight().horizontal)
@@ -238,7 +238,7 @@ def onHorizontalUpdated():
     preHorizontal = np.rad2deg(observation.getBoreSight().horizontal)
     if ((abs(horizontalCoord[0] - preHorizontal[0]) < 1e-4) and (abs(horizontalCoord[1] - preHorizontal[1]) < 1e-4)):
         return
-    print 'horizontal edited'
+    print('horizontal edited')
     observation.setBoreSight(horizontalCoord, Boresight.HorizontalFrame)
     updateContour()
     axis.setAzAlt(horizontalCoord)
@@ -806,7 +806,7 @@ axis.setCenter(arrayReferece.geo, 0.04, swapXY=True)
 axis.move(500, 10)
 
 label = QLabel(w)
-blankImage = QPixmap(400, 300)
+blankImage = QPixmap(350, 350)
 blankImage.fill(Qt.white)
 label.setPixmap(blankImage)
 label.setScaledContents(True)
@@ -890,7 +890,7 @@ beamSizeEdit.setMaximum(99)
 beamSizeEdit.valueChanged.connect(onBeamSizeChanged)
 
 autoZoomLabel = QLabel(w)
-autoZoomLabel.setText(u"\u25F1")
+autoZoomLabel.setText(b"\xe2\x97\xb1".decode('utf8'))
 autoZoomLabel.setToolTip('Auto Zoom')
 autoZoomLabel.move(763, 320)
 autoZoomCheckbox = QCheckBox(w)
@@ -912,7 +912,7 @@ beamNumberEdit.setText(str(int(observation.getBeamNumber())))
 beamNumberEdit.editingFinished.connect(onBeamNumberChanged)
 
 interpolateLabel = QLabel(w)
-interpolateLabel.setText(u"\u25A6")
+interpolateLabel.setText(b"\xe2\x96\xa6".decode("utf-8"))
 interpolateLabel.setToolTip('Interpolation')
 interpolateLabel.move(833, 320)
 interpolateCheckbox = QCheckBox(w)

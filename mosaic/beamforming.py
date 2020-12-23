@@ -1,12 +1,12 @@
 import numpy as np
 import datetime, logging
 import katpoint
-import coordinate as coord
-from interferometer import InterferometryObservation
-from tile import ellipseCompact, ellipseGrid
-from plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interferometry, plot_overlap
-from beamshape import calculateBeamOverlaps
-from utilities import normInverse
+from . import coordinate as coord
+from .interferometer import InterferometryObservation
+from .tile import ellipseCompact, ellipseGrid
+from .plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interferometry, plot_overlap
+from .beamshape import calculateBeamOverlaps
+from .utilities import normInverse
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class PsfSim(object):
         else:
             raise Exception("source are passed in unknown format")
 
-    def get_beam_shape(self, source, time):
+    def get_beam_shape(self, source, time, beam_number = 400, beam_size = None):
         """
         return the beamshape of current oservation parameters
         assuming the beam is roughly a ellipse.
@@ -117,10 +117,14 @@ class PsfSim(object):
         """
 
         if len(self.antennas) < 3:
-            raise "the number of antennas should be not less then 3"
+            raise Exception("the number of antennas should be not less then 3")
         bore_sight = PsfSim.check_source(source)
         self.observation.setBoreSight(bore_sight)
         self.observation.setObserveTime(time)
+        self.observation.setBeamNumber(beam_number)
+        if beam_size != None:
+            self.observation.setAutoZoom(False)
+            self.observation.setBeamSizeFactor(beam_size)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle, image_range = self.observation.getBeamAxis()
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
@@ -225,13 +229,13 @@ class Overlap(object):
         self.metrics  = metrics
         self.mode = mode
 
-    def plot(self, filename):
+    def plot(self, filename, title=None):
         """
         plot the overlap result in specified filename
 
         """
 
-        plot_overlap(self.metrics, self.mode, filename)
+        plot_overlap(self.metrics, self.mode, filename, title)
 
     def calculate_fractions(self):
         """
@@ -247,7 +251,7 @@ class Overlap(object):
         """
 
         if self.mode != "counter":
-            raise "the fraction calculation is only supportted in counter mode"
+            raise Exception("the fraction calculation is only supportted in counter mode")
         overlap_counter = self.metrics
         overlap_grid = np.count_nonzero(overlap_counter > 1)
         non_overlap_grid = np.count_nonzero(overlap_counter == 1)
@@ -280,7 +284,8 @@ class Tiling(object):
         self.beam_num = len(coordinates)
         self.overlap = overlap
 
-    def plot_tiling(self, filename, overlap = None, index = False):
+    def plot_tiling(self, filename, overlap = None, index = False, scope = 1.,
+            extra_coordinates = [], extra_coordinates_text =[]):
         """
         plot the tiling pattern with specified file name.
 
@@ -310,7 +315,9 @@ class Tiling(object):
                        upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
         plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
             self.beam_shape.bore_sight.equatorial, equatorial_range, pixel_range,
-            self.tiling_radius, fileName=filename, index = index)
+            self.tiling_radius, fileName=filename, index = index, scope = scope,
+            extra_coordinates = extra_coordinates,
+            extra_coordinates_text = extra_coordinates_text)
 
     def get_equatorial_coordinates(self):
         """
@@ -424,7 +431,7 @@ def generate_radius_tiling(beam_shape, tiling_radius, overlap = 0.5):
 
 def dict_to_ordered_list(dict_obj):
     ordered_list = []
-    for key in sorted(dict_obj.iterkeys()):
+    for key in sorted(dict_obj.keys()):
         ordered_list.append(dict_obj[key])
     return ordered_list
 

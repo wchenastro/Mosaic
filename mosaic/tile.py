@@ -3,6 +3,7 @@ from math import sqrt, pi, ceil
 import sys
 import random, logging
 import numpy as np
+from functools import partial
 
 logger = logging.getLogger(__name__)
 
@@ -77,16 +78,26 @@ class TilingNotOptimizedError(Exception):
 
 def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=False):
 
+    if sys.version_info.major > 2:
+        seed_partial = partial(random.seed, version=1)
+    else:
+        seed_partial = random.seed
+
 
     #angle = 180-angle
     area = beamNumber*np.pi*axisH*axisV
     beamRadius = np.sqrt(area/np.pi)*1.
     error = int(round(error/2.))
     if seed is None:
-        random.seed(float("{:.2g}".format(axisH)))
+        seed_partial(float("{:.2g}".format(axisH)))
     else:
-        random.seed(seed)
-
+        # seed = float("{:.2g}".format(seed))
+        if sys.version_info.major == 3:
+            random.seed(seed, version = 1)
+        elif sys.version_info.major == 2:
+            random.seed(seed)
+        # seed_partial(seed)
+    # print("%.100f" % seed)
     inCircleCoordinates = ellipseGrid(beamRadius, axisH, axisV, angle, write=False)
 
     inCircleCount = inCircleCoordinates.shape[1]
@@ -99,6 +110,7 @@ def ellipseCompact(beamNumber, axisH, axisV, angle, error, seed=None, write=Fals
             factor = random.uniform(1.0, 1.1)
         else:
             factor = random.uniform(0.9, 1.0)
+        # print(factor, inCircleCount, beamNumber)
         beamRadius = beamRadius*factor
         inCircleCoordinates = ellipseGrid(beamRadius, axisH, axisV, angle)
         inCircleCount = inCircleCoordinates.shape[1]

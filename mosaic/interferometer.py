@@ -3,10 +3,10 @@
 
 import numpy as np
 
-import coordinate as coord
-from plot import plotBeamContour
-from utilities import normSigma, normInverse
-from beamshape import calculateBeamSize
+from . import coordinate as coord
+from .plot import plotBeamContour
+from .utilities import normSigma, normInverse
+from .beamshape import calculateBeamSize
 
 import inspect, pickle, datetime, logging
 
@@ -215,6 +215,7 @@ class InterferometryObservation:
 
 
     def createDFTGrid(self, gridNum, halfLength, interval):
+        # ul: upper left, ur: upper right, bl: bottom left, br: bottom right
         ul = np.mgrid[0:halfLength:interval, 0:halfLength:interval]
         ur = np.mgrid[0:halfLength:interval, gridNum-halfLength:gridNum:interval]
         bl = np.mgrid[gridNum-halfLength:gridNum:interval, 0:halfLength:interval]
@@ -226,6 +227,41 @@ class InterferometryObservation:
                         np.concatenate((
                         np.concatenate((ul[1].T, ur[1].T)).T,
                         np.concatenate((bl[1].T, br[1].T)).T)).flatten()])
+
+        # imagesCoord = np.array([
+                        # np.vstack((
+                        # np.hstack((ul[0], ur[0])),
+                        # np.hstack((bl[0], br[0])))).flatten(),
+                        # np.vstack((
+                        # np.hstack((ul[1], ur[1])),
+                        # np.hstack((bl[1], br[1])))).flatten()])
+
+        return imagesCoord
+
+    def createDFTGrid2(self, gridNum, halfLength, interval):
+        print(gridNum, halfLength, interval)
+        # ul: upper left, ur: upper right, bl: bottom left, br: bottom right
+        ul = np.mgrid[0:halfLength:interval, 0:halfLength:interval]
+        ur = np.mgrid[0:halfLength:interval, gridNum-1:gridNum-1-halfLength:-interval]
+        bl = np.mgrid[gridNum-1:gridNum-1-halfLength:-interval, 0:halfLength:interval]
+        br = np.mgrid[gridNum-1:gridNum-1-halfLength:-interval, gridNum-1:gridNum-1-halfLength:-interval]
+        imagesCoord2 = np.array([
+                        np.concatenate((
+                        np.concatenate((ul[0].T, ur[0].T)).T,
+                        np.concatenate((np.flipud(bl[0]).T,np.flipud(br[0]).T)).T)).flatten(),
+                        np.concatenate((
+                        np.concatenate((ul[1].T, np.fliplr(ur[1]).T)).T,
+                        np.concatenate((bl[1].T, np.fliplr(br[1]).T)).T)).flatten()])
+
+        imagesCoord = np.array([
+                        np.concatenate((
+                        np.concatenate((np.flipud(br[0]).T, np.flipud(bl[0]).T)).T,
+                        np.concatenate((ur[0].T, ul[0].T)).T)).flatten(),
+                        np.concatenate((
+                        np.concatenate((np.fliplr(br[1]).T, bl[1].T)).T,
+                        np.concatenate((np.fliplr(ur[1]).T, ul[1].T)).T)).flatten()])
+
+        np.save("/tmp/grid", imagesCoord)
 
         # imagesCoord = np.array([
                         # np.vstack((
@@ -261,11 +297,20 @@ class InterferometryObservation:
         uvSamples = []
         for baseline in rotatedProjectedBaselines:
             # print baseline
+            """
             uSlot = int(round(baseline[0]/waveLength*step + halfGridNum - 1))
             vSlot = int(round(halfGridNum - baseline[1]/waveLength*step - 1))
 
             uvSamples.append([uSlot, vSlot])
             uvSamples.append([gridNum - uSlot, gridNum - vSlot])
+            """
+
+
+            uSlot = int(round(baseline[0]/waveLength*step)) + halfGridNum - (1 if baseline[0] > 0 else 0)
+            vSlot = halfGridNum - int(round(baseline[1]/waveLength*step)) - (1 if baseline[1] < 0 else 0)
+
+            uvSamples.append([uSlot, vSlot])
+            uvSamples.append([gridNum - 1 - uSlot, gridNum - 1 - vSlot])
             # uvSamples.append([gridNum - uSlot - 1, gridNum - vSlot - 1])
             # uvGrids[vSlot][uSlot] = 1
             # uvGrids[-vSlot-1][-uSlot-1] = 1
@@ -282,7 +327,8 @@ class InterferometryObservation:
         fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
 
         # base = np.min(fringeSum.real)
-        image = np.fft.fftshift(np.abs(fringeSum))
+        image = np.fft.ifftshift(np.abs(fringeSum))
+        # image = np.abs(fringeSum)
         # image = np.fft.fftshift(fringeSum.real - base)
 
         return image
@@ -421,7 +467,7 @@ class InterferometryObservation:
         # logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
                 # .format(axis1, axis2, angle))
 
-        logger.info("beamshape: width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
+        logger.info("beamshape: width1: {:.9g} arcsec, width2: {:.9g} arcsec in equatorial plane"
                 .format(width1.arcsecond, width2.arcsecond, angle))
 
     def createContour(self, antennas, fileName=None, minAlt=0):
@@ -527,6 +573,8 @@ class InterferometryObservation:
         else:
             image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
                     self.waveLength, imageLength, density, gridNum)
+
+        np.save("/tmp/img", image)
 
         # image_height, image_width = image.shape
         # image_grid = np.mgrid(-image_height/2., image_height/2., 1)

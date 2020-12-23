@@ -13,6 +13,7 @@ setup(name='mosaic',
           'numpy == 1.16',
           'matplotlib == 2.2.3',
           'katpoint',
+          'geographiclib',
           'h5py',
           'nvector',
           'astropy == 2.0.7'
