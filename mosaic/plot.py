@@ -314,6 +314,184 @@ def plot_interferometry(antennas, center, horizons, fileName='horizon.gif'):
 
     plt.close()
 
+def plot_all(interferometry, beamshape, overlap, retile, fileName):
+    thisDpi = 96
+    matplotlib.rcParams.update({'font.size': 8})
+    fig = plt.figure(figsize=(1024./thisDpi, 1024./thisDpi), dpi=thisDpi)
+    fig, axs = plt.subplots(2, 2)
+    """
+    array configuraton
+    parameters: interferometry
+    """
+    def angleToCartesian(angleDeg, radius):
+        angle = np.deg2rad(angleDeg)
+        if angle < np.pi/2:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+        elif angle > np.pi/2 and angle < np.pi:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+        elif angle > np.pi and angle < np.pi*1.5:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+        elif angle > np.pi*1.5 and angle < np.pi*2:
+            x = np.sin(angle)*radius
+            y = np.cos(angle)*radius
+
+        return x, y
+
+    antennas = interferometry[0]
+    center = interferometry[1]
+    horizons = interferometry[2]
+    antennas = np.array(antennas)
+    antX = antennas[:,1] - center[1]
+    antY = antennas[:,0] - center[0]
+
+    antXMax = np.abs(antX).max()
+    antYMax = np.abs(antY).max()
+
+    radius = antXMax*1.2 if antXMax > antYMax else antYMax*1.2
+
+    pointSize = 3
+    thisDpi = 96
+
+    ax = axs[0, 0]
+    ax.set_title("Array and Source")
+    "cartisian"
+    ax.plot([-radius, radius, 0, 0, 0], [0, 0, 0, radius, -radius], c="k", alpha = 0.1)
+    "antennas"
+    ants = ax.scatter(antX,antY, s=pointSize)
+    "horizon"
+    horizon = plt.Circle((0,0), radius, fill=False)
+    ax.add_artist(horizon )
+
+    horizons = np.array(horizons)
+    if isinstance(horizons[0], np.ndarray):
+        azi0, alt0 = horizons[0]
+    else:
+        azi0, alt0 = horizons
+    lineStyle = '--' if alt0 < 0 else '-'
+    "altitude"
+    altRadius = (90-np.abs(alt0))/90.*radius
+    altCircle = plt.Circle((0,0), altRadius, fill=False, alpha=0.1, ls=lineStyle)
+    ax.add_artist(altCircle)
+    "azimuth"
+    x, y = angleToCartesian(azi0, radius)
+    aziLine, = ax.plot([0,x], [0, y], ls=lineStyle, alpha=0.1)
+    "source"
+    starColor = 'black' if alt0 < 0 else 'blue'
+    starX, starY = angleToCartesian(azi0, altRadius)
+    star, = ax.plot(starX, starY, marker='*')
+    star.set_color(starColor)
+
+    ax.set_aspect('equal', 'datalim')
+    ax.set_xlim([-radius*1.3, +radius*1.3])
+    ax.set_ylim([-radius*1.3, +radius*1.3])
+    ax.legend([star, ants, horizon], ["source", "antennas", "horizon"], loc="upper right")
+
+    """
+    beam shape with fit
+    parameters: beamshape
+    """
+
+    axis = axs[0, 1]
+    axis.set_title("Beam shape simulation")
+    array, center, sideLength, widthH, widthV, angle, drop, interpolation = beamshape
+
+    if type(sideLength) == list:
+        plotRange = sideLength
+    else:
+        halfSideLength = sideLength/2.0
+        xStart = (center[0] - halfSideLength)
+        xEnd = (center[0] + halfSideLength)
+        yStart = (center[1] - halfSideLength)
+        yEnd = (center[1] + halfSideLength)
+        plotRange = [xStart, xEnd, yStart, yEnd]
+    interpolateOption = 'bicubic' if interpolation == True else 'nearest'
+    ims = axis.imshow(np.fliplr(array), cmap=plt.cm.jet, vmin=0, vmax=1,
+            # interpolation=interpolateOption, extent=plotRange)
+            interpolation=interpolateOption, aspect = 'equal', origin='bottom')
+
+    imageShape = array.shape
+    gridCenter = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
+    # print("plot angle: %.2f" % angle)
+    ellipse = Ellipse(gridCenter, width=2*widthH, height=2*widthV, angle= angle)
+    ellipse.fill = False
+    axis.add_artist(ellipse)
+
+    # fig.colorbar(ims)
+    axis.set_aspect('auto')
+    xTicks = FixedLocator([0, gridCenter[0], imageShape[1]-1])
+    xTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[0]),
+                          "{:.2f}".format(center[0]),
+                          "{:.2f}".format(plotRange[1])])
+    axis.xaxis.set_major_formatter(xTicksLabel)
+    axis.xaxis.set_major_locator(xTicks)
+    axis.xaxis.set_tick_params(tickdir="out", tick2On=False)
+    axis.set_xlabel("Right Ascension")
+
+    yTicks = FixedLocator([0, gridCenter[1], imageShape[0]-1])
+    yTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[3]),
+                          "{:.2f}".format(center[1]),
+                          "{:.2f}".format(plotRange[2])])
+    axis.yaxis.set_major_formatter(yTicksLabel)
+    axis.yaxis.set_major_locator(yTicks)
+    axis.yaxis.set_tick_params(tickdir="out", tick2On=False)
+    axis.set_ylabel("Declination")
+    # plt.yticks(axis.get_yticks(), visible=True, rotation="vertical")
+
+    """
+    overlap
+    parameters: overlap
+    """
+    axis = axs[1, 0]
+    axis.set_title("Tiling Overlap")
+    overlapTables, mode, drop, title = overlap
+    overlapTables = np.array(overlapTables)
+    if isinstance(overlapTables[0][0], np.ndarray):
+        animate = True
+    else:
+        animate = False
+
+    pointSize = 10
+    thisDpi = 96
+    if title != None:
+        pass
+        # plt.title(title)
+    else:
+        pass
+    overlapTable0 = overlapTables
+    if mode == "counter":
+        image = axis.imshow(overlapTable0, cmap=plt.cm.jet, vmin=0, vmax=2)
+    else:
+        image = axis.imshow(overlapTable0, cmap=plt.cm.jet, vmin=0)
+    axis.set_aspect('equal', 'datalim')
+
+    # fig.tight_layout()
+
+    """
+    reitle
+    parameters: retile
+    """
+    axis = axs[1, 1]
+    axis.set_title("Tiling Efficiency")
+    counter, x, xMax, threshold = retile
+    counter = np.array(counter)
+    axis.set_xlim([x[0], xMax])
+    axis.set_ylim([-0.05, 1.05])
+    axis.plot(x, counter[:,0], c='r', ls='-',label='overlap')
+    axis.plot(x, counter[:,1], c='g', ls='-',label='non-overlap')
+    axis.plot(x, counter[:,2], c='b', ls='-',label='empty')
+    axis.axhline(threshold, ls='--', lw = 0.5)
+    axis.legend(loc="center right")
+    # axis.ylabel('overlap fraction')
+    fig.tight_layout()
+    plt.savefig(fileName)
+    fig.clf()
+    plt.close(fig)
+    plt.clf()
+    plt.close()
+
 def plot_beam_shape(array, center, sideLength, ellipseCenter, axis1, axis2, angle, fileName='contour.png', interpolation = True):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
