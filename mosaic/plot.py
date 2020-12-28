@@ -325,16 +325,16 @@ def plot_all(interferometry, beamshape, overlap, retile, fileName):
     """
     def angleToCartesian(angleDeg, radius):
         angle = np.deg2rad(angleDeg)
-        if angle < np.pi/2:
+        if angle <= np.pi/2:
             x = np.sin(angle)*radius
             y = np.cos(angle)*radius
-        elif angle > np.pi/2 and angle < np.pi:
+        elif angle > np.pi/2 and angle <= np.pi:
             x = np.sin(angle)*radius
             y = np.cos(angle)*radius
-        elif angle > np.pi and angle < np.pi*1.5:
+        elif angle > np.pi and angle <= np.pi*1.5:
             x = np.sin(angle)*radius
             y = np.cos(angle)*radius
-        elif angle > np.pi*1.5 and angle < np.pi*2:
+        elif angle > np.pi*1.5 and angle <= np.pi*2:
             x = np.sin(angle)*radius
             y = np.cos(angle)*radius
 
