@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import matplotlib.animation as animation
@@ -44,6 +43,7 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
 
 def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_range,
         pixel_range, beamRadius, fileName='pack.png', scope=1.,
+        overlay_points = [], overlay_point_text = [],
         transparency = 1., index = False, HD = True):
     #angle = 180 - angle
     # print("tiling angle: %.2f" % angle)
@@ -52,9 +52,9 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
     if HD == True:
-        fig = plt.figure(figsize=(1600./thisDpi, 1200./thisDpi), dpi=thisDpi)
+        fig = plt.figure(figsize=(1600./thisDpi, 1600./thisDpi), dpi=thisDpi)
     else:
-        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
     # plt.axes().set_aspect('equal', 'datalim')
     axis = fig.add_subplot(111, aspect='equal')
     # center = coordinates[0]
@@ -66,10 +66,15 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
         axis.add_artist(ellipse)
         if index == True:
             axis.text(coord[0], coord[1], idx, size=6, ha='center', va='center')
+    if overlay_points != []:
+        overlay_points = np.array(overlay_points)
+        axis.scatter(overlay_points[:,0], overlay_points[:,1])
+        if overlay_point_text != []:
+            for idx in range(len(overlay_points)):
+                axis.text(overlay_points[idx][0],
+                    overlay_points[idx][1], overlay_point_text[idx],
+                    size=5, ha='center', va='center')
     gridCenter = [0,0]
-    circle = Ellipse(xy=gridCenter, width=2*beamRadius, height=2*beamRadius, angle=0)
-    circle.fill = False
-    axis.add_artist(circle)
     margin = beamRadius*1.3*scope
     axis.set_xlim(gridCenter[0]-margin, gridCenter[0]+margin)
     axis.set_ylim(gridCenter[1]-margin, gridCenter[1]+margin)

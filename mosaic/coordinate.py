@@ -405,6 +405,24 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
 
     return equatorial_coodinates
 
+def convert_equatorial_coordinate_to_pixel(equatorial_coordinates, bore_sight):
+
+    """
+    https://docs.astropy.org/en/stable/wcs/index.html#using-astropy-wcs
+    """
+    step = 1/10000000000.
+
+    wcs_properties = wcs.WCS(naxis=2)
+    wcs_properties.wcs.crpix = [0, 0]
+    wcs_properties.wcs.cdelt = [step, step]
+    wcs_properties.wcs.crval = bore_sight
+    wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+
+    scaled_pixel_coordinats = wcs_properties.wcs_world2pix(equatorial_coordinates, 0)
+    pixel_coordinates = scaled_pixel_coordinats * step
+
+    return pixel_coordinates
+
 
 def convert_pixel_length_to_equatorial(axis1, axis2, angle, boresight):
 

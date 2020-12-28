@@ -284,7 +284,8 @@ class Tiling(object):
         self.beam_num = len(coordinates)
         self.overlap = overlap
 
-    def plot_tiling(self, filename, overlap = None, index = False):
+    def plot_tiling(self, filename, overlap = None, index = False, scope = 1.,
+            HD = False, extra_coordinates = [], extra_coordinates_text =[]):
         """
         plot the tiling pattern with specified file name.
 
@@ -314,7 +315,10 @@ class Tiling(object):
                        upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
         plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
             self.beam_shape.bore_sight.equatorial, equatorial_range, pixel_range,
-            self.tiling_radius, fileName=filename, index = index)
+            self.tiling_radius, fileName=filename, index = index, scope = scope,
+            HD = HD,
+            overlay_points = extra_coordinates,
+            overlay_point_text = extra_coordinates_text)
 
     def get_equatorial_coordinates(self):
         """
