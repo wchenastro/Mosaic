@@ -1,12 +1,12 @@
 import numpy as np
 import datetime, logging
 import katpoint
-import coordinate as coord
-from interferometer import InterferometryObservation
-from tile import ellipseCompact, ellipseGrid
-from plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interferometry, plot_overlap
-from beamshape import calculateBeamOverlaps
-from utilities import normInverse
+import mosaic.coordinate as coord
+from mosaic.interferometer import InterferometryObservation
+from mosaic.tile import createTiling
+from mosaic.plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interferometry, plot_overlap
+from mosaic.beamshape import calculateBeamOverlaps
+from mosaic.utilities import normInverse
 
 logger = logging.getLogger(__name__)
 
@@ -117,21 +117,22 @@ class PsfSim(object):
         """
 
         if len(self.antennas) < 3:
-            raise "the number of antennas should be not less then 3"
+            raise Exception("the number of antennas should be not less then 3")
         bore_sight = PsfSim.check_source(source)
         self.observation.setBoreSight(bore_sight)
         self.observation.setObserveTime(time)
         self.observation.setBeamNumber(beam_number)
         if beam_size != None:
-		self.observation.setAutoZoom(False)
-		self.observation.setBeamSizeFactor(beam_size)
+            self.observation.setAutoZoom(False)
+            self.observation.setBeamSizeFactor(beam_size)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle, image_range = self.observation.getBeamAxis()
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
         psf = self.observation.getPointSpreadFunction()
         resolution = self.observation.getResolution()
         bore_sight_object = self.observation.getBoreSight()
-        return BeamShape(axisH, axisV, angle, psf, self.antennas,
+        beamshapeModel = self.observation.getBeamshapeModel()
+        return BeamShape(axisH, axisV, angle, psf, self.antennas, beamshapeModel,
                 bore_sight_object, self.reference_antenna, horizon, resolution)
 
 
@@ -145,8 +146,8 @@ class BeamShape(object):
     angle -- orientation of the angle in degree
 
     """
-    def __init__(self, axisH, axisV, angle, psf, antennas, bore_sight,
-            reference_antenna, horizon, resolution):
+    def __init__(self, axisH, axisV, angle, psf, antennas, beamshapeModel,
+            bore_sight, reference_antenna, horizon, resolution):
         """
         constructor of the BeamShape class.
 
@@ -156,6 +157,7 @@ class BeamShape(object):
         self.angle = angle
         self.psf = psf
         self.antennas = antennas
+        self.beamshapeModel = beamshapeModel
         self.bore_sight = bore_sight
         self.reference_antenna = reference_antenna
         self.horizon = horizon
@@ -165,22 +167,21 @@ class BeamShape(object):
         """
         return the half widths of the ellipse in major axis and
         minor axis direction given a overlap level.
-
-        the relationship between one sigma and the full width maximal can be
-        found in this link
-
-        https://en.wikipedia.org/wiki/Full_width_at_half_maximum
-        2.*np.sqrt(2.*np.log(2)) = 2.3548200450309493
         """
-        sigmaH = self.axisH * (2./2.3548200450309493)
-        sigmaV = self.axisV * (2./2.3548200450309493)
+        # sigmaH = self.axisH * (2./2.3548200450309493)
+        # sigmaV = self.axisV * (2./2.3548200450309493)
 
-        widthH = normInverse(overlap, 0, sigmaH)
-        widthV = normInverse(overlap, 0, sigmaV)
+        # widthH = normInverse(overlap, 0, sigmaH)
+        # widthV = normInverse(overlap, 0, sigmaV)
 
-        return widthH, widthV
+        bottomOverlap = self.beamshapeModel[0, 0]
+        topOverlap = self.beamshapeModel[-1, 0]
+        index = (overlap - bottomOverlap) / (topOverlap-bottomOverlap) * (self.beamshapeModel.shape[0] - 1)
+        axisH, axisV, angle = self.beamshapeModel[int(np.round(index))][1:]
 
-    def plot_psf(self, filename, shape_overlay = False):
+        return axisH, axisV, angle
+
+    def plot_psf(self, filename, overlap = 0.5, shape_overlay = False, colormap = False):
         """
         plot the point spread function
 
@@ -189,15 +190,11 @@ class BeamShape(object):
         shape_overlay -- whether to add the shape overlay on the psf
 
         """
-        if not shape_overlay:
-            plotBeamContour(self.psf.image, self.psf.bore_sight.equatorial,
-                    self.psf.image_range, filename, interpolation = True)
-        else:
-            widthH = self.axisH/self.resolution
-            widthV = self.axisV/self.resolution
-            plotBeamWithFit(self.psf.image, self.psf.bore_sight.equatorial,
-                    self.psf.image_range, widthH, widthV,
-                    self.angle, filename, interpolation = True)
+        axisH, axisV, angle = self.width_at_overlap(overlap)
+        plotBeamWithFit(self.psf.image, self.psf.bore_sight.equatorial,
+                self.psf.image_range, axisH, axisV, angle,
+                self.resolution, filename, colormap, interpolation = True,
+                shapeOverlay = shape_overlay)
 
     def plot_interferometry(self, filename):
         """
@@ -229,13 +226,14 @@ class Overlap(object):
         self.metrics  = metrics
         self.mode = mode
 
-    def plot(self, filename):
+    def plot(self, filename, scope = 1., axis = True):
         """
         plot the overlap result in specified filename
 
         """
 
-        plot_overlap(self.metrics, self.mode, filename)
+        plot_overlap(self.metrics, self.mode, filename,
+                scope = scope, axis = axis)
 
     def calculate_fractions(self):
         """
@@ -251,7 +249,7 @@ class Overlap(object):
         """
 
         if self.mode != "counter":
-            raise "the fraction calculation is only supportted in counter mode"
+            raise Exception("the fraction calculation is only supportted in counter mode")
         overlap_counter = self.metrics
         overlap_grid = np.count_nonzero(overlap_counter > 1)
         non_overlap_grid = np.count_nonzero(overlap_counter == 1)
@@ -272,7 +270,7 @@ class Tiling(object):
     raidus -- the raidus of the entire tiling
     overlap -- how much overlap between two beams, range in (0, 1)
     """
-    def __init__(self, coordinates, beam_shape, radius, overlap):
+    def __init__(self, coordinates, beam_shape, tiling_meta, overlap):
         """
         constructor of the Tiling class.
 
@@ -280,12 +278,13 @@ class Tiling(object):
 
         self.coordinates = coordinates
         self.beam_shape = beam_shape
-        self.tiling_radius = radius
+        self.meta = tiling_meta
         self.beam_num = len(coordinates)
         self.overlap = overlap
 
     def plot_tiling(self, filename, overlap = None, index = False, scope = 1.,
-            HD = False, extra_coordinates = [], extra_coordinates_text =[]):
+            HD = False, extra_coordinates = [], extra_coordinates_text = [],
+            axis = True, edge = True, raw = False, subTiling = []):
         """
         plot the tiling pattern with specified file name.
 
@@ -296,12 +295,13 @@ class Tiling(object):
                    default is None(using the tilling overlap)
         index -- wather to show the index of the beam, default is False
         """
-        if overlap is None:
-            widthH, widthV = self.beam_shape.width_at_overlap(self.overlap)
-        elif overlap == 0.5:
-            widthH, widthV = self.beam_shape.axisH, self.beam_shape.axisV
-        else:
-            widthH, widthV = self.beam_shape.width_at_overlap(overlap)
+        widthH, widthV, angle = self.meta["axis"][:3]
+        # if overlap is None:
+            # widthH, widthV, angle = self.beam_shape.width_at_overlap(self.overlap)
+        # elif overlap == 0.5:
+            # widthH, widthV, angle = self.beam_shape.axisH, self.beam_shape.axisV, self.beam_shape.angle
+        # else:
+            # widthH, widthV, angle = self.beam_shape.width_at_overlap(overlap)
         maxDistance = np.max(
                 np.sqrt(np.sum(np.square(self.coordinates), axis = 1)))
         upper_left_pixel = [-maxDistance, maxDistance] # x,y
@@ -313,12 +313,29 @@ class Tiling(object):
             coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
         pixel_range = [upper_left_pixel[0], bottom_right_pixel[0], # left, right
                        upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
-        plotPackedBeam(self.coordinates, self.beam_shape.angle, widthH, widthV,
+        """
+        plotPackedBeam(self.coordinates, angle, widthH, widthV,
             self.beam_shape.bore_sight.equatorial, equatorial_range, pixel_range,
-            self.tiling_radius, fileName=filename, index = index, scope = scope,
+            self.meta, fileName=filename, index = index, scope = scope,
             HD = HD,
-            overlay_points = extra_coordinates,
-            overlay_point_text = extra_coordinates_text)
+            show_axis = axis,
+            edge = edge,
+            raw = raw,
+            extra_coordinates = extra_coordinates,
+            extra_coordinates_text = extra_coordinates_text,
+            subGroup = subTiling)
+        """
+        plotPackedBeam(self.coordinates, angle, widthH, widthV,
+            self.beam_shape.bore_sight.equatorial,
+            self.meta, fileName=filename, index = index, scope = scope,
+            HD = HD,
+            show_axis = axis,
+            edge = edge,
+            raw = raw,
+            extra_coordinates = extra_coordinates,
+            extra_coordinates_text = extra_coordinates_text,
+            subGroup = subTiling)
+
 
     def get_equatorial_coordinates(self):
         """
@@ -339,21 +356,30 @@ class Tiling(object):
         width1, width2 --  semi-majors of the beam in degree in equatorial plane
         """
 
-        axis1, axis2 = self.beam_shape.width_at_overlap(self.overlap)
+        axis1, axis2, angle = self.beam_shape.width_at_overlap(self.overlap)
         width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
                 self.beam_shape.angle, self.beam_shape.bore_sight.equatorial)
         return width1, width2
 
-    def plot_sky_pattern(self, filename):
+    def plot_sky_pattern(self, filename, scope = 1., axis = True, sideLength = None):
         """
         plot the ksy pattern with specified filename
 
         """
 
-        heats = self.calculate_overlap("heater", new_beam_shape = None)
-        heats.plot(filename)
+        heats = self.calculate_overlap("heater", new_beam_shape = None, sideLength = sideLength)
+        heats.plot(filename, scope = scope, axis = axis)
 
-    def calculate_overlap(self, mode, new_beam_shape = None):
+    def plot_overlap(self, filename, scope = 1., axis = True, sideLength = None):
+        """
+        plot the ksy pattern with specified filename
+
+        """
+
+        heats = self.calculate_overlap("counter", new_beam_shape = None, sideLength = sideLength)
+        heats.plot(filename, scope = scope, axis = axis)
+
+    def calculate_overlap(self, mode, new_beam_shape = None, sideLength = None):
         """
         calculate overlap of the tiling pattern.
 
@@ -374,13 +400,17 @@ class Tiling(object):
         else:
             beam_shape = new_beam_shape
         overlap_metrics = calculateBeamOverlaps(
-                self.coordinates, self.tiling_radius, beam_shape.axisH,
-                beam_shape.axisV, beam_shape.angle, self.overlap, mode)
+                self.coordinates, self.meta.radius, beam_shape.axisH,
+                beam_shape.axisV, beam_shape.angle, self.overlap, mode,
+                sideLength)
         overlap = Overlap(overlap_metrics, mode)
         return overlap
 
 
-def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
+
+
+def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
+        parameter=None, coordinate_type="image", margin=None):
     """
     generate and return the tiling.
     arguments:
@@ -397,42 +427,49 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap = 0.5, margin=None):
     """
     if margin is None:
         margin = int(round(beam_num * 0.05))
-    widthH, widthV = beam_shape.width_at_overlap(overlap)
-    tiling_coordinates, tiling_radius = ellipseCompact(
-            beam_num, widthH, widthV, beam_shape.angle, margin,
-            seed = beam_shape.bore_sight.equatorial[0])
+    # widthH, widthV, angle = beam_shape.width_at_overlap(overlap)
+    # tiling_coordinates, tiling_radius = ellipseCompact(
+            # beam_num, widthH, widthV, beam_shape.angle, margin,
+            # seed = beam_shape.bore_sight.equatorial[0])
 
-    tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_radius, overlap)
+    if method == "variable-overlap" and coordinate_type != "image":
+        if coordinate_type == "equatorial":
+            if tilingShape == "polygon":
+                    parameter = coord.convert_equatorial_coordinate_to_pixel(
+                            parameter, beam_shape.bore_sight.equatorial)
+            if tilingShape == "annulus":
+                for boundary in parameter:
+                    if boundary[0]  == "polygon":
+                        boundary[1] = coord.convert_equatorial_coordinate_to_pixel(
+                            boundary[1], beam_shape.bore_sight.equatorial)
+
+    tiling_coordinates, scale, actualBeemshape, condition = createTiling(method, beam_num,
+             beam_shape, overlap, tilingShape, parameter,
+            margin, seed = beam_shape.bore_sight.equatorial[0])
+
+
+    if method == "variable-overlap":
+        overlap = actualBeemshape[3]
+
+    tiling_meta = {"method": method, "shape": tilingShape, "parameter": parameter,
+                    "scale": scale, "axis": actualBeemshape, "condition": condition}
+
+    tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_meta, overlap)
     width1, width2 = tiling_obj.get_beam_size()
 
-    logger.info("tiling: overlap: {},radius: {:.3g} in pixel plane".format(
-                overlap, tiling_radius))
+    logger.info("tiling: overlap: {}, angle: {:.3f} degrees "
+            "in pixel plane".format(overlap, beam_shape.angle))
     logger.info("tiling: width1: {:.3g} arcsec, width2: {:.3g} arcsec "
                 "in equatorial plane".format(width1.arcsec, width2.arcsec))
-
-    return tiling_obj
-
-def generate_radius_tiling(beam_shape, tiling_radius, overlap = 0.5):
-    """
-    return the tiling inside a specified region
-    arguments:
-    beam_shape -- beam_shape object
-    tilingRadius -- the radius of the region to tile
-    overlap -- how much overlap between two beams, range in (0, 1)
-    return:
-    tiling -- tiling coordinates in a list of pixel coordinates pairs in degree
-    """
-    widthH, widthV = beam_shape.width_at_overlap(overlap)
-    tiling_coordinates = ellipseGrid(
-            tiling_radius, widthH, widthV, beam_shape.angle)
-
-    tiling_obj = Tiling(tiling_coordinates.T, beam_shape, tiling_radius, overlap)
+    logger.info("tiling: width1: {:.3g}, width2: {:.3g} angle: {:.3g} degree "
+                "in pixel plane".format(actualBeemshape[0], actualBeemshape[1],
+                    actualBeemshape[2]))
 
     return tiling_obj
 
 def dict_to_ordered_list(dict_obj):
     ordered_list = []
-    for key in sorted(dict_obj.iterkeys()):
+    for key in sorted(dict_obj.keys()):
         ordered_list.append(dict_obj[key])
     return ordered_list
 

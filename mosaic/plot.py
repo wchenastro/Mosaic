@@ -1,14 +1,19 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
+from matplotlib.patches import Ellipse, Circle, RegularPolygon, Polygon
 import matplotlib.animation as animation
 from matplotlib.ticker import FormatStrFormatter, FixedLocator, FixedFormatter
+from astropy import wcs
 
-def plotBeamContour(array, center, sideLength, fileName='contour.png', interpolation = True):
+def plotBeamContour(array, center, sideLength, fileName='contour.png',
+        colormap = False, interpolation = True):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
-    fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    if(colormap == True):
+        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    else:
+        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
     # plt.locator_params(axis='x', nbins=3)
     # plt.locator_params(axis='y', nbins=3)
     if type(sideLength) == list:
@@ -24,7 +29,8 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     extent = [plotRange[0],plotRange[1],plotRange[3],plotRange[2]]
     plt.imshow(np.fliplr(array),cmap=plt.cm.jet, vmin=0, vmax=1,
             interpolation=interpolateOption, extent=extent, origin='bottom')
-    plt.colorbar()
+    if(colormap == True):
+        plt.colorbar()
     fig.gca().set_aspect('auto')
     fig.gca().xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     fig.gca().yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -41,10 +47,10 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png', interpola
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_range,
-        pixel_range, beamRadius, fileName='pack.png', scope=1.,
-        overlay_points = [], overlay_point_text = [],
-        transparency = 1., index = False, HD = True):
+def plotPackedBeam2(coordinates, angle, axis1, axis2, boresight, equaltorial_range,
+        pixel_range, tiling_meta, fileName='pack.png', scope=1., show_axis = True,
+        extra_coordinates = [], extra_coordinates_text = [], subGroup = [],
+        transparency = 1., edge = True, index = False, HD = True, raw = False):
     #angle = 180 - angle
     # print("tiling angle: %.2f" % angle)
     # angle = angle - 90
@@ -57,7 +63,7 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
         fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
     # plt.axes().set_aspect('equal', 'datalim')
     axis = fig.add_subplot(111, aspect='equal')
-    # center = coordinates[0]
+    center = coordinates[0]
     for idx in range(len(coordinates)):
         coord = coordinates[idx]
         ellipse = Ellipse(xy=coord, width=2*axis1, height=2*axis2, angle=angle,
@@ -66,47 +72,240 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight, equaltorial_rang
         axis.add_artist(ellipse)
         if index == True:
             axis.text(coord[0], coord[1], idx, size=6, ha='center', va='center')
-    if overlay_points != []:
-        overlay_points = np.array(overlay_points)
-        axis.scatter(overlay_points[:,0], overlay_points[:,1])
-        if overlay_point_text != []:
-            for idx in range(len(overlay_points)):
-                axis.text(overlay_points[idx][0],
-                    overlay_points[idx][1], overlay_point_text[idx],
+
+    for group in subGroup:
+        subCoordinates, subAngle, subAxis1, subAxis2 = group
+        for idx in range(len(subCoordinates)):
+            coord = subCoordinates[idx]
+            ellipse = Ellipse(xy=coord, width=2*subAxis1, height=2*subAxis2,
+                    angle=subAngle, alpha = transparency)
+            ellipse.fill = False
+            axis.add_artist(ellipse)
+
+
+
+    for idx in range(len(extra_coordinates)):
+        coord = extra_coordinates[idx]
+        circle = Circle(xy=coord, radius = 0.0006)
+        axis.add_artist(circle)
+        if extra_coordinates_text != []:
+            axis.text(coord[0], coord[1], extra_coordinates_text[idx],
                     size=5, ha='center', va='center')
+
     gridCenter = [0,0]
-    margin = beamRadius*1.3*scope
+    tilingScale = tiling_meta["scale"]
+    if edge == True:
+        shape = tiling_meta["shape"]
+        if shape == "circle":
+            edge = Circle(xy=gridCenter, radius = tilingScale, alpha=0.1, linewidth = 3)
+        elif shape == "ellipse":
+            a, b, angle = tiling_meta["parameter"]
+            edge = Ellipse(xy=gridCenter, width=2*a, height=2*b, angle=angle, alpha=0.1, linewidth = 3)
+        elif shape == "hexagon":
+            angle = tiling_meta["parameter"][1]
+            edge = RegularPolygon(xy=gridCenter, numVertices=6, radius = tilingScale, orientation=angle, alpha=0.1, linewidth = 3)
+        elif shape == "polygon":
+            vertices = tiling_meta["parameter"]
+            edge = Polygon(xy=vertices, closed=True, alpha=0.1, linewidth = 3)
+
+        if shape == "annulus":
+            for annulus in tiling_meta["parameter"]:
+                annulus_type = annulus[0]
+                if annulus_type == "polygon":
+                    vertices= annulus[1]
+                    edge = Polygon(xy=vertices, closed=True, alpha=0.1, linewidth = 3)
+                elif annulus_type == "ellipse":
+                    a, b , angle = annulus[1]
+                    edge = Ellipse(xy=gridCenter, width=2*a, height=2*b, angle=angle, alpha=0.1, linewidth = 3)
+                edge.fill = False
+                axis.add_artist(edge)
+        else:
+            edge.fill = False
+            axis.add_artist(edge)
+
+    margin = tilingScale*1.3*scope
     axis.set_xlim(gridCenter[0]-margin, gridCenter[0]+margin)
     axis.set_ylim(gridCenter[1]-margin, gridCenter[1]+margin)
     beamNum = len(coordinates)
 
-    xTicks = FixedLocator([pixel_range[0], 0, pixel_range[1]])
-    xTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[0]),
-                          "{:.2f}".format(boresight[0]),
-                          "{:.2f}".format(equaltorial_range[1])])
-    axis.xaxis.set_major_formatter(xTicksLabel)
-    axis.xaxis.set_major_locator(xTicks)
-    axis.set_xlabel("RA")
+    if show_axis != True:
+        plt.xticks([])
+        plt.yticks([])
+    else:
+        xTicks = FixedLocator([pixel_range[0], 0, pixel_range[1]])
+        xTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[0]),
+                              "{:.2f}".format(boresight[0]),
+                              "{:.2f}".format(equaltorial_range[1])])
+        axis.xaxis.set_major_locator(xTicks)
+        axis.xaxis.set_major_formatter(xTicksLabel)
+        axis.xaxis.set_tick_params(tickdir="out", tick2On=False)
+        axis.set_xlabel("RA", size=20)
+        plt.xticks(axis.get_xticks(), visible=True, size=20)
 
-    yTicks = FixedLocator([pixel_range[2], 0, pixel_range[3]])
-    yTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[2]),
-                          "{:.2f}".format(boresight[1]),
-                          "{:.2f}".format(equaltorial_range[3])])
-    axis.yaxis.set_major_formatter(yTicksLabel)
-    axis.yaxis.set_major_locator(yTicks)
-    axis.yaxis.set_tick_params(rotation=90)
-    axis.set_ylabel("DEC")
+        yTicks = FixedLocator([pixel_range[2], 0, pixel_range[3]])
+        yTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[2]),
+                              "{:.2f}".format(boresight[1]),
+                              "{:.2f}".format(equaltorial_range[3])])
+        axis.yaxis.set_major_locator(yTicks)
+        axis.yaxis.set_major_formatter(yTicksLabel)
+        axis.yaxis.set_tick_params(tickdir="out", tick2On=False)
+        axis.set_ylabel("DEC", size=20)
+        plt.yticks(axis.get_yticks(), visible=True, rotation="vertical", size=20)
 
     fig.tight_layout()
 
     plt.savefig(fileName, dpi=thisDpi)
+
     plt.close()
 
-def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
-        fileName='contourfit.png', interpolation = True):
+def plotPackedBeam(coordinates, angle, axis1, axis2, boresight,
+        tiling_meta, fileName='pack.png', scope=1., show_axis = True,
+        extra_coordinates = [], extra_coordinates_text = [], subGroup = [],
+        transparency = 1., edge = True, index = False, HD = True, raw = False):
+
+
+    step = 1/10000000000.
+    wcs_properties = wcs.WCS(naxis=2)
+    wcs_properties.wcs.crpix = [0, 0]
+    wcs_properties.wcs.cdelt = [-step, step]
+    wcs_properties.wcs.crval = boresight
+    wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+
+    center = boresight
+    resolution = step
+
+
+    thisDpi = 96
+    matplotlib.rcParams.update({'font.size': 8})
+    plt.clf()
+    if HD == True:
+        fig = plt.figure(figsize=(1600./thisDpi, 1600./thisDpi), dpi=thisDpi)
+    else:
+        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
+    axis = fig.add_subplot(111,aspect='equal', projection=wcs_properties)
+
+    beam_coordinate = np.array(coordinates)/resolution
+    # beam_coordinate += [center[0] - 1, 0]
+    # beam_coordinate = [0, center[1] - 1] + [1, -1]*beam_coordinate
+
+
+    for idx in range(len(beam_coordinate)):
+        coord = beam_coordinate[idx]
+        ellipse = Ellipse(xy=coord,
+                width=2.*axis1/resolution,height=2.*axis2/resolution, angle=angle,
+                alpha = transparency)
+        ellipse.fill = False
+        axis.add_artist(ellipse)
+        if index == True:
+            axis.text(coord[0], coord[1], idx, size=6, ha='center', va='center')
+
+    for group in subGroup:
+        subCoordinates, subAngle, subAxis1, subAxis2 = group
+        for idx in range(len(subCoordinates)):
+            coord = subCoordinates[idx]/resolution
+            ellipse = Ellipse(xy=coord,
+                    width=2*subAxis1/resolution, height=2*subAxis2/resolution,
+                    angle=subAngle, alpha = transparency)
+            ellipse.fill = False
+            axis.add_artist(ellipse)
+
+    for idx in range(len(extra_coordinates)):
+        coord = extra_coordinates[idx]/resolution
+        circle = Circle(xy=coord, radius = 0.0006)
+        axis.add_artist(circle)
+        if extra_coordinates_text != []:
+            axis.text(coord[0], coord[1], extra_coordinates_text[idx],
+                    size=5, ha='center', va='center')
+
+    gridCenter = center
+    tilingScale = tiling_meta["scale"]
+    if edge == True:
+        shape = tiling_meta["shape"]
+        if shape == "circle":
+            edge = Circle(xy=gridCenter, radius = tilingScale/resolution,
+                    alpha=0.1, linewidth = 3)
+        elif shape == "ellipse":
+            a, b, angle = tiling_meta["parameter"]
+            edge = Ellipse(xy=gridCenter,
+                    width=2*a/resolution, height=2*b/resolution,
+                    angle=angle, alpha=0.1, linewidth = 3)
+        elif shape == "hexagon":
+            if tiling_meta["parameter"] is not None:
+                angle = tiling_meta["parameter"][1]
+            else:
+                angle = 0
+            edge = RegularPolygon(xy=gridCenter, numVertices=6,
+                    radius = tilingScale/resolution, orientation=np.deg2rad(60.-angle),
+                    alpha=0.1, linewidth = 3)
+        elif shape == "polygon":
+            vertices = tiling_meta["parameter"]
+            edge = Polygon(xy=np.array(vertices)/resolution,
+                    closed=True, alpha=0.1, linewidth = 3)
+
+        if shape == "annulus":
+            for annulus in tiling_meta["parameter"]:
+                annulus_type = annulus[0]
+                if annulus_type == "polygon":
+                    vertices= annulus[1]
+                    edge = Polygon(xy=np.array(vertices)/resolution,
+                            closed=True, alpha=0.1, linewidth = 3)
+                elif annulus_type == "ellipse":
+                    a, b , angle = annulus[1]
+                    edge = Ellipse(xy=gridCenter,
+                            width=2*a/resolution, height=2*b/resolution,
+                            angle=angle, alpha=0.1, linewidth = 3)
+                edge.fill = False
+                axis.add_artist(edge)
+        else:
+            edge.fill = False
+            axis.add_artist(edge)
+
+    margin = tilingScale/step*1.3*scope
+    axis.set_xlim(gridCenter[0]-margin, gridCenter[0]+margin)
+    axis.set_ylim(gridCenter[1]-margin, gridCenter[1]+margin)
+
+    fig.tight_layout()
+
+    if show_axis != True:
+        plt.xticks([])
+        plt.yticks([])
+    else:
+        ra = axis.coords[0]
+        dec = axis.coords[1]
+        ra.set_ticklabel(size=20)
+        dec.set_ticklabel(size=20, rotation="vertical")
+        dec.set_ticks_position('l')
+        ra.set_major_formatter('hh:mm:ss')
+        ra.set_ticks_position('b')
+        ra.set_axislabel("RA", size=20)
+        dec.set_major_formatter('dd:mm:ss')
+        dec.set_axislabel("DEC", size=20)
+        plt.subplots_adjust(left=0.04, bottom=0.05, right=0.98, top=0.96,
+                wspace=0, hspace=0)
+
+
+    plt.savefig(fileName, dpi=thisDpi)
+
+    plt.close()
+
+
+
+def rotatedEllipseParametric(center, major, minor, angle, parameter):
+
+    x = center[0] + major*np.cos(angle)*np.cos(parameter) - minor*np.sin(angle)*np.sin(parameter)
+    y = center[1] + major*np.sin(angle)*np.cos(parameter) + minor*np.cos(angle)*np.sin(parameter)
+
+    return np.array([x,y]).T
+
+def plotBeamWithFit2(array, center, sideLength, widthH, widthV, angle,
+        fileName='contourfit.png', colormap = False, interpolation = True):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
-    fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    if(colormap == True):
+        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    else:
+        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
+
     axis = fig.gca()
     if type(sideLength) == list:
         plotRange = sideLength
@@ -120,7 +319,7 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
     ims = axis.imshow(np.fliplr(array), cmap=plt.cm.jet, vmin=0, vmax=1,
             # interpolation=interpolateOption, extent=plotRange)
-            interpolation=interpolateOption, aspect = 'equal', origin='bottom')
+            interpolation=interpolateOption, aspect = 'equal', origin='lower')
 
     imageShape = array.shape
     gridCenter = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
@@ -129,22 +328,23 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
     ellipse.fill = False
     axis.add_artist(ellipse)
 
-    fig.colorbar(ims)
+    if(colormap == True):
+        fig.colorbar(ims)
     axis.set_aspect('auto')
     xTicks = FixedLocator([0, gridCenter[0], imageShape[1]-1])
     xTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[0]),
                           "{:.2f}".format(center[0]),
                           "{:.2f}".format(plotRange[1])])
-    axis.xaxis.set_major_formatter(xTicksLabel)
     axis.xaxis.set_major_locator(xTicks)
+    axis.xaxis.set_major_formatter(xTicksLabel)
     axis.set_xlabel("RA")
 
     yTicks = FixedLocator([0, gridCenter[1], imageShape[0]-1])
     yTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[3]),
                           "{:.2f}".format(center[1]),
                           "{:.2f}".format(plotRange[2])])
-    axis.yaxis.set_major_formatter(yTicksLabel)
     axis.yaxis.set_major_locator(yTicks)
+    axis.yaxis.set_major_formatter(yTicksLabel)
     axis.yaxis.set_tick_params(rotation=90)
     axis.set_ylabel("DEC")
 
@@ -160,6 +360,58 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle,
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
+def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle, resolution,
+        fileName='contourfit.png', colormap = False, interpolation = True,
+        shapeOverlay = False):
+    thisDpi = 96.
+    matplotlib.rcParams.update({'font.size': 8})
+
+    shape = np.array(array).shape
+    step = resolution
+    wcs_properties = wcs.WCS(naxis=2)
+    wcs_properties.wcs.crpix = [shape[1]/2.-0.5, shape[0]/2.-0.5]
+    wcs_properties.wcs.cdelt = [-step, step]
+    wcs_properties.wcs.crval = center
+    wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+
+    if(colormap == True):
+        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+    else:
+        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
+
+    axis = fig.add_subplot(111,aspect='equal', projection=wcs_properties)
+    interpolateOption = 'bicubic' if interpolation == True else 'nearest'
+    ims = axis.imshow(array, cmap=plt.cm.jet, vmin=0, vmax=1,
+            interpolation=interpolateOption, aspect = 'equal', origin='lower')
+
+    imageShape = array.shape
+    if shapeOverlay == True:
+        gridCenter = ((imageShape[1]/2.0), (imageShape[0]/2.0))
+        ellipse = Ellipse(gridCenter,
+                width=2*widthH/resolution, height=2*widthV/resolution, angle=angle)
+        ellipse.fill = False
+        axis.add_artist(ellipse)
+
+    if(colormap == True):
+        fig.colorbar(ims)
+
+    fig.tight_layout()
+    axis.set_aspect('auto')
+    ra = axis.coords[0]
+    dec = axis.coords[1]
+    ra.set_major_formatter('hh:mm:ss')
+    ra.set_ticklabel(size=8)
+    dec.set_ticklabel(size=8, rotation="vertical")
+    dec.set_ticks_position('l')
+    ra.set_ticks_position('b')
+    ra.set_axislabel("RA", size=8)
+    dec.set_major_formatter('dd:mm:ss')
+    dec.set_axislabel("DEC", size=8)
+    plt.subplots_adjust(left=0.10, bottom=0.10, right=0.98, top=0.96,
+            wspace=0, hspace=0)
+
+    plt.savefig(fileName, dpi=thisDpi)
+    plt.close()
 
 def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName='fit.png'):
     halfSideLength = sideLength/2.0
@@ -189,7 +441,7 @@ def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName
     plt.savefig(fileName, transparent=True, dpi=thisDpi)
     plt.close()
 
-def plot_overlap(overlapTables, mode, fileName):
+def plot_overlap(overlapTables, mode, fileName, scope = 1., axis = True, title = None):
     overlapTables = np.array(overlapTables)
     if isinstance(overlapTables[0][0], np.ndarray):
         animate = True
@@ -200,8 +452,9 @@ def plot_overlap(overlapTables, mode, fileName):
     thisDpi = 96
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
-    fig = plt.figure(figsize=(640./thisDpi, 480./thisDpi), dpi=thisDpi)
-    plt.title("overlap changes with time")
+    fig = plt.figure(figsize=(640./thisDpi, 640./thisDpi), dpi=thisDpi)
+    if title != None:
+        plt.title(title)
     if animate == True:
         overlapTable0 = overlapTables[0]
     else:
@@ -211,8 +464,16 @@ def plot_overlap(overlapTables, mode, fileName):
     else:
         image = plt.imshow(overlapTable0, cmap=plt.cm.jet, vmin=0)
     axis = fig.gca()
-    axis.set_aspect('equal', 'datalim')
-    plt.colorbar()
+    if axis != True:
+        plt.axis('off')
+
+    length = len(overlapTable0)
+    gridCenter = [length/2,length/2]
+    margin = int(length/2*scope)
+    axis.set_xlim(gridCenter[0]-margin, gridCenter[0]+margin)
+    axis.set_ylim(gridCenter[1]-margin, gridCenter[1]+margin)
+    axis.set_aspect('auto')
+
 
     if animate == True:
         def animator(data):

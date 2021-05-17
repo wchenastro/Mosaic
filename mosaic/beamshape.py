@@ -1,15 +1,18 @@
 import numpy as np
 from scipy import interpolate
 from scipy.optimize import curve_fit
-from utilities import normInverse
+from mosaic.utilities import normInverse
 import logging
+from matplotlib import pyplot as plt
+from mosaic.fitEllipse import fit_ellipse
+from matplotlib.patches import Ellipse
 
 loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
 logging.basicConfig(format = loggerFormat, level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, overlap, mode):
+def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation, overlap, mode, sideLength=None):
 
     def RotatedGaussian2DPDF(x, y, xMean, yMean, xSigma, ySigma, angle):
         angle = -(angle - np.pi)
@@ -52,7 +55,10 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     gridNum = 1000
     # print 0.3*radius, longAxis
     # halfSidelength = 0.15 * radius
-    halfSidelength = longAxis*3.
+    if sideLength == None:
+        halfSidelength = longAxis*3.
+    else:
+        halfSidelength = sideLength/2.
     offsetCenter = [radius, radius]
     # np.savetxt('tmp/oldcenter', ellipseCenters)
     ellipseCenters = ellipseCenters + offsetCenter
@@ -165,7 +171,7 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
     trueCenterIndex = [int(rowIdx + interpolatedGrid/2 + 1), int(colIdx + interpolatedGrid/2 + 1)]
 
     class State:
-        move, addRow, findBorder, findBorderReverse, upsideDown, end = range(6)
+        move, addRow, findBorder, findBorderReverse, upsideDown, end = list(range(6))
 
     border = []
     state = State.move
@@ -293,7 +299,7 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
         image[topRow+1:, :] = filling
         image[:bottomRow, :] = filling
 
-        np.save("/tmp/trackimage", image)
+        # np.save("/tmp/trackimage", image)
 
 
     return border, trueCenterIndex, maxOverstepValue, image
@@ -338,9 +344,9 @@ def calculateBeamSize(image, density, windowLength,
     # print majorAxis, minorAxis
     return axis1, axis2, np.rad2deg(angle), overstep
 
-
 def fitEllipse(image):
-    def RotatedGaussian2DPDF((x, y), xMean, yMean, xSigma, ySigma, angle):
+    def RotatedGaussian2DPDF(xy, xMean, yMean, xSigma, ySigma, angle):
+        x,y = xy
         xSigma_square = xSigma**2
         ySigma_square = ySigma**2
         cos_angle_square = (np.cos(angle))**2
@@ -378,4 +384,172 @@ def fitEllipse(image):
 
     return widthH, widthV, angle
 
+def createBeamshapeModel(originalImage, density, windowLength, interpolatedLength = 800):
 
+    interpolater = interpolate.interp2d(range(density), range(density), originalImage, kind='cubic')
+    image = interpolater(np.linspace(0, density, interpolatedLength, endpoint = False),
+                np.linspace(0, density, interpolatedLength, endpoint = False))
+
+    samples = []
+
+    # levels = np.arange(0.1, 0.9 + 0.025, 0.025).tolist()
+    levels = np.linspace(0.1, 0.9, 1 + int((0.9 - 0.1)/0.025)).tolist()
+    # print(levels)
+    # levels = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.975]
+    # levels = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    plot = True
+    if plot == True:
+        thisDpi = 96
+        fig = plt.figure(figsize=(1200./thisDpi,1200./thisDpi), dpi=thisDpi)
+        ax0 = plt.subplot2grid((6, 6), (3, 0), colspan=3, rowspan=3)
+        ax1 = plt.subplot2grid((6, 6), (3, 3), colspan=3, rowspan=3)
+        ax2 = plt.subplot2grid((6, 6), (0, 0), colspan=6)
+        ax3 = plt.subplot2grid((6, 6), (1, 0), colspan=6)
+        ax4 = plt.subplot2grid((6, 6), (2, 0), colspan=6)
+        ax0.imshow(image, cmap="jet")
+        ax0.title.set_text('Contour')
+        ax1.imshow(image, cmap="jet")
+        ax1.title.set_text('Fit')
+    else:
+        fig, ax0 = plt.subplots()
+    contour = ax0.contour(image, levels)
+    dataShape = image.shape
+    center = np.unravel_index(image.argmax(), dataShape)
+    count = 0.1
+    for segs, coll in zip(contour.allsegs, contour.collections):
+        count += 0.025
+        powerline = None
+        fulllength = 0
+        if len(segs) > 1:
+            for seg in segs:
+                fulllength += len(seg)
+            minimalLength = int(fulllength * 0.2)
+            paths = coll.get_paths()
+            pathIndexToDel = []
+            for segIndex, seg in enumerate(segs):
+                if len(seg) < minimalLength:
+                    pathIndexToDel.append(segIndex)
+                    continue
+                if powerline is None:
+                    powerline = seg
+                else:
+                    powerline = np.concatenate((powerline, seg))
+            pathIndexToDel.reverse()
+            for index in pathIndexToDel:
+                del(paths[index])
+                # print("small contour of length {} at level {} delelted".format(
+                #           len(segs[index]), levels[len(samples)]))
+        else:
+            powerline = np.array(segs[0])
+
+        if powerline is None:
+            logger.warning('level {} countour is None!'.format(count))
+            para = [np.nan, np.nan, 0, 0, np.nan]
+        else:
+            para = fitContour(powerline)
+        samples.append(para)
+        if plot == True:
+            ellipse = Ellipse(center, width=2*para[0], height=2*para[1], angle=np.rad2deg(para[4]))
+            ellipse.fill = False
+            ax1.add_artist(ellipse)
+
+    ### check NaN ##
+    samples = np.array(samples).T
+    for sampleIndex in np.arange(len(samples)):
+        nans = np.isnan(samples[sampleIndex])
+        if np.any(nans):
+            logger.warning('level {} have NaN value!'.format(
+                        levels[np.squeeze(np.argwhere(nans)[0][0])]))
+            sample = samples[sampleIndex]
+            sample[nans]= np.interp(np.array(levels)[nans], np.array(levels)[~nans], sample[~nans])
+            samples[sampleIndex] = sample
+    samples = samples.T
+
+    ## extrapolate the overlap ratio of 1
+    # levels.append(1.0)
+    # samples.append([0, 0, samples[-1][2], samples[-1][3], samples[-1][4]])
+    ## extrapolate the overlap ratio of 0
+    # levels.insert(0, 0.0)
+    # samples.insert(0, samples[0])
+    # samples = np.array(samples)
+    # samples[:, 0] = (1.*windowLength/interpolatedLength*samples[:, 0])
+    # samples[:, 1] = (1.*windowLength/interpolatedLength*samples[:, 1])
+    # samples[:, 4] = np.rad2deg(samples[:, 4])
+    # samples[0, 0:2] = [0.89/2, 0.89/2]
+
+
+    # samples = np.array(samples)
+    samples[:, 0] = (1.*windowLength/interpolatedLength*samples[:, 0])
+    samples[:, 1] = (1.*windowLength/interpolatedLength*samples[:, 1])
+    samples[:, 4] = np.rad2deg(samples[:, 4])
+
+    interpMethod ="cubic" # "quadratic, slinear, cubic"
+    majorInterp = interpolate.interp1d(levels, samples[:, 0], kind=interpMethod)
+    minorInterp = interpolate.interp1d(levels, samples[:, 1], kind=interpMethod)
+    angleInterp = interpolate.interp1d(levels, samples[:, 4], kind=interpMethod)
+
+    interval = 0.001
+    # levelInterp = np.arange(levels[0], levels[-1]+interval, interval).tolist()
+    levelInterp  = np.linspace(levels[0], levels[-1],
+            1 + int((levels[-1] - levels[0])/interval)).tolist()
+    # levelInterp[-1] = np.round(levelInterp[-1], 7)
+
+    majorInterped = majorInterp(levelInterp).tolist()
+    minorInterped = minorInterp(levelInterp).tolist()
+    angleInterped = angleInterp(levelInterp).tolist()
+    # angleInterped = interpolate.splev(levelInterp, tck, der=0)
+
+    ### extrapolate the overlap ratio of 1
+    levelInterp.append(1.0)
+    majorInterped.append(0)
+    minorInterped.append(0)
+    angleInterped.append(angleInterped[-1])
+    ### extrapolate the overlap ratio of 0
+    levelInterp.insert(0, 0.0)
+    majorInterped.insert(0, 0.89/2)
+    minorInterped.insert(0, 0.89/2)
+    angleInterped.insert(0, angleInterped[0])
+
+    interval = 0.00001
+    levelLinearInterp = np.arange(levelInterp[0], levelInterp[-1]+interval, interval)
+    majorInterped = np.interp(levelLinearInterp, levelInterp, majorInterped)
+    minorInterped = np.interp(levelLinearInterp, levelInterp, minorInterped)
+    angleInterped = np.interp(levelLinearInterp, levelInterp, angleInterped)
+    # print(len(levelInterp), len(levelLinearInterp))
+
+
+    if plot == True:
+        ax2.plot(levels, samples[:, 0])
+        ax3.plot(levels, samples[:, 1])
+        ax4.plot(levels, samples[:, 4])
+
+        ax2.plot(levelLinearInterp, majorInterped)
+        ax3.plot(levelLinearInterp, minorInterped )
+        # ax4.plot(levelInterp, np.rad2deg(angleInterp(levelInterp)))
+        ax4.plot(levelLinearInterp, angleInterped)
+
+        ax2.set_ylabel('Major', size=15)
+        ax2.set_xticklabels([])
+        ax2.tick_params(axis='y', labelsize=15 )
+        ax2.set_ylim(0, max(samples[1:, 0])*1.2)
+        ax3.set_ylabel('Minor', size=15)
+        ax3.tick_params(axis='y', labelsize=15 )
+        ax3.set_xticklabels([])
+        ax3.set_ylim(0, max(samples[1:, 1])*1.2)
+        ax4.set_ylabel('Orientation', size=15)
+        ax4.set_xlabel('Overlap ratio', size=15)
+        ax4.tick_params(axis='x', labelsize=15 )
+
+        fig.subplots_adjust(hspace=0)
+        fig.tight_layout()
+        fig.savefig("plots/levels.png")
+
+    plt.close()
+
+    beamshapeModel = np.array([levelLinearInterp, majorInterped, minorInterped, angleInterped]).T
+
+    return beamshapeModel
+
+def fitContour(contour):
+    major, minor, centerX, centerY, angle = fit_ellipse(contour[:,0], contour[:,1])
+    return major, minor, centerX, centerY, angle

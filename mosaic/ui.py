@@ -7,12 +7,12 @@ import numpy as np
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from interferometer import InterferometryObservation
-from plot import plotPackedBeam, plotBeamFit, plotBeamWithFit
-from tile import ellipseGrid, ellipseCompact
-from beamshape import calculateBeamOverlaps
-from coordinate import Antenna, Boresight, convertBoresightToHour
-from coordinate import convertBoresightToDegree, convert_pixel_coordinate_to_equatorial
+from mosaic.interferometer import InterferometryObservation
+from mosaic.plot import plotPackedBeam, plotBeamFit, plotBeamWithFit
+from mosaic.tile import ellipseGrid, ellipseCompact
+from mosaic.beamshape import calculateBeamOverlaps
+from mosaic.coordinate import Antenna, Boresight, convertBoresightToHour
+from mosaic.coordinate import convertBoresightToDegree, convert_pixel_coordinate_to_equatorial
 
 import argparse
 import logging, tempfile
@@ -228,7 +228,7 @@ def onBoreSightUpdated():
     preBoresight = observation.getBoreSight().equatorial
     if ((abs(beamBoreSight[0] - preBoresight[0]) < 1e-4) and (abs(beamBoreSight[1] - preBoresight[1]) < 1e-4)):
         return
-    print 'boresight edited'
+    print('boresight edited')
     observation.setBoreSight(beamBoreSight, Boresight.EquatorialFrame)
     updateContour()
     updateHorizontal(observation.getBoreSight().horizontal)
@@ -238,7 +238,7 @@ def onHorizontalUpdated():
     preHorizontal = np.rad2deg(observation.getBoreSight().horizontal)
     if ((abs(horizontalCoord[0] - preHorizontal[0]) < 1e-4) and (abs(horizontalCoord[1] - preHorizontal[1]) < 1e-4)):
         return
-    print 'horizontal edited'
+    print('horizontal edited')
     observation.setBoreSight(horizontalCoord, Boresight.HorizontalFrame)
     updateContour()
     axis.setAzAlt(horizontalCoord)
@@ -558,7 +558,7 @@ def onClickedPackButton2():
     # widthH = axisH2
     # widthV = axisV2
     plotBeamWithFit(imageData, center, plotRange, widthH, widthV, angle2,
-                    fileName=imageFileName)
+                    fileName=imageFileName, colormap = True)
     pixmap = QPixmap(imageFileName)
     label.setPixmap(pixmap.scaledToHeight(pixmap.height()))
     fittedImage = pixmap

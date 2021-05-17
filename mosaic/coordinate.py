@@ -124,10 +124,7 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
     '''local hour angle'''
     LHA = LST  - RA
     altitude = np.arcsin(np.sin(latitude)*np.sin(DEC) + np.cos(latitude)*np.cos(DEC)*np.cos(LHA))
-    val = (np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude))
-    if (np.abs(val) > 1 and (np.abs(val) - 1) < 0.000000001):
-       val = np.trunc(val)
-    azimuth = np.arccos(val)
+    azimuth = np.arccos((np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude)))
 
     mask = np.sin(LHA) > 0.0
     azimuth[mask] = np.pi*2 - azimuth[mask]
@@ -396,7 +393,7 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
 
     wcs_properties = wcs.WCS(naxis=2)
     wcs_properties.wcs.crpix = [0, 0]
-    wcs_properties.wcs.cdelt = [step, step]
+    wcs_properties.wcs.cdelt = [-step, step]
     wcs_properties.wcs.crval = bore_sight
     wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
     scaled_pixel_coordinats = np.array(pixel_coordinates)/step
@@ -404,24 +401,6 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
     equatorial_coodinates = wcs_properties.wcs_pix2world(scaled_pixel_coordinats, 0)
 
     return equatorial_coodinates
-
-def convert_equatorial_coordinate_to_pixel(equatorial_coordinates, bore_sight):
-
-    """
-    https://docs.astropy.org/en/stable/wcs/index.html#using-astropy-wcs
-    """
-    step = 1/10000000000.
-
-    wcs_properties = wcs.WCS(naxis=2)
-    wcs_properties.wcs.crpix = [0, 0]
-    wcs_properties.wcs.cdelt = [step, step]
-    wcs_properties.wcs.crval = bore_sight
-    wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
-
-    scaled_pixel_coordinats = wcs_properties.wcs_world2pix(equatorial_coordinates, 0)
-    pixel_coordinates = scaled_pixel_coordinats * step
-
-    return pixel_coordinates
 
 
 def convert_pixel_length_to_equatorial(axis1, axis2, angle, boresight):
@@ -433,9 +412,9 @@ def convert_pixel_length_to_equatorial(axis1, axis2, angle, boresight):
     equatorials = convert_pixel_coordinate_to_equatorial(
         [pixel1, pixel2], boresight)
 
-    equatorial1 = SkyCoord(equatorials[0][0], equatorials[0][1], unit="deg")
-    equatorial2 = SkyCoord(equatorials[1][0], equatorials[1][1], unit="deg")
-    equatorialB = SkyCoord(boresight[0], boresight[1], unit="deg")
+    equatorial1 = SkyCoord(equatorials[0][0], equatorials[0][1], unit="deg", frame='fk5')
+    equatorial2 = SkyCoord(equatorials[1][0], equatorials[1][1], unit="deg", frame='fk5')
+    equatorialB = SkyCoord(boresight[0], boresight[1], unit="deg", frame='fk5')
 
     width1 = equatorial1.separation(equatorialB)
     width2 = equatorial2.separation(equatorialB)
@@ -445,6 +424,25 @@ def convert_pixel_length_to_equatorial(axis1, axis2, angle, boresight):
 
 
     return width1, width2
+
+
+def convert_equatorial_coordinate_to_pixel(equatorial_coordinates, bore_sight):
+
+    """
+    https://docs.astropy.org/en/stable/wcs/index.html#using-astropy-wcs
+    """
+    step = 1/10000000000.
+
+    wcs_properties = wcs.WCS(naxis=2)
+    wcs_properties.wcs.crpix = [0, 0]
+    wcs_properties.wcs.cdelt = [-step, step]
+    wcs_properties.wcs.crval = bore_sight
+    wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+
+    scaled_pixel_coordinats = wcs_properties.wcs_world2pix(equatorial_coordinates, 0)
+    pixel_coordinates = scaled_pixel_coordinats * step
+
+    return pixel_coordinates
 
 def convertBoresightToHour(boresight):
     boresight = SkyCoord(boresight[0], boresight[1], frame='icrs', unit='deg');
@@ -473,4 +471,16 @@ def writeFits(wcsHeader, data, fileName):
     # Save to FITS file
     hdu.writeto(str(fileName), overwrite=True)
 
+def createTilingRegion(coordinates, shape, fileName):
+    with open(fileName, "w") as regionFile:
+        regionFile.write("# Region file format: DS9 version 4.1\n")
+        regionFile.write("global color=green dashlist=8 3 width=1 "
+                        "font=\"helvetica 10 normal roman\" select=1 "
+                        "highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 "
+                        "include=1 source=1\n")
+        regionFile.write("fk5\n")
+        for coord in coordinates:
+            regionFile.write(
+                "ellipse({:7f}, {:7f}, {:3f}\", {:3f}\", {:7f})\n".format(
+                    coord[0], coord[1], shape[0]*3600, shape[1]*3600, shape[2]))
 

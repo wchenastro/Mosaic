@@ -3,10 +3,10 @@
 
 import numpy as np
 
-import coordinate as coord
-from plot import plotBeamContour
-from utilities import normSigma, normInverse
-from beamshape import calculateBeamSize
+import mosaic.coordinate as coord
+from mosaic.plot import plotBeamContour
+from mosaic.utilities import normSigma, normInverse
+from mosaic.beamshape import calculateBeamSize, createBeamshapeModel
 
 import inspect, pickle, datetime, logging
 
@@ -23,6 +23,7 @@ class PointSpreadFunction(object):
         self.width = width
         self.wcs_header = wcs_header
         self.image_range = image_range
+        self.beamModel = None
 
     def write_fits(self, filename):
         coord.writeFits(self.wcs_header, self.image, filename)
@@ -159,8 +160,32 @@ class InterferometryObservation:
         #return np.concatenate((uvCoord, -uvCoord))
 
     def getBeamAxis(self):
-        self.fitContour()
+        beamshapeModel = self.fitContour()
+        # get the 50% overlap beam shape
+        bottomOverlap = beamshapeModel[0, 0]
+        topOverlap = beamshapeModel[-1, 0]
+        index = (0.5 - bottomOverlap) / (topOverlap-bottomOverlap) * (beamshapeModel.shape[0] - 1)
+        axis1, axis2, angle = beamshapeModel[int(np.round(index))][1:]
+        self.beamAxis[0:3] = [axis1, axis2, angle]
+
+        width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
+                angle, self.boresight.equatorial)
+
+        # self.beamSize = [width1.degree, width2.degree]
+
+        # logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
+                # .format(axis1, axis2, angle))
+
+        logger.info("beamshape: width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
+                .format(width1.arcsecond, width2.arcsecond, angle))
+
+        self.beamshapeModel = beamshapeModel
         return self.beamAxis
+
+    def getBeamshapeModel(self):
+        if self.beamshapeModel is None:
+            self.beamshapeModel = self.fitContour()
+        return self.beamshapeModel
 
     def getImageLength(self):
         return self.imageLength
@@ -261,8 +286,8 @@ class InterferometryObservation:
         uvSamples = []
         for baseline in rotatedProjectedBaselines:
             # print baseline
-            uSlot = int(round(baseline[0]/waveLength*step + halfGridNum - 1))
-            vSlot = int(round(halfGridNum - baseline[1]/waveLength*step - 1))
+            uSlot = int(np.round(baseline[0]/waveLength*step + halfGridNum - 1))
+            vSlot = int(np.round(halfGridNum - baseline[1]/waveLength*step - 1))
 
             uvSamples.append([uSlot, vSlot])
             uvSamples.append([gridNum - uSlot, gridNum - vSlot])
@@ -279,7 +304,7 @@ class InterferometryObservation:
 
         # fringeSum = np.sum(np.exp(1j*np.pi*2./gridNum*np.dot(np.fliplr(uvSamples), imagesCoord)), axis=0)
 
-        fringeSum = fringeSum.reshape(density,density)/(len(uvSamples))
+        fringeSum = 1.0 * fringeSum.reshape(density,density)/(len(uvSamples))
 
         # base = np.min(fringeSum.real)
         image = np.fft.fftshift(np.abs(fringeSum))
@@ -395,33 +420,33 @@ class InterferometryObservation:
         CTYPE: name of the coordinate axis
         """
         self.WCS = {}
+        # self.WCS['crpix'] = [density/2 -1, density/2 -1]
+        # self.WCS['cdelt'] = [-step, step]
+        # self.WCS['crval'] = [boresight[0] - abs(self.WCS['cdelt'][0]),
+                             # boresight[1] - self.WCS['cdelt'][1]]
+        # self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
+
         self.WCS['crpix'] = [density/2. + 1, density/2. + 1]
-        self.WCS['cdelt'] = [step, step]
+        self.WCS['cdelt'] = [-step, step]
         self.WCS['crval'] = [boresight[0], boresight[1]]
         self.WCS['ctype'] = ["RA---TAN", "DEC--TAN"]
 
     def fitContour(self):
-        axis1, axis2, angle, overstep = calculateBeamSize(self.imageData,
-                self.imageDensity, self.imageLength, None, fit=True)
-        if overstep != 0:
-            elevation = np.rad2deg(self.boresight.horizontal[1])
-            if abs(elevation) < 20.:
-                logger.warning("Elevation is low %f" % elevation)
-            logger.warning("Beam shape probably is not correct. "
-                           "overstep at the power of {:.3}.".format(overstep))
-        angle = angle % 360. if abs(angle) > 360. else angle
-        self.beamAxis[0:3] = [axis1, axis2, angle]
+        # axis1, axis2, angle, overstep = calculateBeamSize(self.imageData,
+                # self.imageDensity, self.imageLength, None, fit=True)
+        # if overstep != 0:
+            # elevation = np.rad2deg(self.boresight.horizontal[1])
+            # if abs(elevation) < 20.:
+                # logger.warning("Elevation is low %f" % elevation)
+            # logger.warning("Beam shape probably is not correct. "
+                           # "overstep at the power of {:.3}.".format(overstep))
+        # angle = angle % 360. if abs(angle) > 360. else angle
+        # self.beamAxis[0:3] = [axis1, axis2, angle]
 
-        width1, width2 = coord.convert_pixel_length_to_equatorial(axis1, axis2,
-                angle, self.boresight.equatorial)
+        beamshapeModel = createBeamshapeModel(self.imageData, self.imageDensity,
+                self.imageLength)
 
-        self.beamSize = [width1.degree, width2.degree]
-
-        # logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
-                # .format(axis1, axis2, angle))
-
-        logger.info("beamshape: width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
-                .format(width1.arcsecond, width2.arcsecond, angle))
+        return beamshapeModel
 
     def createContour(self, antennas, fileName=None, minAlt=0):
 
@@ -553,7 +578,7 @@ class InterferometryObservation:
 
         if fileName is not None:
             plotBeamContour(image, self.boresight.equatorial, equatorial_range,
-                    interpolation = self.interpolating, fileName = fileName)
+                    interpolation = self.interpolating, fileName = fileName, colormap = True)
 
         # if baselineNum > 2:
             # resolution = windowLength/density
