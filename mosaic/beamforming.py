@@ -410,7 +410,7 @@ class Tiling(object):
 
 
 def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
-        parameter=None, coordinate_type="image", margin=None):
+        parameter=None, coordinate_type="equatorial", margin=None):
     """
     generate and return the tiling.
     arguments:
@@ -431,8 +431,10 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
     # tiling_coordinates, tiling_radius = ellipseCompact(
             # beam_num, widthH, widthV, beam_shape.angle, margin,
             # seed = beam_shape.bore_sight.equatorial[0])
+    logger.info("tiling method: {}, tiling shape: {}, tiling parameter: {}".format(
+                method, tilingShape, str(parameter)))
 
-    if method == "variable-overlap" and coordinate_type != "image":
+    if method == "variable_overlap" and coordinate_type != "image":
         if coordinate_type == "equatorial":
             if tilingShape == "polygon":
                     parameter = coord.convert_equatorial_coordinate_to_pixel(
@@ -448,22 +450,25 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
             margin, seed = beam_shape.bore_sight.equatorial[0])
 
 
-    if method == "variable-overlap":
+    if method == "variable_overlap":
         overlap = actualBeemshape[3]
 
     tiling_meta = {"method": method, "shape": tilingShape, "parameter": parameter,
                     "scale": scale, "axis": actualBeemshape, "condition": condition}
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_meta, overlap)
-    width1, width2 = tiling_obj.get_beam_size()
+    # width1, width2 = tiling_obj.get_beam_size()
 
-    logger.info("tiling: overlap: {}, angle: {:.3f} degrees "
-            "in pixel plane".format(overlap, beam_shape.angle))
-    logger.info("tiling: width1: {:.3g} arcsec, width2: {:.3g} arcsec "
-                "in equatorial plane".format(width1.arcsec, width2.arcsec))
-    logger.info("tiling: width1: {:.3g}, width2: {:.3g} angle: {:.3g} degree "
-                "in pixel plane".format(actualBeemshape[0], actualBeemshape[1],
-                    actualBeemshape[2]))
+    # logger.info("tiling: overlap: {}, angle: {:.3f} degrees "
+            # "in pixel plane".format(overlap, beam_shape.angle))
+    # logger.info("tiling: width1: {:.3g} arcsec, width2: {:.3g} arcsec "
+                # "in equatorial plane".format(width1.arcsec, width2.arcsec))
+
+    logger.info("tiling: required_beam_number: {}, generate_beam_number: {}, "
+    "trial counter: {}".format(beam_num, len(tiling_coordinates), condition["trial_count"]))
+    logger.info("tiling: overlap {:.3g}, width1: {:.3g}, width2: {:.3g},"
+            "angle: {:.3g} degree in pixel plane".format(actualBeemshape[3],
+            actualBeemshape[0], actualBeemshape[1], actualBeemshape[2]))
 
     return tiling_obj
 

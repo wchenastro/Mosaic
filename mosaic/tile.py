@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter, error, seed=None):
 
-    if method == "variable-size":
+    if method == "variable_size":
         axisH, axisV, angle = beamshape.width_at_overlap(overlap)
         area = beamNumber*np.pi*axisH*axisV
         if tilingShape == "circle":
@@ -18,7 +18,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
             scale = np.sqrt(area/np.pi)*1.15
             gridding = partial(isInsideHexagon, circumradius=scale)
 
-    elif method == "variable-overlap":
+    elif method == "variable_overlap":
         if tilingShape == "circle":
             scale = parameter
             gridding = partial(isInsideCircle, radius=scale)
@@ -67,7 +67,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
         maxBeamshapeIndex = len(beamshapeModel) - 1
         if beamshapeIndex <= 0 or beamshapeIndex >= maxBeamshapeIndex:
             logger.warning("variable overlap outside (0, 1).")
-            return 0, 0, (0, 0, 0, 0), {"optimized":False}
+            return [[0, 0]], scale, (0, 0, 0, 0), {"optimized":False, "trial_count":0}
         overlap, axisH, axisV, angle = beamshapeModel[beamshapeIndex]
 
     error = int(np.round(error/2.))
@@ -89,13 +89,13 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
     # smallError = max(np.int(error/3.), 1)
     smallError = max(np.int(error/2.), 1)
     diffRatio = 0
-    condition = {"optimized":False}
+    condition = {"optimized":False, "trial_count":0}
     while(trialCount < maxTrial):
 
         insideCoordinates = createGrid(scale, axisH, axisV, angle, gridding)
         insideCount = len(insideCoordinates)
         beamNumDiff = abs(insideCount - (beamNumber))
-        # if method == "variable-overlap":
+        # if method == "variable_overlap":
             # print("{:4d}".format(insideCount), "{:4d}".format(beamNumDiff), beamshapeIndex,
                     # "{:.4f}".format(overlap), state, trialCount, beamshapeIndexDelta)
         # else:
@@ -116,7 +116,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
             betterTiling = [beamNumDiff, insideCoordinates, scale, (axisH, axisV, angle, overlap)]
 
 
-        if method == "variable-overlap":
+        if method == "variable_overlap":
             if state == search:
                 beamArea = np.pi * (axisH * axisV)
                 if insideCount > maxInsideCount:
@@ -158,7 +158,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
                 overlap, axisH, axisV, angle = beamshapeModel[beamshapeIndex]
             indexList.append(beamshapeIndex)
 
-        elif method == "variable-size":
+        elif method == "variable_size":
             if state == search:
                 diffRatio = 5.0*beamNumDiff/beamNumber
                 if insideCount <= beamNumber:
