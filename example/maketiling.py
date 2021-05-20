@@ -15,7 +15,7 @@ logger = logging.getLogger()
 
 import katpoint
 from mosaic.beamforming import PsfSim, generate_nbeams_tiling
-from mosaic.coordinate import convertBoresightToDegree, createTilingRegion
+from mosaic.coordinate import convertBoresightToDegree, createTilingRegion, readPolygonRegion
 from mosaic.plot import plot_overlap, plot_interferometry
 
 
@@ -31,7 +31,8 @@ def makeKatPointAntenna(antennaString):
 
 def creatBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNum,
         duration, overlap, subarray, update_interval, overlay_source, size, resolution,
-        tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType):
+        tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType,
+        output):
 
     if subarray != []:
         antennaKat = makeKatPointAntenna(
@@ -45,6 +46,28 @@ def creatBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNu
     reference = makeKatPointAntenna(
             ["ref, -30:42:39.8, 21:26:38.0, 1035.0",])[0]
     psf = PsfSim(antennaKat, frequencies[0])
+
+    if duration == 0:
+        newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution)
+        if "psf_plot" in output:
+            newBeamShape.plot_psf(output["psf_plot"][0], overlap = overlap, shape_overlay=True)
+        if "psf_fits" in output:
+            newBeamShape.psf.write_fits(output["psf_fits"][0])
+        if ("tiling_plot" in output) or ("tiling_coordinate" in output) or ("tiling_region" in output):
+
+            tiling = generate_nbeams_tiling(newBeamShape, beamNum, overlap, tilingMethod,
+                    tilingShape, tilingParameter, tilingParameterCoordinateType)
+            if "tiling_plot" in output:
+                tiling.plot_tiling(output["tiling_plot"][0], HD=True, edge=True)
+            if "tiling_coordinate" in output:
+                equatorial_coordinates = tiling.get_equatorial_coordinates()
+                np.savetxt(output["tiling_coordinate"][0], equatorial_coordinates)
+            if "tiling_region" in output:
+                equatorial_coordinates = tiling.get_equatorial_coordinates()
+                actualShape = tiling.meta["axis"]
+                createTilingRegion(equatorial_coordinates, actualShape, output["tiling_region"])
+
+        exit(0)
 
     counter = []
     step = update_interval/60.
@@ -73,21 +96,15 @@ def creatBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNu
         createTilingRegion(equatorial_coordinates, actualShape,
                 "plots/tiling/tiling%03d.reg" % minute)
 
-
-
-def readPolygonRegion(filename):
-    with open(filename, 'r') as regionFile:
-        polygonLine = regionFile.readlines()[3]
-        pointString = polygonLine.split(")")[0].split("(")[1]
-        points = np.array(pointString.split(",")).astype(float)
-
-        return points.reshape((-1, 2))
-
 def parseOptions(parser):
     # enable interpolation when ploting
     parser.add_argument('--inte', action='store_true', help=argparse.SUPPRESS)
     # plot the beam images
-    parser.add_argument('--plot', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--psf_plot', nargs='+', metavar="file [paras]", help='filename for the psf plot')
+    parser.add_argument('--psf_fits', nargs='+', metavar="file [paras]", help='name for the psf fits file')
+    parser.add_argument('--tiling_plot', nargs='+', metavar="file [paras]", help='filename for the tiling plot')
+    parser.add_argument('--tiling_coordinate', nargs='+', metavar="file [paras]", help='filename for the tiling coordinate')
+    parser.add_argument('--tiling_region', nargs=1, metavar="file", help='filename for the tiling region')
     parser.add_argument('--ants', nargs=1, metavar="file", help='antenna coodinates files')
     parser.add_argument('--resolution', nargs=1, metavar="asec", help='resolution in arcsecond')
     parser.add_argument('--size', nargs=1, metavar="num", help='width in pixels')
@@ -133,10 +150,17 @@ def parseOptions(parser):
     retile_rate = False
     overlay_source = None
     retile_threshold = 0.5
-    if args.plot == True:
-        plotting = True
-        if args.inte == True:
-            interpolation = True
+    output = {}
+    if args.psf_plot is not None:
+        output["psf_plot"] = args.psf_plot
+    if args.psf_fits is not None:
+        output["psf_fits"] = args.psf_fits
+    if args.tiling_plot is not None:
+        output["tiling_plot"] = args.tiling_plot
+    if args.tiling_coordinate is not None:
+        output["tiling_coordinate"] = args.tiling_coordinate
+    if args.tiling_region is not None:
+        output["tiling_region"] = args.tiling_region[0]
 
 
     if args.ants is not None:
@@ -270,7 +294,8 @@ def parseOptions(parser):
         "tilingShape":tilingShape,
         "tilingParameter":tilingParameter,
         "tilingParameterCoordinateType":tilingParameterCoordinateType,
-        "overlay_source":overlay_source}
+        "overlay_source":overlay_source,
+        "output":output}
 
     creatBeamMatrix(**paras)
 

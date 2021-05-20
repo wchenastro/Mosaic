@@ -484,3 +484,15 @@ def createTilingRegion(coordinates, shape, fileName):
                 "ellipse({:7f}, {:7f}, {:3f}\", {:3f}\", {:7f})\n".format(
                     coord[0], coord[1], shape[0]*3600, shape[1]*3600, shape[2]))
 
+
+
+def readPolygonRegion(filename):
+    with open(filename, 'r') as regionFile:
+        polygonLine = regionFile.readlines()[3]
+        pointString = polygonLine.split(")")[0].split("(")[1]
+        points = np.array(pointString.split(","))
+        coordinate_sexagesami = points.reshape((-1, 2))
+        coordinate_degree = SkyCoord(
+                coordinate_sexagesami[:,0], coordinate_sexagesami[:,1],
+                frame='fk5', unit=(u.hourangle, u.deg))
+        return np.dstack((coordinate_degree.ra.value, coordinate_degree.dec.value))[0]
