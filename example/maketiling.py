@@ -136,20 +136,13 @@ def parseOptions(parser):
     interpolation = True
     frequencies = [1.4e9,]
     paras = None
-    plotting = False
     resolution = None #in arcsecond
     size = 400
-    zoom = 1
     duration = 0
-    frame = 'RADEC'
     overlap = 0.5
     beamnum = 400
     update_interval = 3600
-    retile = 0
-    hourAngle = False
-    retile_rate = False
     overlay_source = None
-    retile_threshold = 0.5
     output = {}
     if args.psf_plot is not None:
         output["psf_plot"] = args.psf_plot
@@ -197,14 +190,6 @@ def parseOptions(parser):
         sourceCoord = args.source
     else:
         parser.error("no source specifed, try --source RA DEC")
-
-    if args.frame is not None:
-        frame = args.frame[0].upper()
-        if frame != 'RADEC' and frame != 'AZIALT':
-            parser.error("frame not recongnized, should be RADEC or AziAlt")
-    else:
-        # logging.warning("frame not specified, default to RADEC")
-        frame = 'RADEC'
 
     if args.duration is not None:
         duration = int(args.duration[0])
@@ -271,14 +256,13 @@ def parseOptions(parser):
         else:
             tilingParameter = None
     else:
-        tiling_method = "variable_size"
+        tilingMethod = "variable_size"
         tilingParameter = None
 
     if args.verbose:
         logger.setLevel(logging.INFO)
 
 
-    # paras = antennaCoords, sourceCoord, frame, observeTime, resolution, size, zoom
     paras  = {"antennaCoords": antennaCoords,
         "sourceCoord": sourceCoord,
         "observeTime": observeTime,
