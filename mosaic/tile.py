@@ -67,7 +67,8 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
         maxBeamshapeIndex = len(beamshapeModel) - 1
         if beamshapeIndex <= 0 or beamshapeIndex >= maxBeamshapeIndex:
             logger.warning("variable overlap outside (0, 1).")
-            return [[0, 0]], scale, (0, 0, 0, 0), {"optimized":False, "trial_count":0}
+            condition = {"optimized":False, "trial_count":-1, "cause": "off limit"}
+            return [[0, 0]], scale, (0, 0, 0, 0), condition
         overlap, axisH, axisV, angle = beamshapeModel[beamshapeIndex]
 
     error = int(np.round(error/2.))
@@ -153,7 +154,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
                     beamshapeIndex -= beamshapeIndexDelta
                 if beamshapeIndex <= 0 or beamshapeIndex >= maxBeamshapeIndex:
                     logger.warning("variable overlap outside (0, 1).")
-                    condition["optimized"] = False;
+                    condition = {"optimized":False, "trial_count":trialCount, "cause": "off limit"}
                     break
                 overlap, axisH, axisV, angle = beamshapeModel[beamshapeIndex]
             indexList.append(beamshapeIndex)
@@ -216,18 +217,20 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
         trialCount += 1
         if trialCount > 149:
             condition["optimized"] = False;
+            condition["cause"] = "maximum trials";
             actualDiff = np.Inf
-            if abs(insideCount - beamNumber) < int(beamNumber*0.1):
-                logger.warning("maximum trials reached in the tiling process, "
-                    "the tiling is not well optimized, the difference in number "
-                    "of beams between requried and generated is less than 10%")
-                break
-            else:
-                logger.critical("maximum trials reached in the tiling process, "
-                    "the tiling is not optimized. the number of requried beams and "
-                    "generated beams is %d and %d, please consider increasing "
-                    "the margin threshold if needed." % (beamNumber, insideCount))
-                break
+            break
+            # if abs(insideCount - beamNumber) < int(beamNumber*0.1):
+                # logger.warning("maximum trials reached in the tiling process, "
+                    # "the tiling is not well optimized, the difference in number "
+                    # "of beams between requried and generated is less than 10%")
+                # break
+            # else:
+                # logger.critical("maximum trials reached in the tiling process, "
+                    # "the tiling is not optimized. the number of requried beams and "
+                    # "generated beams is %d and %d, please consider increasing "
+                    # "the margin threshold if needed." % (beamNumber, insideCount))
+                # break
 
     if betterTiling != [np.Inf] and beamNumber < insideCount or (beamNumber - insideCount) > betterTiling[0]:
     # if  beamNumDiff > betterTiling[0]:

@@ -397,7 +397,7 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
     # print(levels)
     # levels = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.975]
     # levels = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
-    plot = True
+    plot = False
     if plot == True:
         thisDpi = 96
         fig = plt.figure(figsize=(1200./thisDpi,1200./thisDpi), dpi=thisDpi)
@@ -443,7 +443,8 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
             powerline = np.array(segs[0])
 
         if powerline is None:
-            logger.warning('level {} countour is None!'.format(count))
+            if count > 0.2:
+                logger.warning('level {} countour is None!'.format(count))
             para = [np.nan, np.nan, 0, 0, np.nan]
         else:
             para = fitContour(powerline)
@@ -458,8 +459,9 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
     for sampleIndex in np.arange(len(samples)):
         nans = np.isnan(samples[sampleIndex])
         if np.any(nans):
-            logger.warning('level {} have NaN value!'.format(
-                        levels[np.squeeze(np.argwhere(nans)[0][0])]))
+            levelNumber = levels[np.squeeze(np.argwhere(nans)[0][0])]
+            if levelNumber > 0.2:
+                logger.warning('level {} have NaN value!'.format(levelNumber))
             sample = samples[sampleIndex]
             sample[nans]= np.interp(np.array(levels)[nans], np.array(levels)[~nans], sample[~nans])
             samples[sampleIndex] = sample
@@ -481,7 +483,15 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
     # samples = np.array(samples)
     samples[:, 0] = (1.*windowLength/interpolatedLength*samples[:, 0])
     samples[:, 1] = (1.*windowLength/interpolatedLength*samples[:, 1])
-    samples[:, 4] = np.rad2deg(samples[:, 4])
+
+    angles = samples[:, 4]
+    for i in range(1, len(angles)):
+        if angles[i] - angles[i-1] > np.pi * 0.8:
+            angles[i] -= np.pi
+        elif angles[i] - angles[i-1] < -np.pi * 0.8:
+            angles[i] += np.pi
+
+    samples[:, 4] = np.rad2deg(angles)
 
     interpMethod ="cubic" # "quadratic, slinear, cubic"
     majorInterp = interpolate.interp1d(levels, samples[:, 0], kind=interpMethod)

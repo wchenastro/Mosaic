@@ -1,6 +1,6 @@
 # Mosaic: Multibeamformed observation simulation and interferometry characterization
 
-A software package consists of an interferometric pattern simulator and characterizer, an optimized tiling generator and a beamforming weights calculator. This document only describes the new version of the package.
+A software package consists of an interferometric pattern simulator and characterizer, an optimized tiling generator and a beamforming weights calculator. This document only describes the package from version 1.0.0.
 
 ## Dependent
 
@@ -73,7 +73,8 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
 --datetime 2020.05.02 06:02:13.663903 --beamnum 400 --verbose --overlap 0.7 \
---subarray 000, 001, 002, 003 --tiling_method variable_size --tiling_shape circle --tiling_plot tiling.png
+--subarray 000, 001, 002, 003 --tiling_method variable_size \
+--tiling_shape circle --tiling_plot tiling.png
 ```
 
 `--beamnum`: the requesting beam number in the tiling, the actual number in the generated tiling is less than or equal to this number. The default is 400.
