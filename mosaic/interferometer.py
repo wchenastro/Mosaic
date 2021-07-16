@@ -40,6 +40,7 @@ class InterferometryObservation:
         self.gridNumOfDFT = 100000.0
         self.imageDensity = 20
         self.resolution = 1/3600.0
+        self.weights = None
         self.boresightFrame = coord.Boresight.EquatorialFrame
         self.updateBeamCoordinates(self.beamSizeFactor, self.imageDensity, self.gridNumOfDFT)
 
@@ -58,6 +59,9 @@ class InterferometryObservation:
             dateTime = coord.epochToDatetime(dateTime)
         self.observeTime = dateTime
 
+    def setAntennaWeights(self, weights):
+        self.antennaWeights = weights
+
     def getObserveTime(self):
         return self.observeTime
 
@@ -71,6 +75,7 @@ class InterferometryObservation:
                 self.beamSizeFactor = size
                 return True
             else:
+                logger.warning("failed to set resolution")
                 return False
 
     def setAutoZoom(self, switch):
@@ -98,6 +103,7 @@ class InterferometryObservation:
             if isUpdated:
                 return True
             else:
+                logger.warning("failed to set image density")
                 self.beamNumber = oldBeamNumber
                 self.setImageDensity(oldDensity)
 
@@ -219,6 +225,7 @@ class InterferometryObservation:
         halfLength = imageDensity/2 * interval
         # print halfLength, self.imageDensity/2, interval
         if halfLength > DFTSideLength/2:
+            logger.warning('failed to update DFT grid')
             return False
         else:
             self.partialDFTGrid =self.createDFTGrid(
@@ -227,16 +234,16 @@ class InterferometryObservation:
 
 
 
-    def getAltAziFromRADEC(self, beamCoordinates, LSTDeg, arrayRefereceLatitude):
-        RA = np.deg2rad(beamCoordinates[:,0])
-        DEC = np.deg2rad(beamCoordinates[:,1])
-        LST = np.deg2rad(LSTDeg)
+    # def getAltAziFromRADEC(self, beamCoordinates, LSTDeg, arrayRefereceLatitude):
+        # RA = np.deg2rad(beamCoordinates[:,0])
+        # DEC = np.deg2rad(beamCoordinates[:,1])
+        # LST = np.deg2rad(LSTDeg)
 
 
-        altitude, azimuth = coord.convertEquatorialToHorizontal(
-                RA, DEC, LST, arrayRefereceLatitude)
+        # altitude, azimuth = coord.convertEquatorialToHorizontal(
+                # RA, DEC, LST, arrayRefereceLatitude)
 
-        return altitude, azimuth
+        # return altitude, azimuth
 
 
     def createDFTGrid(self, gridNum, halfLength, interval):
@@ -311,6 +318,63 @@ class InterferometryObservation:
         # image = np.fft.fftshift(fringeSum.real - base)
 
         return image
+
+    def calculateWeight(self, sidelength, antennaENU, resolution, boresight,
+            waveLength, antennaWeights):
+
+        speedOfLight = 299792458.
+
+        # step = np.deg2rad(resolution)
+        step = resolution
+        margin = sidelength/2. * step
+        # print(sidelength, margin*2, step)
+        intervals = np.linspace(-margin-step , margin, sidelength)
+        # lines = np.array(boresight).reshape(2,1) + intervals
+
+        grids = np.meshgrid(intervals, intervals)
+        coords = np.array(grids).reshape(2, -1).T
+
+        equatorialCoordinates = coord.convert_pixel_coordinate_to_equatorial(
+                coords, boresight.equatorial)
+        altitude, azimuth = boresight.getAltAziFromRADEC(equatorialCoordinates,
+                boresight.localSidereTime, np.deg2rad(boresight.arrayreference.geo[0]))
+
+        theta = np.pi/2. - altitude
+        phi = np.pi/2. - azimuth
+
+        theta0 = np.pi/2. - boresight.horizontal[1]
+        phi0 = np.pi/2.- boresight.horizontal[0]
+
+        sourcePosition = np.array([np.sin(theta)*np.cos(phi),
+            np.sin(theta)*np.sin(phi),
+            np.cos(theta)])
+
+        sourcePosition0 = np.array([np.sin(theta0)*np.cos(phi0),
+        np.sin(theta0)*np.sin(phi0),
+        np.cos(theta0)])
+
+        receiverLocations = antennaENU
+        kall = np.dot(receiverLocations, sourcePosition)/waveLength
+        k0 = np.dot(receiverLocations, sourcePosition0)/waveLength
+        k = (kall.T-k0).T
+
+
+        weights = np.exp(1j * 2.0 * np.pi * k)
+        # [antN, beams]
+        if antennaWeights is not None and len(antennaWeights) == len(receiverLocations):
+            weights = weights * np.array(antennaWeights).reshape(-1, 1)
+        weights = weights.sum(axis=0)
+        image = np.abs(weights).reshape(sidelength, sidelength)
+        image = np.square(image/np.amax(image))
+        # image = np.square(image/len(receiverLocations))
+        # from matplotlib import pyplot as plt
+        # plt.imshow(image, cmap="jet", origin="lower", vmin=0, vmax=1,
+                # interpolation="nearest")
+        # plt.tight_layout()
+        # plt.savefig("weight.png")
+
+        return image
+
 
     def performFFT(self, rotatedProjectedBaselines, waveLength, imageLength, gridNum):
 
@@ -507,8 +571,13 @@ class InterferometryObservation:
             windowLength = self.resolution * sidelength
             imageLength = gridNum * self.resolution
 
-            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                    self.waveLength, imageLength, density, gridNum)
+            # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    # self.waveLength, imageLength, density, gridNum)
+
+            image  = self.calculateWeight(density, self.array.getENU(),
+                self.resolution*self.beamSizeFactor,
+                self.boresight, self.waveLength, self.antennaWeights)
+
 
             #if fileName != None:
             #    plotBeamContour(image, (0,0), windowLength,
@@ -545,17 +614,21 @@ class InterferometryObservation:
                 # self.waveLength, self.beamSizeFactor, density, gridNum, fixRange=width)
 
 
-            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                    self.waveLength, imageLength, density, gridNum)
+            # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    # self.waveLength, imageLength, density, gridNum)
+
+            image  = self.calculateWeight(density, self.array.getENU(),
+                self.resolution*self.beamSizeFactor,
+                self.boresight, self.waveLength, self.antennaWeights)
+
 
         else:
-            image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
-                    self.waveLength, imageLength, density, gridNum)
+            # image = self.partialDFT(self.partialDFTGrid, rotatedProjectedBaselines,
+                    # self.waveLength, imageLength, density, gridNum)
+            image  = self.calculateWeight(density, self.array.getENU(),
+                self.resolution*self.beamSizeFactor,
+                self.boresight, self.waveLength, self.antennaWeights)
 
-        # image_height, image_width = image.shape
-        # image_grid = np.mgrid(-image_height/2., image_height/2., 1)
-        # pixel_coordinates = np.stack((image_grid[0], vert_grid), axis= -1)
-        # print pixel_coordinates.shape
 
         sidelength = density * self.beamSizeFactor
         windowLength = self.resolution * sidelength
@@ -594,5 +667,6 @@ class InterferometryObservation:
         logger.info("beamshape simulation imputs, freq: {:.5g}, source: {}, "
                     "time: {}, subarray: {}".format(299792458./self.waveLength,
                         self.boresightInput, self.observeTime,
-                        [ant.name for ant in antennas]))
+                        [ant.name for ant in antennas] if self.antennaWeights is None
+                        else ["{}:{}".format(ant.name, antWeight) for ant, antWeight in zip(antennas, self.antennaWeights)]))
         return image

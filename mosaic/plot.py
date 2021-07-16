@@ -674,25 +674,26 @@ def plot_all(interferometry, beamshape, overlap, retile, fileName):
         yEnd = (center[1] + halfSideLength)
         plotRange = [xStart, xEnd, yStart, yEnd]
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
-    ims = axis.imshow(np.fliplr(array), cmap=plt.cm.jet, vmin=0, vmax=1,
+    ims = axis.imshow(array, cmap=plt.cm.jet, vmin=0, vmax=1,
             # interpolation=interpolateOption, extent=plotRange)
-            interpolation=interpolateOption, aspect = 'equal', origin='bottom')
+            interpolation=interpolateOption, aspect = 'equal', origin = 'lower')
 
     imageShape = array.shape
-    gridCenter = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
+    # gridCenter = ((imageShape[1]/2.0 - 1), (imageShape[0]/2.0))
+    gridCenter = ((imageShape[1]/2.0), (imageShape[0]/2.0))
     # print("plot angle: %.2f" % angle)
-    ellipse = Ellipse(gridCenter, width=2*widthH, height=2*widthV, angle= angle)
+    ellipse = Ellipse(gridCenter, width=2*widthH, height=2*widthV, angle = angle)
     ellipse.fill = False
     axis.add_artist(ellipse)
 
     # fig.colorbar(ims)
-    axis.set_aspect('auto')
+    axis.set_aspect('equal')
     xTicks = FixedLocator([0, gridCenter[0], imageShape[1]-1])
     xTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[0]),
                           "{:.2f}".format(center[0]),
                           "{:.2f}".format(plotRange[1])])
-    axis.xaxis.set_major_formatter(xTicksLabel)
     axis.xaxis.set_major_locator(xTicks)
+    axis.xaxis.set_major_formatter(xTicksLabel)
     axis.xaxis.set_tick_params(tickdir="out", tick2On=False)
     axis.set_xlabel("Right Ascension")
 
@@ -700,8 +701,8 @@ def plot_all(interferometry, beamshape, overlap, retile, fileName):
     yTicksLabel = FixedFormatter(["{:.2f}".format(plotRange[3]),
                           "{:.2f}".format(center[1]),
                           "{:.2f}".format(plotRange[2])])
-    axis.yaxis.set_major_formatter(yTicksLabel)
     axis.yaxis.set_major_locator(yTicks)
+    axis.yaxis.set_major_formatter(yTicksLabel)
     axis.yaxis.set_tick_params(tickdir="out", tick2On=False)
     axis.set_ylabel("Declination")
     # plt.yticks(axis.get_yticks(), visible=True, rotation="vertical")

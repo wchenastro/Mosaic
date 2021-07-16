@@ -420,7 +420,8 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
         count += 0.025
         powerline = None
         fulllength = 0
-        if len(segs) > 1:
+        segLength = len(segs)
+        if segLength > 1:
             for seg in segs:
                 fulllength += len(seg)
             minimalLength = int(fulllength * 0.2)
@@ -439,8 +440,10 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
                 del(paths[index])
                 # print("small contour of length {} at level {} delelted".format(
                 #           len(segs[index]), levels[len(samples)]))
-        else:
+        elif segLength == 1:
             powerline = np.array(segs[0])
+        else:
+            powerline = None
 
         if powerline is None:
             if count > 0.2:

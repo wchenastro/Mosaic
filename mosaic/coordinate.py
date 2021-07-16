@@ -34,10 +34,11 @@ class Array(object):
         self.antennas = antennas
         self.reference = reference
         self.baselines = None
+        self.enuCoordiantes = None
 
         ecefCoordinates = [antenna.ecef for antenna in antennas]
-        enuCoordiantes = convertECEFToENU(ecefCoordinates, reference.ecef, reference.geo)
-        for i in range(len(self.antennas)): self.antennas[i].enu = enuCoordiantes[i]
+        self.enuCoordiantes = convertECEFToENU(ecefCoordinates, reference.ecef, reference.geo)
+        for i in range(len(self.antennas)): self.antennas[i].enu = self.enuCoordiantes[i]
 
         self.baselines = self.createBaselines(self.antennas)
 
@@ -48,10 +49,18 @@ class Array(object):
              for j in antennas[index:]:
                  pairs.append(Baseline(i,j))
              index += 1
+
+         # enus = [pair.enu for pair in pairs]
+         # max_index = np.argmax(np.sqrt(np.sum(np.square(enus), axis=1)))
+         # print(pairs[max_index].ant0.name,  pairs[max_index].ant1.name)
+
          return pairs
 
     def getBaselines(self):
         return self.baselines
+
+    def getENU(self):
+        return self.enuCoordiantes
 
     def getAntennas(self):
         return self.antennas

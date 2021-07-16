@@ -100,7 +100,8 @@ class PsfSim(object):
         else:
             raise Exception("source are passed in unknown format")
 
-    def get_beam_shape(self, source, time, beam_number = 400, beam_size = None):
+    def get_beam_shape(self, source, time, beam_number = 400, beam_size = None,
+            weights = None):
         """
         return the beamshape of current oservation parameters
         assuming the beam is roughly a ellipse.
@@ -125,6 +126,7 @@ class PsfSim(object):
         if beam_size != None:
             self.observation.setAutoZoom(False)
             self.observation.setBeamSizeFactor(beam_size)
+        self.observation.setAntennaWeights(weights)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle, image_range = self.observation.getBeamAxis()
         horizon = np.rad2deg(self.observation.getBoreSight().horizontal)
@@ -181,7 +183,8 @@ class BeamShape(object):
 
         return axisH, axisV, angle
 
-    def plot_psf(self, filename, overlap = 0.5, shape_overlay = False, colormap = False):
+    def plot_psf(self, filename, overlap = 0.5, shape_overlay = False,
+            colormap = False, interpolation = True ):
         """
         plot the point spread function
 
@@ -193,7 +196,7 @@ class BeamShape(object):
         axisH, axisV, angle = self.width_at_overlap(overlap)
         plotBeamWithFit(self.psf.image, self.psf.bore_sight.equatorial,
                 self.psf.image_range, axisH, axisV, angle,
-                self.resolution, filename, colormap, interpolation = True,
+                self.resolution, filename, colormap, interpolation = interpolation ,
                 shapeOverlay = shape_overlay)
 
     def plot_interferometry(self, filename):
@@ -400,7 +403,7 @@ class Tiling(object):
         else:
             beam_shape = new_beam_shape
         overlap_metrics = calculateBeamOverlaps(
-                self.coordinates, self.meta.radius, beam_shape.axisH,
+                self.coordinates, self.meta['scale'], beam_shape.axisH,
                 beam_shape.axisV, beam_shape.angle, self.overlap, mode,
                 sideLength)
         overlap = Overlap(overlap_metrics, mode)

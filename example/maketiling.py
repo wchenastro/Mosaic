@@ -6,7 +6,7 @@ import argparse
 import logging
 
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 loggerFormat = '%(asctime)-15s %(filename)s  %(message)s'
@@ -17,6 +17,7 @@ import katpoint
 from mosaic.beamforming import PsfSim, generate_nbeams_tiling
 from mosaic.coordinate import convertBoresightToDegree, createTilingRegion, readPolygonRegion
 from mosaic.plot import plot_overlap, plot_interferometry
+from mosaic import __version__
 
 
 
@@ -29,16 +30,17 @@ def makeKatPointAntenna(antennaString):
 
     return antennaKat
 
-def creatBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNum,
+def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNum,
         duration, overlap, subarray, update_interval, overlay_source, size, resolution,
         tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType,
-        output):
+        weights, output):
 
     if subarray != []:
         antennaKat = makeKatPointAntenna(
-                [antennaCoords[int(ant)] for ant in subarray])
+                [antennaCoords[ant] for ant in subarray])
     else:
         antennaKat = makeKatPointAntenna(antennaCoords)
+
 
     # boresight = sourceCoord
     boresight = katpoint.Target('boresight, radec, {}, {}'.format(
@@ -48,9 +50,10 @@ def creatBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNu
     psf = PsfSim(antennaKat, frequencies[0])
 
     if duration == 0:
-        newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution)
+        newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution, weights)
         if "psf_plot" in output:
-            newBeamShape.plot_psf(output["psf_plot"][0], overlap = overlap, shape_overlay=True)
+            newBeamShape.plot_psf(output["psf_plot"][0], overlap = overlap,
+                    shape_overlay=True, interpolation=True)
         if "psf_fits" in output:
             newBeamShape.psf.write_fits(output["psf_fits"][0])
         if ("tiling_plot" in output) or ("tiling_coordinate" in output) or ("tiling_region" in output):
@@ -80,7 +83,7 @@ def creatBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNu
     retileStamp = []
     for minute in np.arange(0, hour*60+1, step):
         offsetTime = startTime + datetime.timedelta(minutes=minute)
-        newBeamShape = psf.get_beam_shape(sourceCoord, offsetTime, size, resolution)
+        newBeamShape = psf.get_beam_shape(sourceCoord, offsetTime, size, resolution, weights)
         newBeamShape.plot_psf("plots/beamshape/beamshape{:03d}.png".format(int(minute)),
             overlap = overlap, shape_overlay=True)
         # newBeamShape.psf.write_fits(
@@ -128,10 +131,28 @@ def parseOptions(parser):
     parser.add_argument('--tiling_parameter_coordinate_type', nargs=1, metavar='coordinate_type',
             help='type of the coordinate of the tiling parameter, such as \"equatorial\", default is image(pixel) coordinate')
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
+    parser.add_argument("--version", help="show the version of this package", action="store_true")
+    parser.add_argument("--weight", action="store_true",
+            help='apply weights to individual antenna, attach weight after the item in --subarray, e.g., 0:0.5, 1:0.7, 2:0.5 ')
+
 
 
 
     args = parser.parse_args()
+
+    if args.verbose:
+        logger.setLevel(logging.INFO)
+
+    if args.version is True:
+        print(__version__)
+        exit(0)
+    else:
+        logger.info("Mosaic " + __version__)
+
+    if args.weight is True:
+        weights = []
+    else:
+        weights = None
 
     interpolation = True
     frequencies = [1.4e9,]
@@ -180,8 +201,23 @@ def parseOptions(parser):
         parser.error("no time specified, try --datetime date time")
 
     if args.subarray is not None:
+        subarray = []
         arrayString = "".join(args.subarray)
-        subarray = arrayString.split(",")
+        ant_weights = arrayString.split(",")
+        for ant_weight in ant_weights:
+            ant_weight_pair = ant_weight.split(':')
+            if weights is not None:
+                subarray.append(int(ant_weight_pair[0]))
+                if len(ant_weight_pair) > 1:
+                    complex_weight = complex(ant_weight_pair[1])
+                    if complex_weight.imag == 0:
+                        weights.append(float(ant_weight_pair[1]))
+                    else:
+                        weights.append(complex_weight)
+                else:
+                    weights.append(1.0)
+            else:
+                subarray.append(int(ant_weight_pair[0]))
     else:
         subarray = []
 
@@ -259,8 +295,6 @@ def parseOptions(parser):
         tilingMethod = "variable_size"
         tilingParameter = None
 
-    if args.verbose:
-        logger.setLevel(logging.INFO)
 
 
     paras  = {"antennaCoords": antennaCoords,
@@ -279,9 +313,10 @@ def parseOptions(parser):
         "tilingParameter":tilingParameter,
         "tilingParameterCoordinateType":tilingParameterCoordinateType,
         "overlay_source":overlay_source,
+        "weights":weights,
         "output":output}
 
-    creatBeamMatrix(**paras)
+    createBeamMatrix(**paras)
 
 def captureNegetiveNumber():
     for i, arg in enumerate(sys.argv):
