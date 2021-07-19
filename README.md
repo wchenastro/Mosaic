@@ -44,8 +44,8 @@ There is a helper script `example/maketiling.py` to demonstrate the interface of
 
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
---datetime 2020.05.02 06:02:13.663903 --verbose --subarray 000, 001, 002, 003 \
---size 900 --resolution 30 --psf_plot psf.png --psf_fit psf.fits
+--datetime 2020.05.02 06:02:13.663903 --verbose --subarray 000, 001, 002:0.7, 003:0.5+2j \
+--size 900 --resolution 30 --psf_plot psf.png --psf_fit psf.fits --weight
 ```
 
 `--ants`: the file containing the antenna specification.
@@ -56,15 +56,17 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--datetime`: the date and time of the observation in UTC and in `yyyy.mm.dd hh:mm:ss.s` format.
 
- `--subarray`: a list of index for selection of antennas  in the file specified by `--ants`
+ `--subarray`: a list of index for selection of antennas in the file specified by `--ants`. Optional scale or complex weight can be attached after each antenna index separated by a colon.
 
 `--resolution`: the scale of one single pixel in the pattern in seconds, default is None which means it is determined by the code.
 
-``--size``: the total number of pixels in the simulation, default is 400 which corresponds to a pattern of 20x20 in dimension 
+`--size`: the total number of pixels in the simulation, default is 400 which corresponds to a pattern of 20x20 in dimension.
 
 `--psf_plot`: filename of the plot of the pattern, the file format can be anything that matplotlib supports, such as "jpeg, pdf".
 
 `--psf_fits`: filename of the fits file of the pattern
+
+`--weight`: a switch for individual weight for each antenna, the weight values in `--subarray` will not be effective without this argument.
 
 `--verbose`: print logs containing the input parameter and result, the input parameter listed in the log should reproduce the same result.
 
@@ -81,7 +83,7 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--tiling_method`: the method to use for generating the tiling, possible values are
 
-- "`variable-size`": given an overlap ratio, the code decide the size of the tiling 
+- "`variable-size`": given an overlap ratio, the code decide the size of the tiling
 - "`variable-ovelap`": given a size of the tiling, the code decide the overlap between the beams.
 
 `--overlap`: The beams in the tiling overlap with each other in their power levels equal to this ratio, only available in the "`variable-size`" method. The default is 0.5.
