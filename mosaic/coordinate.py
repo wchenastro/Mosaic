@@ -453,6 +453,49 @@ def convert_equatorial_coordinate_to_pixel(equatorial_coordinates, bore_sight):
 
     return pixel_coordinates
 
+def convert_coordinate_from_galactic_to_equatorial(lon, lat, LON_NCP, DEC_NGP, RA_NGP):
+    dec = np.arcsin(np.cos(lat) * np.cos(DEC_NGP) * np.sin(lon - (LON_NCP - np.pi/2)) + np.sin(lat) * np.sin(DEC_NGP))
+    ra = np.arctan2(np.cos(lat) * np.cos(lon - (LON_NCP - np.pi/2.)),
+            np.sin(lat) * np.cos(DEC_NGP) - np.cos(lat) * np.sin(DEC_NGP) * np.sin(lon - (LON_NCP - np.pi/2.))) + RA_NGP
+    return ra, dec
+
+def convert_coordinate_from_equatorial_to_galactic(ra, dec, LON_NCP, DEC_NGP, RA_NGP):
+    sinlat = np.cos(dec) * np.cos(DEC_NGP) * np.cos(ra - RA_NGP) + np.sin(dec) * np.sin(DEC_NGP)
+    lat = np.arcsin(sinlat)
+    lon = np.arctan2(np.sin(dec) - sinlat * np.sin(DEC_NGP), np.cos(dec) * np.sin(ra - RA_NGP) * np.cos(DEC_NGP)) + LON_NCP - np.pi/2.
+    if lon < 0:
+        lon += 2*np.pi
+    return lon, lat
+
+def convert_hexagon_angle_from_galactic_to_pixel(boresight, galactic_angle, circumradius):
+
+    def get_galactic_vertex(center, circumradius, angle):
+        vertice_angles = np.arange(np.pi/2., np.pi/2. + 2 * np.pi, np.pi/3.)
+        rotated =  [center[0] + circumradius * np.cos(angle + vertice_angles),
+                    center[1] + circumradius * np.sin(angle + vertice_angles)]
+        return rotated
+
+    # J2000
+    DEC_NGP = 27.12815
+    RA_NGP = 192.85948
+    LON_NCP = 122.93192
+
+    pointing_galatic = convert_coordinate_from_equatorial_to_galactic(
+            np.radians(boresight[0]), np.radians(boresight[1]), np.radians(LON_NCP), np.radians(DEC_NGP), np.radians(RA_NGP))
+
+    galactic_vertex = get_galactic_vertex(np.degrees(pointing_galatic), circumradius, np.radians(galactic_angle))
+
+    equatorial_coord_vertex = convert_coordinate_from_galactic_to_equatorial(
+            np.radians(galactic_vertex[0]), np.radians(galactic_vertex[1]), np.radians(LON_NCP), np.radians(DEC_NGP), np.radians(RA_NGP))
+
+    equatorial_coord_vertex = np.array(equatorial_coord_vertex)
+
+    pixel_top_vertex = convert_equatorial_coordinate_to_pixel([np.degrees(equatorial_coord_vertex.T[0]),], boresight)[0]
+
+    pixel_angle = np.degrees(np.arctan2(pixel_top_vertex[1], pixel_top_vertex[0]))
+
+    return pixel_angle
+
 def convertBoresightToHour(boresight):
     boresight = SkyCoord(boresight[0], boresight[1], frame='icrs', unit='deg');
     RA = ":".join([str(int(boresight.ra.hms.h)), str(int(boresight.ra.hms.m)), str(boresight.ra.hms.s)])

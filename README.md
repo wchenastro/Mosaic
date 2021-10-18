@@ -44,7 +44,7 @@ There is a helper script `example/maketiling.py` to demonstrate the interface of
 
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
---datetime 2020.05.02 06:02:13.663903 --verbose --subarray 000, 001, 002:0.7, 003:0.5+2j \
+--datetime 2020.05.02 06:02:13.663903 --verbose --subarray 000, 001, 002:0.7, 003:0.5+0.1j \
 --size 900 --resolution 30 --psf_plot psf.png --psf_fit psf.fits --weight
 ```
 
@@ -102,6 +102,8 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 ```
 
 `--tiling_coordinate`: the filename for the equatorial coordinates in degrees.
+
+`--tiling_parameter_coordinate_type`: the coordinate type of the parameter,  default is image coordinate.
 
 `--tiling_parameter`: the parameter of the tiling, for example:
 

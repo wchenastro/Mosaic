@@ -434,8 +434,8 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
     # tiling_coordinates, tiling_radius = ellipseCompact(
             # beam_num, widthH, widthV, beam_shape.angle, margin,
             # seed = beam_shape.bore_sight.equatorial[0])
-    logger.info("tiling method: {}, tiling shape: {}, tiling parameter: {}".format(
-                method, tilingShape, str(parameter)))
+    logger.info("tiling method: {}, tiling shape: {}, coordinate_type: {}, tiling parameter: {}".format(
+                method, tilingShape, coordinate_type, str(parameter)))
 
     if method == "variable_overlap" and coordinate_type != "image":
         if coordinate_type == "equatorial":
@@ -447,6 +447,11 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
                     if boundary[0]  == "polygon":
                         boundary[1] = coord.convert_equatorial_coordinate_to_pixel(
                             boundary[1], beam_shape.bore_sight.equatorial)
+        elif coordinate_type == "galactic":
+            if tilingShape == "hexagon":
+                pixel_angle = coord.convert_hexagon_angle_from_galactic_to_pixel(
+                        beam_shape.bore_sight.equatorial, parameter[1], parameter[0])
+                parameter[1] = -(pixel_angle + 90)
 
     tiling_coordinates, scale, actualBeemshape, condition = createTiling(method, beam_num,
              beam_shape, overlap, tilingShape, parameter,

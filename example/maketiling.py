@@ -33,7 +33,7 @@ def makeKatPointAntenna(antennaString):
 def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNum,
         duration, overlap, subarray, update_interval, overlay_source, size, resolution,
         tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType,
-        weights, output):
+        weights, interpolation, output):
 
     if subarray != []:
         antennaKat = makeKatPointAntenna(
@@ -53,7 +53,7 @@ def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamN
         newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution, weights)
         if "psf_plot" in output:
             newBeamShape.plot_psf(output["psf_plot"][0], overlap = overlap,
-                    shape_overlay=True, interpolation=True)
+                    shape_overlay=True, interpolation=interpolation)
         if "psf_fits" in output:
             newBeamShape.psf.write_fits(output["psf_fits"][0])
         if ("tiling_plot" in output) or ("tiling_coordinate" in output) or ("tiling_region" in output):
@@ -101,7 +101,7 @@ def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamN
 
 def parseOptions(parser):
     # enable interpolation when ploting
-    parser.add_argument('--inte', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--no_interpolation', action='store_true', help=argparse.SUPPRESS)
     # plot the beam images
     parser.add_argument('--psf_plot', nargs='+', metavar="file [paras]", help='filename for the psf plot')
     parser.add_argument('--psf_fits', nargs='+', metavar="file [paras]", help='name for the psf fits file')
@@ -154,7 +154,6 @@ def parseOptions(parser):
     else:
         weights = None
 
-    interpolation = True
     frequencies = [1.4e9,]
     paras = None
     resolution = None #in arcsecond
@@ -295,6 +294,10 @@ def parseOptions(parser):
         tilingMethod = "variable_size"
         tilingParameter = None
 
+    if args.no_interpolation:
+        interpolation = False
+    else:
+        interpolation = True
 
 
     paras  = {"antennaCoords": antennaCoords,
@@ -314,6 +317,7 @@ def parseOptions(parser):
         "tilingParameterCoordinateType":tilingParameterCoordinateType,
         "overlay_source":overlay_source,
         "weights":weights,
+        "interpolation":interpolation,
         "output":output}
 
     createBeamMatrix(**paras)
