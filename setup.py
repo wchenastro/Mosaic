@@ -1,19 +1,19 @@
 from setuptools import setup
 
 setup(name='mosaic',
-      version='0.1',
+      version='1.1.1',
       description='Code for generating point spread functions and beam tiling for radio interferometers',
-      url='https://gitlab.mpifr-bonn.mpg.de/wchen/Beamforming/',
+      url='https://github.com/wchenastro/Mosaic',
       author='Weiwei Chen',
       author_email='wchen@mpifr-bonn.mpg.de',
       license='MIT',
       packages=['mosaic'],
       install_requires=[
-          'scipy == 1.2.2',
-          'numpy == 1.16',
-          'matplotlib == 2.2.3',
+          'scipy',
+          'numpy',
+          'matplotlib',
           'katpoint',
-          'nvector',
-          'astropy == 2.0.7'
+          'nvector == 0.7.6',
+          'astropy'
       ],
       zip_safe=False)
