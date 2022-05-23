@@ -133,7 +133,9 @@ def convertEquatorialToHorizontal(RA, DEC, LST, latitude):
     '''local hour angle'''
     LHA = LST  - RA
     altitude = np.arcsin(np.sin(latitude)*np.sin(DEC) + np.cos(latitude)*np.cos(DEC)*np.cos(LHA))
-    azimuth = np.arccos((np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude)))
+    cosAzimuth = (np.sin(DEC) - np.sin(altitude)*np.sin(latitude))/(np.cos(altitude)*np.cos(latitude))
+    cosAzimuth[cosAzimuth < -1] = -1.
+    azimuth = np.arccos(cosAzimuth)
 
     mask = np.sin(LHA) > 0.0
     azimuth[mask] = np.pi*2 - azimuth[mask]

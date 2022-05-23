@@ -83,12 +83,12 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--tiling_method`: the method to use for generating the tiling, possible values are
 
-- "`variable-size`": given an overlap ratio, the code decide the size of the tiling
-- "`variable-ovelap`": given a size of the tiling, the code decide the overlap between the beams.
+- "`variable_size`": given an overlap ratio, the code decide the size of the tiling
+- "`variable_ovelap`": given a size of the tiling, the code decide the overlap between the beams.
 
-`--overlap`: The beams in the tiling overlap with each other in their power levels equal to this ratio, only available in the "`variable-size`" method. The default is 0.5.
+`--overlap`: The beams in the tiling overlap with each other in their power levels equal to this ratio, only available in the "`variable_size`" method. The default is 0.5.
 
-`--tiling_shape`: the shape of the tiling boundaries, possible values are: "circle", "hexagon", "ellipse", "polygon", "annulus". The "`variable-size`" method only supports the first two shapes.
+`--tiling_shape`: the shape of the tiling boundaries, possible values are: "circle", "hexagon", "ellipse", "polygon", "annulus". The "`variable_size`" method only supports the first two shapes.
 
 `--tiling_plot`: filename for the plot of the tiling, the file format can be anything that matplotlib supports, such as "jpeg, pdf".
 
@@ -112,7 +112,7 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 -  "`--tiling_shape ellipse --tiling_parameter 0.07 0.05 45`": an elliptical shape tiling with its two semi-axis and orientation in degrees
 -  "`--tiling_shape polygon --tiling_parameter 6.1522476, -72.0506681, 5.9448280, -72.0557907, 5.8695621, -72.0879815, 6.0670744, -72.1139826`": a polygonal shape tiling with its vertices in "RA1, DEC1, RA2, DEC2, RA3, DEC3" format.
 
-### Generate a polygon shape tiling using a boundary region file and generate a region file all the beams
+### Generate a polygon shape tiling using a boundary region file and generate a region file for all the beams
 
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
