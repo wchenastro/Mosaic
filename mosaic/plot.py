@@ -47,121 +47,11 @@ def plotBeamContour(array, center, sideLength, fileName='contour.png',
     plt.savefig(fileName, dpi=thisDpi)
     plt.close()
 
-def plotPackedBeam2(coordinates, angle, axis1, axis2, boresight, equaltorial_range,
-        pixel_range, tiling_meta, fileName='pack.png', scope=1., show_axis = True,
-        extra_coordinates = [], extra_coordinates_text = [], subGroup = [],
-        transparency = 1., edge = True, index = False, HD = True, raw = False):
-    #angle = 180 - angle
-    # print("tiling angle: %.2f" % angle)
-    # angle = angle - 90
-    thisDpi = 96
-    matplotlib.rcParams.update({'font.size': 8})
-    plt.clf()
-    if HD == True:
-        fig = plt.figure(figsize=(1600./thisDpi, 1600./thisDpi), dpi=thisDpi)
-    else:
-        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
-    # plt.axes().set_aspect('equal', 'datalim')
-    axis = fig.add_subplot(111, aspect='equal')
-    center = coordinates[0]
-    for idx in range(len(coordinates)):
-        coord = coordinates[idx]
-        ellipse = Ellipse(xy=coord, width=2*axis1, height=2*axis2, angle=angle,
-                alpha = transparency)
-        ellipse.fill = False
-        axis.add_artist(ellipse)
-        if index == True:
-            axis.text(coord[0], coord[1], idx, size=6, ha='center', va='center')
-
-    for group in subGroup:
-        subCoordinates, subAngle, subAxis1, subAxis2 = group
-        for idx in range(len(subCoordinates)):
-            coord = subCoordinates[idx]
-            ellipse = Ellipse(xy=coord, width=2*subAxis1, height=2*subAxis2,
-                    angle=subAngle, alpha = transparency)
-            ellipse.fill = False
-            axis.add_artist(ellipse)
-
-
-
-    for idx in range(len(extra_coordinates)):
-        coord = extra_coordinates[idx]
-        circle = Circle(xy=coord, radius = 0.0006)
-        axis.add_artist(circle)
-        if extra_coordinates_text != []:
-            axis.text(coord[0], coord[1], extra_coordinates_text[idx],
-                    size=5, ha='center', va='center')
-
-    gridCenter = [0,0]
-    tilingScale = tiling_meta["scale"]
-    if edge == True:
-        shape = tiling_meta["shape"]
-        if shape == "circle":
-            edge = Circle(xy=gridCenter, radius = tilingScale, alpha=0.1, linewidth = 3)
-        elif shape == "ellipse":
-            a, b, angle = tiling_meta["parameter"]
-            edge = Ellipse(xy=gridCenter, width=2*a, height=2*b, angle=angle, alpha=0.1, linewidth = 3)
-        elif shape == "hexagon":
-            angle = tiling_meta["parameter"][1]
-            edge = RegularPolygon(xy=gridCenter, numVertices=6, radius = tilingScale, orientation=angle, alpha=0.1, linewidth = 3)
-        elif shape == "polygon":
-            vertices = tiling_meta["parameter"]
-            edge = Polygon(xy=vertices, closed=True, alpha=0.1, linewidth = 3)
-
-        if shape == "annulus":
-            for annulus in tiling_meta["parameter"]:
-                annulus_type = annulus[0]
-                if annulus_type == "polygon":
-                    vertices= annulus[1]
-                    edge = Polygon(xy=vertices, closed=True, alpha=0.1, linewidth = 3)
-                elif annulus_type == "ellipse":
-                    a, b , angle = annulus[1]
-                    edge = Ellipse(xy=gridCenter, width=2*a, height=2*b, angle=angle, alpha=0.1, linewidth = 3)
-                edge.fill = False
-                axis.add_artist(edge)
-        else:
-            edge.fill = False
-            axis.add_artist(edge)
-
-    margin = tilingScale*1.3*scope
-    axis.set_xlim(gridCenter[0]-margin, gridCenter[0]+margin)
-    axis.set_ylim(gridCenter[1]-margin, gridCenter[1]+margin)
-    beamNum = len(coordinates)
-
-    if show_axis != True:
-        plt.xticks([])
-        plt.yticks([])
-    else:
-        xTicks = FixedLocator([pixel_range[0], 0, pixel_range[1]])
-        xTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[0]),
-                              "{:.2f}".format(boresight[0]),
-                              "{:.2f}".format(equaltorial_range[1])])
-        axis.xaxis.set_major_locator(xTicks)
-        axis.xaxis.set_major_formatter(xTicksLabel)
-        axis.xaxis.set_tick_params(tickdir="out", tick2On=False)
-        axis.set_xlabel("RA", size=20)
-        plt.xticks(axis.get_xticks(), visible=True, size=20)
-
-        yTicks = FixedLocator([pixel_range[2], 0, pixel_range[3]])
-        yTicksLabel = FixedFormatter(["{:.2f}".format(equaltorial_range[2]),
-                              "{:.2f}".format(boresight[1]),
-                              "{:.2f}".format(equaltorial_range[3])])
-        axis.yaxis.set_major_locator(yTicks)
-        axis.yaxis.set_major_formatter(yTicksLabel)
-        axis.yaxis.set_tick_params(tickdir="out", tick2On=False)
-        axis.set_ylabel("DEC", size=20)
-        plt.yticks(axis.get_yticks(), visible=True, rotation="vertical", size=20)
-
-    fig.tight_layout()
-
-    plt.savefig(fileName, dpi=thisDpi)
-
-    plt.close()
-
 def plotPackedBeam(coordinates, angle, axis1, axis2, boresight,
         tiling_meta, fileName='pack.png', scope=1., show_axis = True,
         extra_coordinates = [], extra_coordinates_text = [], subGroup = [],
-        transparency = 1., edge = True, index = False, HD = True, raw = False):
+        transparency = 1., edge = True, index = False, HD = True, raw = False,
+        output_format='png'):
 
 
     step = 1/10000000000.
@@ -179,9 +69,19 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight,
     matplotlib.rcParams.update({'font.size': 8})
     plt.clf()
     if HD == True:
-        fig = plt.figure(figsize=(1600./thisDpi, 1600./thisDpi), dpi=thisDpi)
+        width = 1600.
+        extra_source_size = 20
+        extra_source_text_size = 30
+        ticklabel_size = 20
     else:
-        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
+        width = 400.
+        extra_source_size = 3
+        extra_source_text_size = 12
+        ticklabel_size = 7
+
+
+    fig = plt.figure(figsize=(width/thisDpi, width/thisDpi), dpi=thisDpi)
+
     axis = fig.add_subplot(111,aspect='equal', projection=wcs_properties)
 
     beam_coordinate = np.array(coordinates)/resolution
@@ -209,13 +109,20 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight,
             ellipse.fill = False
             axis.add_artist(ellipse)
 
+    """
     for idx in range(len(extra_coordinates)):
         coord = extra_coordinates[idx]/resolution
         circle = Circle(xy=coord, radius = 0.0006)
         axis.add_artist(circle)
-        if extra_coordinates_text != []:
-            axis.text(coord[0], coord[1], extra_coordinates_text[idx],
-                    size=5, ha='center', va='center')
+    """
+    extra_coordinates = np.array(extra_coordinates)
+    if extra_coordinates.size != 0:
+        coord = extra_coordinates/resolution
+        axis.scatter(coord[:,0], coord[:,1], s=extra_source_size, color='k')
+
+        for idx in range(len(extra_coordinates_text)):
+            axis.text(coord[idx][0], coord[idx][1], extra_coordinates_text[idx],
+                    size=extra_source_text_size)
 
     gridCenter = center
     tilingScale = tiling_meta["scale"]
@@ -272,8 +179,8 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight,
     else:
         ra = axis.coords[0]
         dec = axis.coords[1]
-        ra.set_ticklabel(size=20)
-        dec.set_ticklabel(size=20, rotation="vertical")
+        ra.set_ticklabel(size=ticklabel_size)
+        dec.set_ticklabel(size=ticklabel_size, rotation="vertical")
         dec.set_ticks_position('l')
         ra.set_major_formatter('hh:mm:ss')
         ra.set_ticks_position('b')
@@ -283,8 +190,10 @@ def plotPackedBeam(coordinates, angle, axis1, axis2, boresight,
         plt.subplots_adjust(left=0.04, bottom=0.05, right=0.98, top=0.96,
                 wspace=0, hspace=0)
 
-
-    plt.savefig(fileName, dpi=thisDpi)
+    if isinstance(fileName, str) is True:
+        plt.savefig(fileName, dpi=thisDpi)
+    else:
+        plt.savefig(fileName, dpi=thisDpi, format=output_format)
 
     plt.close()
 
@@ -362,7 +271,7 @@ def plotBeamWithFit2(array, center, sideLength, widthH, widthV, angle,
 
 def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle, resolution,
         fileName='contourfit.png', colormap = False, interpolation = True,
-        shapeOverlay = False):
+        shapeOverlay = False, output_format = 'png'):
     thisDpi = 96.
     matplotlib.rcParams.update({'font.size': 8})
 
@@ -410,7 +319,11 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle, resolution
     plt.subplots_adjust(left=0.10, bottom=0.10, right=0.98, top=0.96,
             wspace=0, hspace=0)
 
-    plt.savefig(fileName, dpi=thisDpi)
+    if isinstance(fileName, str) is True:
+        plt.savefig(fileName, dpi=thisDpi)
+    else:
+        plt.savefig(fileName, dpi=thisDpi, format=output_format)
+
     plt.close()
 
 def plotBeamFit(sideLength, center, ellipseCenter, angle, axis1, axis2, fileName='fit.png'):

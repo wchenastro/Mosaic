@@ -1,10 +1,10 @@
 # Mosaic: Multibeamformed observation simulation and interferometry characterization
 
-A software package consists of an interferometric pattern simulator and characterizer, an optimized tiling generator and a beamforming weights calculator. This document only describes the package from version 1.0.0.
+A software package consists of an interferometric pattern simulator and characterizer, an optimized tiling generator and a beamforming weights calculator. This document only describes the package from version 1.0.0. __Try Mosaic in your web browser [here](https://wchenastro.github.io/mosaic_web).__
 
 ## Dependent
 
-For python 3.8.5
+For python 3.8.5+
 
 - numpy
 - scipy
@@ -32,9 +32,9 @@ RUN pip install 'nvector==0.7.0' 'pillow==4.0.0' WCSAxes geographiclib katpoint
 
 ## Installation
 
-Currently, you can download the package, and import it in your code.
+Try Mosaic in your web browser [here](https://wchenastro.github.io/mosaic_web) without installing anything.
 
-A pip package is in the plan.
+To use offline, you can download the package, and import it in your code.
 
 ## Usage
 
@@ -70,13 +70,13 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--verbose`: print logs containing the input parameter and result, the input parameter listed in the log should reproduce the same result.
 
-### Generate a tiling in specified overlap ratio and generate a plot
+### Generate a tiling in specified overlap ratio and overlay some point sources on top of it
 
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
 --datetime 2020.05.02 06:02:13.663903 --beamnum 400 --verbose --overlap 0.7 \
 --subarray 000, 001, 002, 003 --tiling_method variable_size \
---tiling_shape circle --tiling_plot tiling.png
+--tiling_shape circle --tiling_plot tiling.png --overlay_source overlay_sources
 ```
 
 `--beamnum`: the requesting beam number in the tiling, the actual number in the generated tiling is less than or equal to this number. The default is 400.
@@ -90,7 +90,9 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--tiling_shape`: the shape of the tiling boundaries, possible values are: "circle", "hexagon", "ellipse", "polygon", "annulus". The "`variable_size`" method only supports the first two shapes.
 
-`--tiling_plot`: filename for the plot of the tiling, the file format can be anything that matplotlib supports, such as "jpeg, pdf".
+`--tiling_plot`: the filename for the plot of the tiling, the file format can be anything that matplotlib supports, such as "jpeg, pdf".
+
+`--overlay_source`: the file containing the point sources to overlay, one per line,  in `identification RA DEC` format. for example: "A 13:26:39.670 -47:30:11.64"
 
 ### Generate an elliptical shape tiling,  let the code decide a suitable overlap and output the coordinates
 

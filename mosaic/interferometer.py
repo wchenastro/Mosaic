@@ -182,8 +182,12 @@ class InterferometryObservation:
         # logger.info("axis1: {:.3g}, axis2: {:.3g}, angle: {:.3f} in pixel plane"
                 # .format(axis1, axis2, angle))
 
-        logger.info("beamshape: width1: {:.3g} arcsec, width2: {:.3g} arcsec in equatorial plane"
+        logger.info("beamshape: width1: {:.5g} arcsec, width2: {:.5g} arcsec, angle: {:.5g} degree"
                 .format(width1.arcsecond, width2.arcsecond, angle))
+        """
+        logger.info("beamshape: width1: {:.13g} arcsec, width2: {:.13g}, angle: {:.13g} arcsec in equatorial plane"
+                .format(width1.degree, width2.degree, angle))
+        """
 
         self.beamshapeModel = beamshapeModel
         return self.beamAxis
@@ -664,7 +668,7 @@ class InterferometryObservation:
             # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
         self.imageData = image
-        logger.info("beamshape simulation imputs, freq: {:.5g}, source: {}, "
+        logger.info("beamshape simulation inputs, freq: {:.5g}, source: {}, "
                     "time: {}, subarray: {}".format(299792458./self.waveLength,
                         self.boresightInput, self.observeTime,
                         [ant.name for ant in antennas] if self.antennaWeights is None

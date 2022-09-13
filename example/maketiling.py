@@ -15,8 +15,7 @@ logger = logging.getLogger()
 
 import katpoint
 from mosaic.beamforming import PsfSim, generate_nbeams_tiling
-from mosaic.coordinate import convertBoresightToDegree, createTilingRegion, readPolygonRegion
-from mosaic.plot import plot_overlap, plot_interferometry
+from mosaic.coordinate import createTilingRegion, readPolygonRegion, convert_sexagesimal_to_degree, convert_equatorial_coordinate_to_pixel
 from mosaic import __version__
 
 
@@ -31,8 +30,8 @@ def makeKatPointAntenna(antennaString):
     return antennaKat
 
 def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNum,
-        duration, overlap, subarray, update_interval, overlay_source, size, resolution,
-        tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType,
+        duration, overlap, subarray, update_interval, overlay_source, overlay_source_name,
+        size, resolution, tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType,
         weights, interpolation, output):
 
     if subarray != []:
@@ -49,55 +48,27 @@ def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamN
             ["ref, -30:42:39.8, 21:26:38.0, 1035.0",])[0]
     psf = PsfSim(antennaKat, frequencies[0])
 
-    if duration == 0:
-        newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution, weights)
-        if "psf_plot" in output:
-            newBeamShape.plot_psf(output["psf_plot"][0], overlap = overlap,
-                    shape_overlay=True, interpolation=interpolation)
-        if "psf_fits" in output:
-            newBeamShape.psf.write_fits(output["psf_fits"][0])
-        if ("tiling_plot" in output) or ("tiling_coordinate" in output) or ("tiling_region" in output):
-
-            tiling = generate_nbeams_tiling(newBeamShape, beamNum, overlap, tilingMethod,
-                    tilingShape, tilingParameter, tilingParameterCoordinateType)
-            if "tiling_plot" in output:
-                tiling.plot_tiling(output["tiling_plot"][0], HD=True, edge=True)
-            if "tiling_coordinate" in output:
-                equatorial_coordinates = tiling.get_equatorial_coordinates()
-                np.savetxt(output["tiling_coordinate"][0], equatorial_coordinates)
-            if "tiling_region" in output:
-                equatorial_coordinates = tiling.get_equatorial_coordinates()
-                actualShape = tiling.meta["axis"]
-                createTilingRegion(equatorial_coordinates, actualShape, output["tiling_region"])
-
-        exit(0)
-
-    counter = []
-    step = update_interval/60.
-    hour = duration/3600.
-    grids = []
-    horizons = []
-    retileTime = []
-    startTime = observeTime
-    localHourAngle = []
-    retileStamp = []
-    for minute in np.arange(0, hour*60+1, step):
-        offsetTime = startTime + datetime.timedelta(minutes=minute)
-        newBeamShape = psf.get_beam_shape(sourceCoord, offsetTime, size, resolution, weights)
-        newBeamShape.plot_psf("plots/beamshape/beamshape{:03d}.png".format(int(minute)),
-            overlap = overlap, shape_overlay=True)
-        # newBeamShape.psf.write_fits(
-                # "plots/beamshape/beamshapebeamshape{:03d}.fits".format(int(minute)))
+    newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution, weights)
+    if "psf_plot" in output:
+        newBeamShape.plot_psf(output["psf_plot"][0], overlap = overlap,
+                shape_overlay=True, interpolation=interpolation)
+    if "psf_fits" in output:
+        newBeamShape.psf.write_fits(output["psf_fits"][0])
+    if ("tiling_plot" in output) or ("tiling_coordinate" in output) or ("tiling_region" in output):
 
         tiling = generate_nbeams_tiling(newBeamShape, beamNum, overlap, tilingMethod,
                 tilingShape, tilingParameter, tilingParameterCoordinateType)
-        tiling.plot_tiling("plots/tiling/tiling%03d.png" % minute,
-            HD=True, edge=True)
-        equatorial_coordinates = tiling.get_equatorial_coordinates()
-        # np.savetxt("coordinate", equatorial_coordinates)
-        actualShape = tiling.meta["axis"]
-        createTilingRegion(equatorial_coordinates, actualShape,
-                "plots/tiling/tiling%03d.reg" % minute)
+        if "tiling_plot" in output:
+            tiling.plot_tiling(output["tiling_plot"][0], HD=True, edge=True,
+                    extra_coordinates = overlay_source,
+                    extra_coordinates_text = overlay_source_name)
+        if "tiling_coordinate" in output:
+            equatorial_coordinates = tiling.get_equatorial_coordinates()
+            np.savetxt(output["tiling_coordinate"][0], equatorial_coordinates)
+        if "tiling_region" in output:
+            equatorial_coordinates = tiling.get_equatorial_coordinates()
+            actualShape = tiling.meta["axis"]
+            createTilingRegion(equatorial_coordinates, actualShape, output["tiling_region"])
 
 def parseOptions(parser):
     # enable interpolation when ploting
@@ -116,8 +87,6 @@ def parseOptions(parser):
     parser.add_argument('--frame', nargs=1, metavar="RADEC/AziAlt", help='source coordinate frame')
     parser.add_argument('--source', nargs=2, metavar=('RA/Azi', 'DEC/Alt'), help='source position in RADEC or AziAlt')
     parser.add_argument('--datetime', nargs=2, metavar=('date', 'time'), help='observation time in format: 03/10/2015 15:23:10.000001')
-    parser.add_argument('--duration', nargs=1, metavar="num", help='offset to observeTime in second')
-    parser.add_argument('--update_interval', nargs=1, metavar="num", help='interval to re-calculate overstep in second')
     parser.add_argument('--overlap', nargs=1, metavar="ratio", help='overlap point between beams')
     parser.add_argument('--overlay_source', nargs=1, metavar="file", help='extra overlay sources')
     parser.add_argument('--beamnum', nargs=1, metavar="num", help='beam number of tiling')
@@ -182,15 +151,6 @@ def parseOptions(parser):
     else:
         parser.error("no antennas file, try --ants file")
 
-    if args.overlay_source is not None:
-        overlay_source = np.genfromtxt(args.overlay_source[0], dtype=None)
-        """
-        structured array with one row can not be itered.
-        """
-        if overlay_source.size == 1:
-            overlay_source = [overlay_source.tolist(),]
-    else:
-        overlay_source = None
 
 
     if args.datetime is not None:
@@ -225,12 +185,6 @@ def parseOptions(parser):
         sourceCoord = args.source
     else:
         parser.error("no source specifed, try --source RA DEC")
-
-    if args.duration is not None:
-        duration = int(args.duration[0])
-    if args.update_interval is not None:
-        update_interval = int(args.update_interval[0])
-
 
     if args.beamnum is not None:
         beamnum = int(args.beamnum[0])
@@ -299,6 +253,22 @@ def parseOptions(parser):
     else:
         interpolation = True
 
+    if args.overlay_source is not None:
+        overlay_coords = np.genfromtxt(args.overlay_source[0], dtype=None)
+        if len(overlay_coords.shape) == 1:
+            overlay_coords = overlay_coords.reshape(1, -1)
+        bore_sight = convert_sexagesimal_to_degree([sourceCoord,])[0]
+        overlay_source_degree = convert_sexagesimal_to_degree(overlay_coords[:, 1:])
+        overlay_coordinates = convert_equatorial_coordinate_to_pixel(
+                overlay_source_degree, bore_sight)
+
+        overlay_source = overlay_coordinates
+        overlay_source_name = overlay_coords[:, 0].astype('str')
+
+    else:
+        overlay_source = []
+        overlay_source_name = []
+
 
     paras  = {"antennaCoords": antennaCoords,
         "sourceCoord": sourceCoord,
@@ -316,6 +286,7 @@ def parseOptions(parser):
         "tilingParameter":tilingParameter,
         "tilingParameterCoordinateType":tilingParameterCoordinateType,
         "overlay_source":overlay_source,
+        "overlay_source_name":overlay_source_name,
         "weights":weights,
         "interpolation":interpolation,
         "output":output}

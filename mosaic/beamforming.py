@@ -184,7 +184,7 @@ class BeamShape(object):
         return axisH, axisV, angle
 
     def plot_psf(self, filename, overlap = 0.5, shape_overlay = False,
-            colormap = False, interpolation = True ):
+            colormap = False, interpolation = True, output_format = 'svg'):
         """
         plot the point spread function
 
@@ -197,7 +197,7 @@ class BeamShape(object):
         plotBeamWithFit(self.psf.image, self.psf.bore_sight.equatorial,
                 self.psf.image_range, axisH, axisV, angle,
                 self.resolution, filename, colormap, interpolation = interpolation ,
-                shapeOverlay = shape_overlay)
+                shapeOverlay = shape_overlay, output_format = output_format)
 
     def plot_interferometry(self, filename):
         """
@@ -287,7 +287,7 @@ class Tiling(object):
 
     def plot_tiling(self, filename, overlap = None, index = False, scope = 1.,
             HD = False, extra_coordinates = [], extra_coordinates_text = [],
-            axis = True, edge = True, raw = False, subTiling = []):
+            axis = True, edge = True, raw = False, subTiling = [], output_format = 'svg'):
         """
         plot the tiling pattern with specified file name.
 
@@ -299,45 +299,13 @@ class Tiling(object):
         index -- wather to show the index of the beam, default is False
         """
         widthH, widthV, angle = self.meta["axis"][:3]
-        # if overlap is None:
-            # widthH, widthV, angle = self.beam_shape.width_at_overlap(self.overlap)
-        # elif overlap == 0.5:
-            # widthH, widthV, angle = self.beam_shape.axisH, self.beam_shape.axisV, self.beam_shape.angle
-        # else:
-            # widthH, widthV, angle = self.beam_shape.width_at_overlap(overlap)
-        maxDistance = np.max(
-                np.sqrt(np.sum(np.square(self.coordinates), axis = 1)))
-        upper_left_pixel = [-maxDistance, maxDistance] # x,y
-        bottom_right_pixel = [maxDistance, -maxDistance] # x,y
-        coordinates_equatorial = coord.convert_pixel_coordinate_to_equatorial(
-            [upper_left_pixel, bottom_right_pixel], self.beam_shape.bore_sight.equatorial)
-        equatorial_range = [
-            coordinates_equatorial[0][0], coordinates_equatorial[1][0], # left, right
-            coordinates_equatorial[0][1], coordinates_equatorial[1][1]] # up, bottom
-        pixel_range = [upper_left_pixel[0], bottom_right_pixel[0], # left, right
-                       upper_left_pixel[1], bottom_right_pixel[1]] # up, bottom
-        """
-        plotPackedBeam(self.coordinates, angle, widthH, widthV,
-            self.beam_shape.bore_sight.equatorial, equatorial_range, pixel_range,
-            self.meta, fileName=filename, index = index, scope = scope,
-            HD = HD,
-            show_axis = axis,
-            edge = edge,
-            raw = raw,
-            extra_coordinates = extra_coordinates,
-            extra_coordinates_text = extra_coordinates_text,
-            subGroup = subTiling)
-        """
         plotPackedBeam(self.coordinates, angle, widthH, widthV,
             self.beam_shape.bore_sight.equatorial,
             self.meta, fileName=filename, index = index, scope = scope,
-            HD = HD,
-            show_axis = axis,
-            edge = edge,
-            raw = raw,
+            HD = HD, show_axis = axis, edge = edge, raw = raw,
             extra_coordinates = extra_coordinates,
             extra_coordinates_text = extra_coordinates_text,
-            subGroup = subTiling)
+            subGroup = subTiling, output_format = output_format)
 
 
     def get_equatorial_coordinates(self):
@@ -465,18 +433,12 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
                     "scale": scale, "axis": actualBeemshape, "condition": condition}
 
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_meta, overlap)
-    # width1, width2 = tiling_obj.get_beam_size()
-
-    # logger.info("tiling: overlap: {}, angle: {:.3f} degrees "
-            # "in pixel plane".format(overlap, beam_shape.angle))
-    # logger.info("tiling: width1: {:.3g} arcsec, width2: {:.3g} arcsec "
-                # "in equatorial plane".format(width1.arcsec, width2.arcsec))
 
     logger.info("tiling: required_beam_number: {}, generate_beam_number: {}, "
     "trial counter: {}".format(beam_num, len(tiling_coordinates), condition["trial_count"]))
-    logger.info("tiling: overlap {:.3g}, width1: {:.3g}, width2: {:.3g},"
-            "angle: {:.3g} degree in pixel plane".format(actualBeemshape[3],
-            actualBeemshape[0], actualBeemshape[1], actualBeemshape[2]))
+    logger.info("tiling: overlap {:.5g}, width1: {:.5g} arcsec, width2: {:.5g} arcsec, "
+            "angle: {:.5g} degree".format(actualBeemshape[3],
+            actualBeemshape[0]*3600, actualBeemshape[1]*3600, actualBeemshape[2]))
 
     return tiling_obj
 

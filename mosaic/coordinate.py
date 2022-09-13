@@ -508,6 +508,16 @@ def convertBoresightToDegree(boresight):
     boresight_coord = SkyCoord(boresight[0]+" "+boresight[1], unit=(u.hourangle, u.deg))
     return(boresight_coord.ra.deg, boresight_coord.dec.deg)
 
+def convert_sexagesimal_to_degree(sexagesimal):
+    sexagesimal = np.array(sexagesimal)
+    equatorial_coordinates_orbject = SkyCoord(sexagesimal[:,0].astype(str),
+        sexagesimal[:,1].astype(str), frame='fk5', unit=(u.hourangle, u.deg))
+    equatorial_coordinates = np.array([
+            equatorial_coordinates_orbject.ra.astype(float),
+            equatorial_coordinates_orbject.dec.astype(float)]).T
+
+    return equatorial_coordinates
+
 
 def writeFits(wcsHeader, data, fileName):
     w = wcs.WCS(naxis=2)
@@ -523,30 +533,50 @@ def writeFits(wcsHeader, data, fileName):
 
     hdu = fits.PrimaryHDU(header=header, data=data)
     # Save to FITS file
-    hdu.writeto(str(fileName), overwrite=True)
+    hdu.writeto(fileName, overwrite=True)
 
 def createTilingRegion(coordinates, shape, fileName):
-    with open(fileName, "w") as regionFile:
-        regionFile.write("# Region file format: DS9 version 4.1\n")
-        regionFile.write("global color=green dashlist=8 3 width=1 "
-                        "font=\"helvetica 10 normal roman\" select=1 "
-                        "highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 "
-                        "include=1 source=1\n")
-        regionFile.write("fk5\n")
-        for coord in coordinates:
-            regionFile.write(
-                "ellipse({:7f}, {:7f}, {:3f}\", {:3f}\", {:7f})\n".format(
-                    coord[0], coord[1], shape[0]*3600, shape[1]*3600, shape[2]))
+
+    isFlieName = isinstance(fileName, str)
+    if isFlieName is True:
+        regionFile = open(fileName, "w")
+    else:
+        regionFile = fileName
+
+    print(fileName)
+    regionFile.write("# Region file format: DS9 version 4.1\n")
+    regionFile.write("global color=green dashlist=8 3 width=1 "
+                    "font=\"helvetica 10 normal roman\" select=1 "
+                    "highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 "
+                    "include=1 source=1\n")
+    regionFile.write("fk5\n")
+    for coord in coordinates:
+        regionFile.write(
+            "ellipse({:7f}, {:7f}, {:3f}\", {:3f}\", {:7f})\n".format(
+                coord[0], coord[1], shape[0]*3600, shape[1]*3600, shape[2]))
 
 
+    if isFlieName is True:
+        regionFile.close()
 
 def readPolygonRegion(filename):
-    with open(filename, 'r') as regionFile:
-        polygonLine = regionFile.readlines()[3]
-        pointString = polygonLine.split(")")[0].split("(")[1]
-        points = np.array(pointString.split(","))
-        coordinate_sexagesami = points.reshape((-1, 2))
-        coordinate_degree = SkyCoord(
-                coordinate_sexagesami[:,0], coordinate_sexagesami[:,1],
-                frame='fk5', unit=(u.hourangle, u.deg))
-        return np.dstack((coordinate_degree.ra.value, coordinate_degree.dec.value))[0]
+
+    isFlieName = isinstance(fileName, str)
+    if isFlieName is True:
+        regionFile = open(fileName, "r")
+    else:
+        regionFile = fileName
+
+
+    polygonLine = regionFile.readlines()[3]
+    pointString = polygonLine.split(")")[0].split("(")[1]
+    points = np.array(pointString.split(","))
+    coordinate_sexagesami = points.reshape((-1, 2))
+    coordinate_degree = SkyCoord(
+            coordinate_sexagesami[:,0], coordinate_sexagesami[:,1],
+            frame='fk5', unit=(u.hourangle, u.deg))
+
+    if isFlieName is True:
+        regionFile.close()
+
+    return np.dstack((coordinate_degree.ra.value, coordinate_degree.dec.value))[0]
