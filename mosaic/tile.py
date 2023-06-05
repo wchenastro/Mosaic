@@ -75,7 +75,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
     if seed is None:
         np.random.seed(0)
     else:
-        np.random.seed(np.int(seed))
+        np.random.seed(int(seed))
 
     trialCount = 0
     betterTiling = [np.Inf]
@@ -87,8 +87,8 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
     beamshapeIndexDelta = 0
     maxSearchCount = 3
     isReachValleyFast = False
-    # smallError = max(np.int(error/3.), 1)
-    smallError = max(np.int(error/2.), 1)
+    # smallError = max(int(error/3.), 1)
+    smallError = max(int(error/2.), 1)
     diffRatio = 0
     condition = {"optimized":False, "trial_count":0}
     while(trialCount < maxTrial):
