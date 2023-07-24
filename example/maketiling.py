@@ -44,9 +44,8 @@ def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamN
     # boresight = sourceCoord
     boresight = katpoint.Target('boresight, radec, {}, {}'.format(
                 sourceCoord[0], sourceCoord[1]))
-    reference = makeKatPointAntenna(
-            ["ref, -30:42:39.8, 21:26:38.0, 1035.0",])[0]
-    psf = PsfSim(antennaKat, frequencies[0])
+    reference = (-30.71106, 21.44389, 1035)
+    psf = PsfSim(antennaKat, frequencies[0], reference)
 
     newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution, weights)
     if "psf_plot" in output:

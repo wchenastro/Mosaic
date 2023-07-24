@@ -18,20 +18,25 @@ class PsfSim(object):
     antenna -- a list of antenna coordinates whose element is
         in the order of latitude(deg), longitude(deg), altitude(meter)
     frequencies -- the central frequency of the observation in Hz
+    reference_antenna  -- reference antenna of the array in (latitude(deg), longitude(deg), height(m))
 
     """
-    reference_antenna = coord.Antenna('ref', (-30.71106, 21.44389, 1035))
+    default_reference_antenna = coord.Antenna('ref', (-30.71106, 21.44389, 1035))
     '''speed Of Light'''
     sol = 299792458
 
-    def __init__(self, antennas, frequencies):
+    def __init__(self, antennas, frequencies, reference_antenna = None):
         """
         constructor of the PsfSim class.
 
         """
         waveLengths = float(self.sol)/np.array(frequencies)
+        if reference_antenna is None:
+            self.array_reference_antenna = self.default_reference_antenna
+        else:
+            self.array_reference_antenna  = coord.Antenna('ref', reference_antenna)
         if waveLengths.shape == (1,): waveLengths = waveLengths[0]
-        self.observation = InterferometryObservation(self.reference_antenna,
+        self.observation = InterferometryObservation(self.array_reference_antenna,
                             waveLengths)
         self.antennas = PsfSim.check_antennas(antennas)
 
@@ -135,7 +140,7 @@ class PsfSim(object):
         bore_sight_object = self.observation.getBoreSight()
         beamshapeModel = self.observation.getBeamshapeModel()
         return BeamShape(axisH, axisV, angle, psf, self.antennas, beamshapeModel,
-                bore_sight_object, self.reference_antenna, horizon, resolution)
+            bore_sight_object, self.array_reference_antenna, horizon, resolution)
 
 
 class BeamShape(object):
@@ -435,7 +440,8 @@ def generate_nbeams_tiling(beam_shape, beam_num, overlap, method, tilingShape,
     tiling_obj = Tiling(tiling_coordinates, beam_shape, tiling_meta, overlap)
 
     logger.info("tiling: required_beam_number: {}, generate_beam_number: {}, "
-    "trial counter: {}".format(beam_num, len(tiling_coordinates), condition["trial_count"]))
+    "tiling radius: {:.5g} arcmin, trial counter: {}".format(beam_num,
+        len(tiling_coordinates), scale*60, condition["trial_count"]))
     logger.info("tiling: overlap {:.5g}, width1: {:.5g} arcsec, width2: {:.5g} arcsec, "
             "angle: {:.5g} degree".format(actualBeemshape[3],
             actualBeemshape[0]*3600, actualBeemshape[1]*3600, actualBeemshape[2]))

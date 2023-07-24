@@ -413,6 +413,12 @@ def convert_pixel_coordinate_to_equatorial(pixel_coordinates, bore_sight):
 
     return equatorial_coodinates
 
+def calculate_distance(coordinate1, coordinate2):
+    equatorial1 = SkyCoord(coordinate1[0], coordinate1[1], unit="deg", frame='fk5')
+    equatorial2 = SkyCoord(coordinate2[0], coordinate2[1], unit="deg", frame='fk5')
+    distance = equatorial1.separation(equatorial2)
+
+    return distance
 
 def convert_pixel_length_to_equatorial(axis1, axis2, angle, boresight):
 
