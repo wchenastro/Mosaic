@@ -565,7 +565,7 @@ def createTilingRegion(coordinates, shape, fileName):
     if isFlieName is True:
         regionFile.close()
 
-def readPolygonRegion(filename):
+def readPolygonRegion(fileName):
 
     isFlieName = isinstance(fileName, str)
     if isFlieName is True:
