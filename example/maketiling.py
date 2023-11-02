@@ -29,23 +29,29 @@ def makeKatPointAntenna(antennaString):
 
     return antennaKat
 
-def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamNum,
-        duration, overlap, subarray, update_interval, overlay_source, overlay_source_name,
-        size, resolution, tilingMethod, tilingShape, tilingParameter, tilingParameterCoordinateType,
-        weights, interpolation, output):
+def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies,
+        beamnum, overlap, subarray, overlay_source, overlay_source_name,
+        antenna_coordinate_type, size, resolution, tilingMethod, tilingShape,
+        tilingParameter, tilingParameterCoordinateType, weights, interpolation, output):
 
-    if subarray != []:
-        antennaKat = makeKatPointAntenna(
-                [antennaCoords[ant] for ant in subarray])
+    if antenna_coordinate_type == 'geo':
+        antennaCoord_geo = np.fromstring(
+                " ".join(antennaCoords), dtype=float, sep=' ').reshape(-1, 3)
+        if subarray != []:
+            antennas = np.take(antennaCoord_geo, subarray, axis=0)
+        else:
+            antennas = antennaCoord_geo
     else:
-        antennaKat = makeKatPointAntenna(antennaCoords)
+        if subarray != []:
+            antennas = makeKatPointAntenna(
+                    [antennaCoords[ant] for ant in subarray])
+        else:
+            antennas = makeKatPointAntenna(antennaCoords)
 
-
-    # boresight = sourceCoord
     boresight = katpoint.Target('boresight, radec, {}, {}'.format(
                 sourceCoord[0], sourceCoord[1]))
     reference = (-30.71106, 21.44389, 1035)
-    psf = PsfSim(antennaKat, frequencies[0], reference)
+    psf = PsfSim(antennas, frequencies[0], reference)
 
     newBeamShape = psf.get_beam_shape(sourceCoord, observeTime, size, resolution, weights)
     if "psf_plot" in output:
@@ -55,7 +61,7 @@ def createBeamMatrix(antennaCoords, sourceCoord, observeTime, frequencies, beamN
         newBeamShape.psf.write_fits(output["psf_fits"][0])
     if ("tiling_plot" in output) or ("tiling_coordinate" in output) or ("tiling_region" in output):
 
-        tiling = generate_nbeams_tiling(newBeamShape, beamNum, overlap, tilingMethod,
+        tiling = generate_nbeams_tiling(newBeamShape, beamnum, overlap, tilingMethod,
                 tilingShape, tilingParameter, tilingParameterCoordinateType)
         if "tiling_plot" in output:
             tiling.plot_tiling(output["tiling_plot"][0], HD=True, edge=True,
@@ -79,6 +85,7 @@ def parseOptions(parser):
     parser.add_argument('--tiling_coordinate', nargs='+', metavar="file [paras]", help='filename for the tiling coordinate')
     parser.add_argument('--tiling_region', nargs=1, metavar="file", help='filename for the tiling region')
     parser.add_argument('--ants', nargs=1, metavar="file", help='antenna coodinates files')
+    parser.add_argument('--antenna_coordinate_type', nargs=1, metavar="type", help='antenna coodinates type, e.g. "katpoint" or "geo"')
     parser.add_argument('--resolution', nargs=1, metavar="asec", help='resolution in arcsecond')
     parser.add_argument('--size', nargs=1, metavar="num", help='width in pixels')
     parser.add_argument('--freqrange', nargs=3, metavar=('s', 't', 'i'), help='freqencies range as start stop interval')
@@ -103,9 +110,6 @@ def parseOptions(parser):
     parser.add_argument("--weight", action="store_true",
             help='apply weights to individual antenna, attach weight after the item in --subarray, e.g., 0:0.5, 1:0.7, 2:0.5 ')
 
-
-
-
     args = parser.parse_args()
 
     if args.verbose:
@@ -117,20 +121,13 @@ def parseOptions(parser):
     else:
         logger.info("Mosaic " + __version__)
 
-    if args.weight is True:
-        weights = []
-    else:
-        weights = None
+    paras = {}
 
-    frequencies = [1.4e9,]
-    paras = None
-    resolution = None #in arcsecond
-    size = 400
-    duration = 0
-    overlap = 0.5
-    beamnum = 400
-    update_interval = 3600
-    overlay_source = None
+    if args.weight is True:
+        paras["weights"] = []
+    else:
+        paras["weights"] = None
+
     output = {}
     if args.psf_plot is not None:
         output["psf_plot"] = args.psf_plot
@@ -143,114 +140,123 @@ def parseOptions(parser):
     if args.tiling_region is not None:
         output["tiling_region"] = args.tiling_region[0]
 
+    paras["output"] = output
+
 
     if args.ants is not None:
         with open(args.ants[0], 'r') as antFile:
-            antennaCoords = antFile.readlines()
+            paras["antennaCoords"] = antFile.readlines()
     else:
         parser.error("no antennas file, try --ants file")
 
-
+    if args.antenna_coordinate_type is not None:
+        paras["antenna_coordinate_type"] = args.antenna_coordinate_type[0]
+    else:
+        paras["antenna_coordinate_type"] = None
 
     if args.datetime is not None:
-        observeTime=datetime.datetime.strptime(args.datetime[0] + " "
+        paras["observeTime"]=datetime.datetime.strptime(args.datetime[0] + " "
                 + args.datetime[1], '%Y.%m.%d %H:%M:%S.%f')
     else:
         parser.error("no time specified, try --datetime date time")
 
+    paras["subarray"] = []
     if args.subarray is not None:
-        subarray = []
         arrayString = "".join(args.subarray)
         ant_weights = arrayString.split(",")
         for ant_weight in ant_weights:
             ant_weight_pair = ant_weight.split(':')
-            if weights is not None:
-                subarray.append(int(ant_weight_pair[0]))
+            if paras["weights"] is not None:
+                paras["subarray"].append(int(ant_weight_pair[0]))
                 if len(ant_weight_pair) > 1:
                     complex_weight = complex(ant_weight_pair[1])
                     if complex_weight.imag == 0:
-                        weights.append(float(ant_weight_pair[1]))
+                        paras["weights"].append(float(ant_weight_pair[1]))
                     else:
-                        weights.append(complex_weight)
+                        paras["weights"].append(complex_weight)
                 else:
-                    weights.append(1.0)
+                    paras["weights"].append(1.0)
             else:
-                subarray.append(int(ant_weight_pair[0]))
-    else:
-        subarray = []
+                paras["subarray"].append(int(ant_weight_pair[0]))
 
 
     if args.source is not None:
-        sourceCoord = args.source
+        paras["sourceCoord"] = args.source
     else:
         parser.error("no source specifed, try --source RA DEC")
 
     if args.beamnum is not None:
-        beamnum = int(args.beamnum[0])
+        paras["beamnum"] = int(args.beamnum[0])
+    else:
+        paras["beamnum"] = 400
 
     if args.overlap is not None:
-        overlap = float(args.overlap[0])
+        paras["overlap"] = float(args.overlap[0])
     else:
-        overlap = 0.5
+        paras["overlap"] = 0.5
 
     if args.resolution is not None:
-        resolution = float(args.resolution[0])
+        paras["resolution"] = float(args.resolution[0])
+    else:
+        paras["resolution"] = None
     if args.size is not None:
-        size = int(args.size[0])
+        paras["size"] = int(args.size[0])
+    else:
+        paras["size"] = 400
     if args.freqrange is None and args.freq is None:
         parser.error("no freqencies or frequency range specified")
     elif args.freq is not None:
-        frequencies = [float(freq) for freq in args.freq]
+        paras["frequencies"] = [float(freq) for freq in args.freq]
     elif args.freqrange is not None:
-        frequencies = np.arange(float(args.freqrange[0]),
+        paras["frequencies"] = np.arange(float(args.freqrange[0]),
                 float(args.freqrange[1]), float(args.freqrange[2]))
 
     if args.tiling_shape is not None:
-        tilingShape = args.tiling_shape[0]
+        paras["tilingShape"] = args.tiling_shape[0]
     else:
-        tilingShape = "circle"
+        paras["tilingShape"] = "circle"
 
     if args.tiling_parameter_coordinate_type is not None:
-        tilingParameterCoordinateType = args.tiling_parameter_coordinate_type[0]
+        paras["tilingParameterCoordinateType"] = args.tiling_parameter_coordinate_type[0]
     else:
-        tilingParameterCoordinateType  = 'equatorial'
+        paras["tilingParameterCoordinateType"]  = 'equatorial'
 
     if args.tiling_method is not None:
-        tilingMethod = args.tiling_method[0]
+        paras["tilingMethod"] = args.tiling_method[0]
         if args.tiling_method[0] == "variable_overlap":
-            if args.tiling_parameter is None and tilingShape != "polygon":
+            if args.tiling_parameter is None and paras["tilingShape"] != "polygon":
                 parser.error("no parameter for \"variable_overlap\" method!")
                 exit(-1)
-            if tilingShape == "circle":
-                tilingParameter = float(args.tiling_parameter[0])
-            elif tilingShape == "hexagon":
-                tilingParameter = [float(args.tiling_parameter[0]),
+            if paras["tilingShape"] == "circle":
+                paras["tilingParameter"] = float(args.tiling_parameter[0])
+            elif paras["tilingShape"] == "hexagon":
+                paras["tilingParameter"] = [float(args.tiling_parameter[0]),
                                     float(args.tiling_parameter[1])]
-            elif tilingShape == "ellipse":
-                tilingParameter = [float(args.tiling_parameter[0]),
+            elif paras["tilingShape"] == "ellipse":
+                paras["tilingParameter"] = [float(args.tiling_parameter[0]),
                                     float(args.tiling_parameter[1]),
                                     float(args.tiling_parameter[2])]
-            elif tilingShape == "polygon":
+            elif paras["tilingShape"] == "polygon":
                 if args.tiling_parameter is not None:
                     parameterString = "".join(args.tiling_parameter).split(",")
                     tilingParameter = [float(coord) for coord in parameterString]
-                    tilingParameter = np.array(tilingParameter).reshape(-1,2).tolist()
+                    paras["tilingParameter"] = np.array(tilingParameter).reshape(-1,2).tolist()
                 elif args.tiling_parameter_file is not None:
-                    tilingParameter = readPolygonRegion(
+                    paras["tilingParameter"] = readPolygonRegion(
                             args.tiling_parameter_file[0]).tolist()
                 else:
                     parser.error("no parameter for polygon tiling!")
                     exit(-1)
         else:
-            tilingParameter = None
+            paras["tilingParameter"] = None
     else:
-        tilingMethod = "variable_size"
-        tilingParameter = None
+        paras["tilingMethod"] = "variable_size"
+        paras["tilingParameter"] = None
 
     if args.no_interpolation:
-        interpolation = False
+        paras["interpolation"] = False
     else:
-        interpolation = True
+        paras["interpolation"] = True
 
     if args.overlay_source is not None:
         overlay_coords = np.genfromtxt(args.overlay_source[0], dtype=None)
@@ -261,34 +267,12 @@ def parseOptions(parser):
         overlay_coordinates = convert_equatorial_coordinate_to_pixel(
                 overlay_source_degree, bore_sight)
 
-        overlay_source = overlay_coordinates
-        overlay_source_name = overlay_coords[:, 0].astype('str')
+        paras["overlay_source"] = overlay_coordinates
+        paras["overlay_source_name"] = overlay_coords[:, 0].astype('str')
 
     else:
-        overlay_source = []
-        overlay_source_name = []
-
-
-    paras  = {"antennaCoords": antennaCoords,
-        "sourceCoord": sourceCoord,
-        "observeTime": observeTime,
-        "frequencies":frequencies,
-        "duration":duration,
-        "overlap":overlap,
-        "beamNum":beamnum,
-        "subarray":subarray,
-        "update_interval":update_interval,
-        "size":size,
-        "resolution":resolution,
-        "tilingMethod":tilingMethod,
-        "tilingShape":tilingShape,
-        "tilingParameter":tilingParameter,
-        "tilingParameterCoordinateType":tilingParameterCoordinateType,
-        "overlay_source":overlay_source,
-        "overlay_source_name":overlay_source_name,
-        "weights":weights,
-        "interpolation":interpolation,
-        "output":output}
+        paras["overlay_source"] = []
+        paras["overlay_source_name"] = []
 
     createBeamMatrix(**paras)
 
