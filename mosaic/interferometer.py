@@ -4,7 +4,7 @@
 import numpy as np
 
 import mosaic.coordinate as coord
-from mosaic.plot import plotBeamContour
+#from mosaic.plot import plotBeamContour
 from mosaic.utilities import normSigma, normInverse
 from mosaic.beamshape import calculateBeamSize, createBeamshapeModel
 
@@ -653,9 +653,11 @@ class InterferometryObservation:
         self.psf = PointSpreadFunction(image, self.boresight,
                 windowLength, self.WCS, equatorial_range)
 
+        '''
         if fileName is not None:
             plotBeamContour(image, self.boresight.equatorial, equatorial_range,
                     interpolation = self.interpolating, fileName = fileName, colormap = True)
+        '''
 
         # if baselineNum > 2:
             # resolution = windowLength/density

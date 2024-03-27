@@ -13,7 +13,7 @@ setup(name='mosaic',
           'numpy',
           'matplotlib',
           'katpoint',
-          'nvector == 0.7.6',
+          'nvector',
           'astropy'
       ],
       zip_safe=False)

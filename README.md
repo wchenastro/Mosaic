@@ -34,7 +34,10 @@ RUN pip install 'nvector==0.7.0' 'pillow==4.0.0' WCSAxes geographiclib katpoint
 
 Try Mosaic in your web browser [here](https://wchenastro.github.io/mosaic_web) without installing anything.
 
-To use offline, you can download the package, and import it in your code.
+To use offline, install the package via pip:
+```
+pip3 install https://github.com/wchenastro/Mosaic/archive/refs/heads/master.zip
+```
 
 ## Usage
 
@@ -45,7 +48,7 @@ There is a helper script `example/maketiling.py` to demonstrate the interface of
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
 --datetime 2020.05.02 06:02:13.663903 --verbose --subarray 000, 001, 002:0.7, 003:0.5+0.1j \
---size 900 --resolution 30 --psf_plot psf.png --psf_fit psf.fits --weight
+--size 900 --resolution 40 --psf_plot psf.png --psf_fit psf.fits --weight
 ```
 
 `--ants`: the file containing the antenna specification.
@@ -58,9 +61,11 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
  `--subarray`: a list of index for selection of antennas in the file specified by `--ants`. Optional scale or complex weight can be attached after each antenna index separated by a colon.
 
-`--resolution`: the scale of one single pixel in the pattern in seconds, default is None which means it is determined by the code.
+`--resolution`: the scale of one single pixel in the pattern in arc seconds, default is None which means it is determined by the code.
 
 `--size`: the total number of pixels in the simulation, default is 400 which corresponds to a pattern of 20x20 in dimension.
+
+`--field`: the side length of the field of view in sexagesimal unit, such as `60s` or `20m` or `1d`, default is None. `--resolution`, `--size` and `--field` can not be used all together, it can be combination of any two.
 
 `--psf_plot`: filename of the plot of the pattern, the file format can be anything that matplotlib supports, such as "jpeg, pdf".
 
@@ -70,12 +75,15 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--verbose`: print logs containing the input parameter and result, the input parameter listed in the log should reproduce the same result.
 
+Example output:
+![psf](https://gist.github.com/assets/34242412/a9cc13b5-a016-4507-abcc-10e0a2a2e5a6)
+
 ### Generate a tiling in specified overlap ratio and overlay some point sources on top of it
 
 ```
 python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
 --datetime 2020.05.02 06:02:13.663903 --beamnum 400 --verbose --overlap 0.7 \
---subarray 000, 001, 002, 003 --tiling_method variable_size \
+--subarray 000, 017, 036, 038, 041, 043, 044 --tiling_method variable_size \
 --tiling_shape circle --tiling_plot tiling.png --overlay_source overlay_sources
 ```
 
@@ -92,7 +100,10 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 
 `--tiling_plot`: the filename for the plot of the tiling, the file format can be anything that matplotlib supports, such as "jpeg, pdf".
 
-`--overlay_source`: the file containing the point sources to overlay, one per line,  in `identification RA DEC` format. for example: "A 13:26:39.670 -47:30:11.64"
+`--overlay_source`: the file containing the point sources to overlay, one per line,  in `identification RA DEC` format. for example: "C 00:23:50.3546 -72:04:31.5048"
+
+Example output:
+![tiling](https://gist.github.com/assets/34242412/1f97a9e3-fa74-42e4-824c-e2ab53ebcf50)
 
 ### Generate an elliptical shape tiling,  let the code decide a suitable overlap and output the coordinates
 
@@ -126,6 +137,11 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 `--tiling_parameter_file`: the filename of the polygon boundary region file from ds9
 
 `--tiling_region`: the filename for the region file of the generated tiling which can be imported into ds9
+
+Example:
+![ds9_region_NGC_4038](https://gist.github.com/assets/34242412/eeff8df6-8eed-417b-9adb-aaef78d55504)
+
+![ds9_beam_NGC_4038](https://gist.github.com/assets/34242412/afc0cac4-9fb2-4f1b-bd3c-5a2b4a47fa98)
 
 ## License
 

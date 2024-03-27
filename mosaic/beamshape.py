@@ -3,9 +3,10 @@ from scipy import interpolate
 from scipy.optimize import curve_fit
 from mosaic.utilities import normInverse
 import logging
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 from mosaic.fitEllipse import fit_ellipse
-from matplotlib.patches import Ellipse
+#from matplotlib.patches import Ellipse
+from contourpy import contour_generator, LineType
 
 loggerFormat = '%(asctime)-15s  %(filename)s  %(message)s'
 logging.basicConfig(format = loggerFormat, level=logging.WARNING)
@@ -293,7 +294,7 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
 
     # np.save("/tmp/trackimage", image)
     border = np.array(border)
-    if border != []:
+    if border.size == 0:
         topRow = border[:,0].max()
         bottomRow = border[:,0].min()
         image[topRow+1:, :] = filling
@@ -397,6 +398,7 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
     # print(levels)
     # levels = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.975]
     # levels = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    '''
     plot = False
     if plot == True:
         thisDpi = 96
@@ -413,9 +415,41 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
     else:
         fig, ax0 = plt.subplots()
     contour = ax0.contour(image, levels)
+    '''
     dataShape = image.shape
     center = np.unravel_index(image.argmax(), dataShape)
+    contourGenerator = contour_generator(z=image, line_type=LineType.SeparateCode)
     count = 0.1
+    for level in levels:
+        count += 0.025
+        vertices, kind = contourGenerator.create_contour(level)
+        powerline = None
+        fulllength = 0
+        segLength = len(vertices)
+        if segLength > 1:
+            for vertice in vertices:
+                fulllength += len(vertice)
+            minimalLength = int(fulllength * 0.2)
+            for segIndex, seg in enumerate(vertices):
+                if len(seg) < minimalLength:
+                    continue
+                if powerline is None:
+                    powerline = seg
+                else:
+                    powerline = np.concatenate((powerline, seg))
+        elif segLength == 1:
+            powerline = np.array(vertices[0])
+        else:
+            powerline = None
+
+        if powerline is None:
+            if count > 0.2:
+                logger.warning('level {} countour is None!'.format(count))
+            para = [np.nan, np.nan, 0, 0, np.nan]
+        else:
+            para = fitContour(powerline)
+        samples.append(para)
+    '''
     for segs, coll in zip(contour.allsegs, contour.collections):
         count += 0.025
         powerline = None
@@ -456,6 +490,7 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
             ellipse = Ellipse(center, width=2*para[0], height=2*para[1], angle=np.rad2deg(para[4]))
             ellipse.fill = False
             ax1.add_artist(ellipse)
+    '''
 
     ### check NaN ##
     samples = np.array(samples).T
@@ -531,6 +566,7 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
     # print(len(levelInterp), len(levelLinearInterp))
 
 
+    '''
     if plot == True:
         ax2.plot(levels, samples[:, 0])
         ax3.plot(levels, samples[:, 1])
@@ -558,6 +594,7 @@ def createBeamshapeModel(originalImage, density, windowLength, interpolatedLengt
         fig.savefig("plots/levels.png")
 
     plt.close()
+    '''
 
     beamshapeModel = np.array([levelLinearInterp, majorInterped, minorInterped, angleInterped]).T
 

@@ -88,6 +88,7 @@ def parseOptions(parser):
     parser.add_argument('--antenna_coordinate_type', nargs=1, metavar="type", help='antenna coodinates type, e.g. "katpoint" or "geo"')
     parser.add_argument('--resolution', nargs=1, metavar="asec", help='resolution in arcsecond')
     parser.add_argument('--size', nargs=1, metavar="num", help='width in pixels')
+    parser.add_argument('--field', nargs=1, metavar="num", help='side length of the field of view in sexagesimal unit')
     parser.add_argument('--freqrange', nargs=3, metavar=('s', 't', 'i'), help='freqencies range as start stop interval')
     parser.add_argument('--freq', nargs='+',  help='multiple freqencies')
     parser.add_argument('--frame', nargs=1, metavar="RADEC/AziAlt", help='source coordinate frame')
@@ -195,14 +196,40 @@ def parseOptions(parser):
     else:
         paras["overlap"] = 0.5
 
-    if args.resolution is not None:
+    if args.size and args.resolution and args.field:
+        parser.error("size, resolution and field can not be used all together.")
+
+    if args.size and args.resolution:
         paras["resolution"] = float(args.resolution[0])
-    else:
-        paras["resolution"] = None
-    if args.size is not None:
         paras["size"] = int(args.size[0])
+    elif args.size and args.field:
+        paras["size"] = int(args.size[0])
+        density = int(np.sqrt(paras["size"]))
+        if density % 2 != 0: density += 1
+        field = convertFieldUnit(''.join(args.field))
+        paras["resolution"] = field/density
+        logger.info(f"Resolution have been set to {paras['resolution']}")
+    elif args.resolution and args.field:
+        paras["resolution"] = float(args.resolution[0])
+        field = convertFieldUnit(''.join(args.field))
+        paras["size"] = (field / paras["resolution"])**2
+    elif args.resolution:
+        paras["resolution"] = float(args.resolution[0])
+        paras["size"] = 400
+    elif args.size:
+        paras["size"] = int(args.size[0])
+        paras["resolution"] = None
+    elif args.field:
+        paras["size"] = 400
+        density = int(np.sqrt(paras["size"]))
+        if density % 2 != 0: density += 1
+        field = convertFieldUnit(''.join(args.field))
+        paras["resolution"] = field/density
+        logger.info(f"Resolution have been set to {paras['resolution']}")
     else:
         paras["size"] = 400
+        paras["resolution"] = None
+
     if args.freqrange is None and args.freq is None:
         parser.error("no freqencies or frequency range specified")
     elif args.freq is not None:
@@ -262,7 +289,7 @@ def parseOptions(parser):
         overlay_coords = np.genfromtxt(args.overlay_source[0], dtype=None)
         if len(overlay_coords.shape) == 1:
             overlay_coords = overlay_coords.reshape(1, -1)
-        bore_sight = convert_sexagesimal_to_degree([sourceCoord,])[0]
+        bore_sight = convert_sexagesimal_to_degree([paras["sourceCoord"],])[0]
         overlay_source_degree = convert_sexagesimal_to_degree(overlay_coords[:, 1:])
         overlay_coordinates = convert_equatorial_coordinate_to_pixel(
                 overlay_source_degree, bore_sight)
@@ -279,6 +306,18 @@ def parseOptions(parser):
 def captureNegetiveNumber():
     for i, arg in enumerate(sys.argv):
           if (arg[0] == '-') and arg[1].isdigit(): sys.argv[i] = ' ' + arg
+
+def convertFieldUnit(fieldString):
+    if fieldString[-1] in ["s", "m", "d"]:
+        if fieldString[-1] == "s":
+            value = float(fieldString[:-1])
+        elif fieldString[-1] == "m":
+            value = float(fieldString[:-1])*60
+        elif fieldString[-1] == "d":
+            value = float(fieldString[:-1])*3600
+    else:
+        value = float(fieldString)
+    return value
 
 def main():
     captureNegetiveNumber()
