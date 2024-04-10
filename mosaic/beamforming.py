@@ -131,6 +131,8 @@ class PsfSim(object):
         if beam_size != None:
             self.observation.setAutoZoom(False)
             self.observation.setBeamSizeFactor(beam_size)
+        if isinstance(source, katpoint.Target):
+            self.observation.setTargetName(source.name)
         self.observation.setAntennaWeights(weights)
         self.observation.createContour(self.antennas)
         axisH, axisV, angle, image_range = self.observation.getBeamAxis()

@@ -40,6 +40,7 @@ class InterferometryObservation:
         self.gridNumOfDFT = 100000.0
         self.imageDensity = 20
         self.resolution = 1/3600.0
+        self.targetName = "main"
         self.weights = None
         self.boresightFrame = coord.Boresight.EquatorialFrame
         self.updateBeamCoordinates(self.beamSizeFactor, self.imageDensity, self.gridNumOfDFT)
@@ -58,6 +59,9 @@ class InterferometryObservation:
         if type(dateTime) != datetime.datetime:
             dateTime = coord.epochToDatetime(dateTime)
         self.observeTime = dateTime
+
+    def setTargetName(self, targetName):
+        self.targetName = targetName
 
     def setAntennaWeights(self, weights):
         self.antennaWeights = weights
@@ -523,7 +527,7 @@ class InterferometryObservation:
 
         self.baselines = self.array.getBaselines()
 
-        self.boresight = coord.Boresight("main", self.boresightCoord, self.observeTime,
+        self.boresight = coord.Boresight(self.targetName, self.boresightCoord, self.observeTime,
                 self.arrayReferece, self.boresightFrame)
 
         self.projectedBaselines = self.array.getRotatedProjectedBaselines(self.boresight)
@@ -670,9 +674,10 @@ class InterferometryObservation:
             # self.beamAxis[0:3] = [sizeInfo[0], sizeInfo[1], sizeInfo[2]]
 
         self.imageData = image
+        sourceName = ('' if self.targetName == 'main' else self.targetName + " ") + str(self.boresightInput)
         logger.info("beamshape simulation inputs, freq: {:.5g}, source: {}, "
                     "time: {}, subarray: {}".format(299792458./self.waveLength,
-                        self.boresightInput, self.observeTime,
+                        sourceName, self.observeTime,
                         [ant.name for ant in antennas] if self.antennaWeights is None
                         else ["{}:{}".format(ant.name, antWeight) for ant, antWeight in zip(antennas, self.antennaWeights)]))
         return image
