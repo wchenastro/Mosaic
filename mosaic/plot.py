@@ -273,7 +273,7 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle, resolution
         fileName='contourfit.png', colormap = False, interpolation = True,
         shapeOverlay = False, output_format = 'png'):
     thisDpi = 96.
-    matplotlib.rcParams.update({'font.size': 8})
+    matplotlib.rcParams.update({'font.size': 20})
 
     shape = np.array(array).shape
     step = resolution
@@ -284,9 +284,9 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle, resolution
     wcs_properties.wcs.ctype = ["RA---TAN", "DEC--TAN"]
 
     if(colormap == True):
-        fig = plt.figure(figsize=(400./thisDpi, 300./thisDpi), dpi=thisDpi)
+        fig = plt.figure(figsize=(1700./thisDpi, 1600./thisDpi), dpi=thisDpi)
     else:
-        fig = plt.figure(figsize=(400./thisDpi, 400./thisDpi), dpi=thisDpi)
+        fig = plt.figure(figsize=(1600./thisDpi, 1600./thisDpi), dpi=thisDpi)
 
     axis = fig.add_subplot(111,aspect='equal', projection=wcs_properties)
     interpolateOption = 'bicubic' if interpolation == True else 'nearest'
@@ -309,14 +309,15 @@ def plotBeamWithFit(array, center, sideLength, widthH, widthV, angle, resolution
     ra = axis.coords[0]
     dec = axis.coords[1]
     ra.set_major_formatter('hh:mm:ss')
-    ra.set_ticklabel(size=8)
-    dec.set_ticklabel(size=8, rotation="vertical")
+    ra.set_ticklabel(size=20)
+    dec.set_ticklabel(size=20, rotation="vertical", va="bottom")
+
     dec.set_ticks_position('l')
     ra.set_ticks_position('b')
-    ra.set_axislabel("RA", size=8)
+    ra.set_axislabel("RA", size=20)
     dec.set_major_formatter('dd:mm:ss')
-    dec.set_axislabel("DEC", size=8)
-    plt.subplots_adjust(left=0.10, bottom=0.10, right=0.98, top=0.96,
+    dec.set_axislabel("DEC", size=20)
+    plt.subplots_adjust(left=0.05, bottom=0.05, right=0.98, top=0.98,
             wspace=0, hspace=0)
 
     if isinstance(fileName, str) is True:

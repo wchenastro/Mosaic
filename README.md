@@ -59,7 +59,7 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 `--verbose`: print logs containing the input parameter and result, the input parameter listed in the log should reproduce the same result.
 
 Example output:
-![psf](https://gist.github.com/user-attachments/assets/da20e099-9853-4b6b-a6a6-4515547b81cc)
+![psf](https://gist.githubusercontent.com/wchenastro/eb0159359511808ff7d0363db9b32d8b/raw/d57ba74209627de65307f99809d1fa92e34b8c79/psf.png)
 
 ### Generate a tiling in specified overlap ratio and overlay some point sources on top of it
 
@@ -86,7 +86,7 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 `--overlay_source`: the file containing the point sources to overlay, one per line,  in `identification RA DEC` format. for example: "C 00:23:50.3546 -72:04:31.5048"
 
 Example output:
-![tiling](https://gist.github.com/user-attachments/assets/6ac699df-f0e1-4c7d-8728-a06f740561ab)
+![circular_tiling](https://gist.githubusercontent.com/wchenastro/eb0159359511808ff7d0363db9b32d8b/raw/d57ba74209627de65307f99809d1fa92e34b8c79/circular_tiling.png)
 
 ### Generate an elliptical shape tiling,  let the code decide a suitable overlap and output the coordinates
 
@@ -109,7 +109,7 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 -  "`--tiling_shape polygon --tiling_parameter 6.1522476, -72.0506681, 5.9448280, -72.0557907, 5.8695621, -72.0879815, 6.0670744, -72.1139826`": a polygonal shape tiling with its vertices in "RA1, DEC1, RA2, DEC2, RA3, DEC3" format.
 
 Example output:
-![tiling_ellipse](https://gist.github.com/user-attachments/assets/bca7d2a4-d96c-4e53-b3f3-82a5c530bed9)
+![elliptical_tiling](https://gist.githubusercontent.com/wchenastro/eb0159359511808ff7d0363db9b32d8b/raw/d57ba74209627de65307f99809d1fa92e34b8c79/elliptical_tiling.png)
 
 
 ### Generate a polygon shape tiling using a boundary region file and generate a region file for all the beams
@@ -129,7 +129,7 @@ Example:
 
 |                                       Create a region in ds9                                        |                                        Create a tiling within the region                                        |
 | :-------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------: |
-| ![ds9 region](https://gist.github.com/user-attachments/assets/28820893-53b8-4f43-9a43-bc075719a625) | ![ds9 region with tiling](https://gist.github.com/user-attachments/assets/abe19b2a-7f4b-446a-8805-e205bebad37c) |
+| ![ds9 region](https://gist.githubusercontent.com/wchenastro/eb0159359511808ff7d0363db9b32d8b/raw/d57ba74209627de65307f99809d1fa92e34b8c79/ds9_region.png) | ![ds9 region with tiling](https://gist.githubusercontent.com/wchenastro/eb0159359511808ff7d0363db9b32d8b/raw/d57ba74209627de65307f99809d1fa92e34b8c79/ds9_region_tiling.png) |
 
 ### Generate an annulus shape tiling with different shape of boundaries.
 
@@ -140,7 +140,7 @@ python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -
 `--tiling_parameter polygon 9.00,-72.5,8.5,-71.2,3,-71.5,2,-73:ellipse 0.4 0.6 100`: an annulus shape with a polygon as the outer boundary and an ellipse as the inner boundary. The parameters of outer and inner boundaries are separated with an "`:`", each set of parameters starts with the name of the shape. Currently, only boundaries of polygon and ellipse shape are supported. If the vectors of the polygon are provided by a file, then it can be specified as `--tiling_parameter polygon:ellipse 0.4 0.6 100 --tiling_parameter_file polygon.reg`
 
 Example:
-![tiling_annulus](https://gist.github.com/user-attachments/assets/83288929-ad5f-41e6-9a97-b3b6357e5399)
+![annulus_tiling](https://gist.githubusercontent.com/wchenastro/eb0159359511808ff7d0363db9b32d8b/raw/d57ba74209627de65307f99809d1fa92e34b8c79/annulus_tiling.png)
 ## License
 
 [MIT](https://github.com/wchenastro/Mosaic/blob/master/LICENSE)
