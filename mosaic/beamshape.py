@@ -156,11 +156,22 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
     # np.save('overlapCounter', overlapCounter)
 
 
+def interpolate_image(originalImage, density, interpolatedLength):
+    dimension_original = range(density)
+    dimension_new = np.linspace(0, density-1, interpolatedLength, endpoint = False)
+    dimension_new_grid = np.meshgrid(dimension_new, dimension_new, indexing='ij')
+
+    interpolater = interpolate.RegularGridInterpolator(
+            (dimension_original, dimension_original), originalImage, method='cubic')
+    image = interpolater((dimension_new_grid[0], dimension_new_grid[1]))
+
+    return image
+
+
 def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 800):
 
-    interpolater = interpolate.interp2d(range(density), range(density), image_orig ,kind='cubic')
-    image = interpolater(np.linspace(0, density - 1, interpolatedLength),
-            np.linspace(0, density - 1, interpolatedLength))
+    image = interpolate_image(image_orig, density, interpolatedLength)
+
     # np.savetxt('interpolate', image)
     interpolatedGrid = interpolatedLength*1.0/density
 
@@ -294,7 +305,7 @@ def trackBorder(image_orig, threshold = 0.3, density = 20, interpolatedLength = 
 
     # np.save("/tmp/trackimage", image)
     border = np.array(border)
-    if border.size == 0:
+    if border.size != 0:
         topRow = border[:,0].max()
         bottomRow = border[:,0].min()
         image[topRow+1:, :] = filling
@@ -387,9 +398,7 @@ def fitEllipse(image):
 
 def createBeamshapeModel(originalImage, density, windowLength, interpolatedLength = 800):
 
-    interpolater = interpolate.interp2d(range(density), range(density), originalImage, kind='cubic')
-    image = interpolater(np.linspace(0, density, interpolatedLength, endpoint = False),
-                np.linspace(0, density, interpolatedLength, endpoint = False))
+    image = interpolate_image(originalImage, density, interpolatedLength)
 
     samples = []
 

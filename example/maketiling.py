@@ -260,26 +260,60 @@ def parseOptions(parser):
                 paras["tilingParameter"] = [float(args.tiling_parameter[0]),
                                     float(args.tiling_parameter[1])]
             elif paras["tilingShape"] == "ellipse":
-                paras["tilingParameter"] = [float(args.tiling_parameter[0]),
-                                    float(args.tiling_parameter[1]),
-                                    float(args.tiling_parameter[2])]
+                paras["tilingParameter"] = read_ellipse_parameters(
+                        args.tiling_parameter)
             elif paras["tilingShape"] == "polygon":
-                if args.tiling_parameter is not None:
-                    parameterString = "".join(args.tiling_parameter).split(",")
-                    tilingParameter = [float(coord) for coord in parameterString]
-                    paras["tilingParameter"] = np.array(tilingParameter).reshape(-1,2).tolist()
-                elif args.tiling_parameter_file is not None:
-                    paras["tilingParameter"] = readPolygonRegion(
-                            args.tiling_parameter_file[0]).tolist()
-                else:
+                paras["tilingParameter"] = read_polygon_parameters(
+                        args.tiling_parameter, args.tiling_parameter_file)
+                if paras["tilingParameter"] is None:
                     parser.error("no parameter for polygon tiling!")
                     exit(-1)
-        else:
+            elif paras["tilingShape"] == "annulus":
+                parameter_string_full = " ".join(args.tiling_parameter)
+                parameter_parts = parameter_string_full.split(":")
+                paras["tilingParameter"] = []
+                for parameter_part in parameter_parts:
+                    shape_name_detected = False
+                    name_start = 0
+                    name_end = 0
+                    for index, character in enumerate(parameter_part):
+                        if shape_name_detected == False:
+                            if character != " ":
+                                shape_name_detected = True
+                                name_start = index
+                            else:
+                                continue
+                        else:
+                            if character == " ":
+                                name_end = index
+                                break
+                    if name_end == 0:
+                        shape_name = parameter_part[name_start:]
+                        shape_parameter_string = ''
+                    else:
+                        shape_name = parameter_part[name_start:name_end]
+                        shape_parameter_string = parameter_part[name_end:]
+                    if shape_name == "ellipse":
+                        parameter_parts = shape_parameter_string.strip().split(" ")
+                        shape_parameter = read_ellipse_parameters(parameter_parts)
+                    elif shape_name == "polygon":
+                        shape_parameter = read_polygon_parameters(
+                                shape_parameter_string.strip(), args.tiling_parameter_file)
+                    else:
+                        parser.error(f"{shape_name} is not recognized!")
+                        exit(-1)
+                    paras["tilingParameter"].append([shape_name, shape_parameter])
+            else:
+                parser.error(f"{paras['tilingShape']} is not recognized!")
+                exit(-1)
+        elif args.tiling_method[0] == "variable_size":
+            paras["tilingMethod"] = "variable_size"
             paras["tilingParameter"] = None
     else:
         paras["tilingMethod"] = "variable_size"
         paras["tilingParameter"] = None
 
+    print(paras["tilingParameter"])
     if args.no_interpolation:
         paras["interpolation"] = False
     else:
@@ -302,6 +336,26 @@ def parseOptions(parser):
         paras["overlay_source_name"] = []
 
     createBeamMatrix(**paras)
+
+def read_ellipse_parameters(tiling_parameter):
+    tilingParameter = [float(tiling_parameter[0]),
+                        float(tiling_parameter[1]),
+                        float(tiling_parameter[2])]
+    return tilingParameter
+
+def read_polygon_parameters(tiling_parameter, tiling_parameter_file):
+    if tiling_parameter:
+        parameterSegments = "".join(tiling_parameter).split(",")
+        tilingParameter = [float(coord) for coord in parameterSegments]
+        tilingParameter = np.array(tilingParameter).reshape(-1,2).tolist()
+    elif tiling_parameter_file is not None:
+        tilingParameter = readPolygonRegion(tiling_parameter_file[0]).tolist()
+    else:
+        print("no parameter for polygon tiling!")
+        exit(-1)
+
+    return tilingParameter
+
 
 def captureNegetiveNumber():
     for i, arg in enumerate(sys.argv):

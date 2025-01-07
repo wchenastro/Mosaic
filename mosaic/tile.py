@@ -78,7 +78,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
         np.random.seed(int(seed))
 
     trialCount = 0
-    betterTiling = [np.Inf]
+    betterTiling = [np.inf]
     maxInsideCount  = -1
     maxTrial = 150
     indexList = []
@@ -218,7 +218,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
         if trialCount > 149:
             condition["optimized"] = False;
             condition["cause"] = "maximum trials";
-            actualDiff = np.Inf
+            actualDiff = np.inf
             break
             # if abs(insideCount - beamNumber) < int(beamNumber*0.1):
                 # logger.warning("maximum trials reached in the tiling process, "
@@ -232,7 +232,7 @@ def createTiling(method, beamNumber, beamshape, overlap, tilingShape, parameter,
                     # "the margin threshold if needed." % (beamNumber, insideCount))
                 # break
 
-    if betterTiling != [np.Inf] and beamNumber < insideCount or (beamNumber - insideCount) > betterTiling[0]:
+    if betterTiling != [np.inf] and beamNumber < insideCount or (beamNumber - insideCount) > betterTiling[0]:
     # if  beamNumDiff > betterTiling[0]:
         # print("use better tiling")
         insideCoordinates, scale, (axisH, axisV, angle, overlap) = betterTiling[1:]
