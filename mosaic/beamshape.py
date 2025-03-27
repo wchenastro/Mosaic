@@ -159,11 +159,16 @@ def calculateBeamOverlaps(ellipseCenters, radius, majorAxis, minorAxis, rotation
 def interpolate_image(originalImage, density, interpolatedLength):
     dimension_original = range(density)
     dimension_new = np.linspace(0, density-1, interpolatedLength, endpoint = False)
-    dimension_new_grid = np.meshgrid(dimension_new, dimension_new, indexing='ij')
 
-    interpolater = interpolate.RegularGridInterpolator(
-            (dimension_original, dimension_original), originalImage, method='cubic')
-    image = interpolater((dimension_new_grid[0], dimension_new_grid[1]))
+    #  dimension_new_grid = np.meshgrid(dimension_new, dimension_new, indexing='ij')
+    #  interpolater = interpolate.RegularGridInterpolator(
+            #  (dimension_original, dimension_original), originalImage, method='cubic')
+    #  image = interpolater((dimension_new_grid[0], dimension_new_grid[1]))
+
+
+    intepolater = interpolate.RectBivariateSpline(
+            dimension_original, dimension_original, originalImage.T)
+    image = intepolater(dimension_new, dimension_new).T
 
     return image
 

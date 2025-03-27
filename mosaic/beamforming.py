@@ -1,12 +1,14 @@
 import numpy as np
 import datetime, logging
-import katpoint
 import mosaic.coordinate as coord
 from mosaic.interferometer import InterferometryObservation
 from mosaic.tile import createTiling
-from mosaic.plot import plotPackedBeam, plotBeamContour, plotBeamWithFit, plot_interferometry, plot_overlap
+from mosaic.plot import plotPackedBeam, plotBeamContour
+from mosaic.plot import plotBeamWithFit, plot_interferometry, plot_overlap
 from mosaic.beamshape import calculateBeamOverlaps
 from mosaic.utilities import normInverse
+
+import katpoint
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,9 @@ class PsfSim(object):
         antennas = np.array(antennas)
         if isinstance(antennas[0], np.ndarray):
             antenna_coordinates = antennas
-            names = ["%03d" % i for i in range(len(antennas))]
+            names = [str(ant_geo) for ant_geo in antennas]
+        elif isinstance(antennas[0], coord.Antenna):
+            return antennas
         elif isinstance(antennas[0], katpoint.Antenna):
             antenna_coordinates = from_katpoint_list(antennas)
             names = [ant.name for ant in antennas]

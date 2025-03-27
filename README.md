@@ -134,7 +134,11 @@ Example:
 ### Generate an annulus shape tiling with different shape of boundaries.
 
 ```
-python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 --datetime 2020.05.02 06:02:13.663903 --beamnum 400 --verbose --subarray 000, 001, 002, 003 --tiling_method variable_overlap --tiling_shape annulus --tiling_parameter polygon 9.00,-72.5,8.5,-71.2,3,-71.5,2,-73:ellipse 0.4 0.6 100 --tiling_plot tiling.png --tiling_coordinate coordinate.csv
+python3 ./maketiling.py --ants antenna.csv --freq 1.284e9 --source 00:24:05.67 -72:04:52.60 \
+--datetime 2020.05.02 06:02:13.663903 --beamnum 400 --verbose --subarray 000, 001, 002, 003 \
+--tiling_method variable_overlap --tiling_shape annulus --tiling_parameter \
+polygon 9.00,-72.5,8.5,-71.2,3,-71.5,2,-73:ellipse 0.4 0.6 100 --tiling_plot tiling.png \
+--tiling_coordinate coordinate.csv
 ```
 
 `--tiling_parameter polygon 9.00,-72.5,8.5,-71.2,3,-71.5,2,-73:ellipse 0.4 0.6 100`: an annulus shape with a polygon as the outer boundary and an ellipse as the inner boundary. The parameters of outer and inner boundaries are separated with an "`:`", each set of parameters starts with the name of the shape. Currently, only boundaries of polygon and ellipse shape are supported. If the vectors of the polygon are provided by a file, then it can be specified as `--tiling_parameter polygon:ellipse 0.4 0.6 100 --tiling_parameter_file polygon.reg`

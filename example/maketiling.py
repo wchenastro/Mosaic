@@ -313,7 +313,6 @@ def parseOptions(parser):
         paras["tilingMethod"] = "variable_size"
         paras["tilingParameter"] = None
 
-    print(paras["tilingParameter"])
     if args.no_interpolation:
         paras["interpolation"] = False
     else:

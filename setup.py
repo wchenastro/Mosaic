@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='mosaic',
-      version='1.4.0',
+      version='1.5.0',
       description='Code for generating point spread functions and beam tiling for radio interferometers',
       url='https://github.com/wchenastro/Mosaic',
       author='Weiwei Chen',
@@ -11,8 +11,9 @@ setup(name='mosaic',
       install_requires=[
           'scipy',
           'numpy',
-          'matplotlib',
+          'contourpy',
           'katpoint',
+          'matplotlib',
           'nvector',
           'astropy'
       ],
