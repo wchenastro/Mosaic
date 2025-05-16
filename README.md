@@ -3,9 +3,6 @@
 A software package consists of an interferometric pattern simulator and characterizer, an optimized tiling generator and a beamforming weights calculator. This document only describes the package from version 1.0.0. __Try Mosaic in your web browser [here](https://wchenastro.github.io/mosaic_web).__
 
 ## Dependent
-
-For python 3.8.5+
-
 - numpy
 - scipy
 - matplotlib
@@ -17,9 +14,9 @@ For python 3.8.5+
 
 Try Mosaic in your web browser [here](https://wchenastro.github.io/mosaic_web) without installing anything.
 
-To use offline, install the package via pip:
+To use offline, install git via system package manager then install the package via pip:
 ```
-pip3 install https://github.com/wchenastro/Mosaic/archive/refs/heads/master.zip
+pip install git+https://github.com/wchenastro/Mosaic.git
 ```
 
 ## Usage

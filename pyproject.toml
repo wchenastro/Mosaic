@@ -1,0 +1,44 @@
+[project]
+name = "mosaic"
+authors = [
+  { name="Weiwei Chen", email="wchen@mpifr-bonn.mpg.de" },
+]
+description = "Mosaic: Multibeamformed observation simulation and interferometry characterization"
+readme = "README.md"
+requires-python = ">=3.9"
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+dynamic = ["version"]
+dependencies = [
+  'scipy',
+  'numpy',
+  'contourpy',
+  'katpoint',
+  'matplotlib',
+  'nvector',
+  'astropy'
+]
+
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/wchenastro/Mosaic"
+Issues = "https://github.com/wchenastro/Mosaic/issues"
+
+[build-system]
+requires = ["setuptools", "setuptools-git-versioning>=2.0,<3",]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools-git-versioning]
+enabled = true
+template = "{tag}+g{sha}.{timestamp:%Y%m%d}"
+dev_template = "{tag}+g{sha}.d{ccount}.{timestamp:%Y%m%d}"
+dirty_template = "{tag}+g{sha}.d{ccount}.{timestamp:%Y%m%d}.uncommited"
